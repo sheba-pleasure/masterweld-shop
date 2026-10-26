@@ -1,0 +1,50 @@
+name: verify
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.x
+      - name: Install (lockfile)
+        run: bun install --frozen-lockfile
+      - name: Tests (обязательно)
+        run: npm test
+      - name: Build default preset (обязательно)
+        run: npm run build
+      - name: Build node-server + проверка точки входа (обязательно)
+        run: |
+          rm -rf .output
+          NITRO_PRESET=node-server npx vite build
+          test -f .output/server/index.mjs
+      - name: Ops shell syntax + synthetic release tests (обязательно)
+        run: |
+          for f in ops/*.sh ops/tests/*.sh; do bash -n "$f"; done
+          bash ops/tests/release-synthetic.sh
+      - name: ESLint изменённых файлов (advisory)
+        continue-on-error: true
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          FILES=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- '*.ts' '*.tsx' '*.js' 2>/dev/null || true)
+          if [ -z "$FILES" ]; then echo "нет изменённых JS/TS файлов"; exit 0; fi
+          npx eslint $FILES
+      - name: Полный lint (advisory, известный долг ~407 ошибок)
+        continue-on-error: true
+        run: npm run lint
