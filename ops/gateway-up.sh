@@ -6,7 +6,7 @@ set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 [ "${CONFIRM_SERVER_CHANGE:-}" = yes ] || die "запуск на сервере требует CONFIRM_SERVER_CHANGE=yes"
 docker inspect "$GATEWAY_NAME" >/dev/null 2>&1 && die "$GATEWAY_NAME уже существует"
-[ -f "$STATE_DIR/gateway/default.conf" ] || write_gateway_conf "$(slot_port a)"
+[ -f "$STATE_DIR/gateway/default.conf" ] || write_gateway_maintenance
 docker run -d --name "$GATEWAY_NAME" --restart unless-stopped \
   --network host \
   -v "$STATE_DIR/gateway:/etc/nginx/conf.d:ro" \

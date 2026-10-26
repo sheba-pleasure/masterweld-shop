@@ -106,4 +106,49 @@ switch_gateway() {
   docker exec "$GATEWAY_NAME" nginx -t >/dev/null && docker exec "$GATEWAY_NAME" nginx -s reload >/dev/null
 }
 
-approved_contains() { grep -qx "$1 $2" "$STATE_DIR/approved" 2>/dev/null; }
+# Локальные файлы состояния: обычный файл (не symlink), владелец — текущий пользователь,
+# без записи для группы/других. Иначе — отказ (fail closed).
+require_state_file() {
+  local f="$STATE_DIR/$1" owner mode
+  { [ -f "$f" ] && [ ! -L "$f" ]; } || die "файл состояния $1 отсутствует или не обычный файл"
+  owner="$(stat -c %u "$f")"; mode="$(stat -c %a "$f")"
+  [ "$owner" = "$(id -u)" ] || die "файл состояния $1 принадлежит чужому пользователю"
+  (( (8#$mode & 8#022) == 0 )) || die "файл состояния $1 доступен на запись группе/другим ($mode)"
+}
+
+# Журнал утверждённых выпусков: только дописывается release.sh после успешного выпуска.
+approved_contains() { require_state_file approved; grep -qx "$1 $2" "$STATE_DIR/approved"; }
+approved_append() {
+  mkdir -p "$STATE_DIR"
+  [ -e "$STATE_DIR/approved" ] || ( umask 022; : > "$STATE_DIR/approved" )
+  require_state_file approved
+  printf '%s %s\n' "$1" "$2" >> "$STATE_DIR/approved"
+}
+
+# Взаимное исключение release/rollback/build: один lock, без ожидания (fail closed).
+acquire_lock() {
+  mkdir -p "$STATE_DIR"
+  exec 9>"$STATE_DIR/release.lock"
+  flock -n 9 || die "другая операция выпуска/отката уже выполняется (release.lock) — отказ"
+}
+
+# SHA контейнера по меткам: mw-shop.sha и revision образа должны совпасть.
+container_sha() {
+  local name="$1" a b
+  a="$(docker inspect --format '{{ index .Config.Labels "mw-shop.sha" }}' "$name" 2>/dev/null)" || return 1
+  b="$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$name" 2>/dev/null)" || return 1
+  [ -n "$a" ] && [ "$a" = "$b" ] || return 1
+  printf '%s' "$a"
+}
+
+# Вход без рабочего slot отвечает 503 (первый запуск, неудачный первый выпуск).
+write_gateway_maintenance() {
+  mkdir -p "$STATE_DIR/gateway"
+  printf '%s\n' "# Генерируется ops/lib.sh. Нет рабочего slot: 503." "server {" \
+    "  listen $BIND_IP:$GATEWAY_PORT;" "  location / { return 503; }" "}" > "$STATE_DIR/gateway/default.conf.tmp"
+  mv "$STATE_DIR/gateway/default.conf.tmp" "$STATE_DIR/gateway/default.conf"
+}
+gateway_maintenance() {
+  write_gateway_maintenance
+  docker exec "$GATEWAY_NAME" nginx -t >/dev/null && docker exec "$GATEWAY_NAME" nginx -s reload >/dev/null
+}
