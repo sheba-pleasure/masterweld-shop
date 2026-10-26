@@ -1,0 +1,4 @@
+sku;price;cost
+TEST-DUP-01;100;50
+TEST-DUP-01;200;60
+TEST-OK-02;300;100
