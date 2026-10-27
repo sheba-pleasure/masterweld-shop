@@ -554,7 +554,7 @@
   .checkout-details { border-left: 1px solid color-mix(in oklab, var(--brand-yellow) 20%, transparent); padding-left: 16px; }
 }
 
-/* Continuation of the hero's garage, down past the steel workbench. */
+/* Artifact-free steel backdrop: vector gradients and hairline grid, never raster upscaling. */
 .workshop-catalog {
   position: relative;
   isolation: isolate;
@@ -570,10 +570,10 @@
   color: var(--workshop-ink);
   background-color: var(--workshop-surface);
   background-image:
-    linear-gradient(to bottom, var(--brand-deep), transparent 120px, transparent 1050px, var(--workshop-surface) 1650px),
-    url("./assets/brand/workshop-descent.jpg");
-  background-position: center top;
-  background-size: 100% 1650px, auto 1650px;
+    linear-gradient(180deg, var(--brand-deep) 0%, color-mix(in oklab, var(--brand-deep) 75%, transparent) 110px, transparent 360px),
+    radial-gradient(ellipse 88% 520px at 80% 90px, oklch(0.78 0.11 94 / 0.12), transparent 76%),
+    radial-gradient(ellipse 75% 720px at 8% 980px, oklch(0.45 0.025 248 / 0.17), transparent 80%),
+    linear-gradient(154deg, oklch(0.18 0.008 90), oklch(0.235 0.011 88) 58%, oklch(0.17 0.008 90));
   background-repeat: no-repeat;
 }
 .workshop-catalog::before {
@@ -581,7 +581,11 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  background: linear-gradient(to right, color-mix(in oklab, var(--workshop-surface) 60%, transparent), transparent 35%, transparent 80%, color-mix(in oklab, var(--workshop-surface) 30%, transparent));
+  background-image:
+    linear-gradient(to right, oklch(0.94 0.012 92 / 0.065) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.94 0.012 92 / 0.04) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(to bottom, black 0%, black 900px, transparent 2000px);
   pointer-events: none;
 }
 .workshop-catalog nav {
@@ -597,12 +601,24 @@
   padding-top: 16px;
 }
 .workshop-catalog li {
-  box-shadow: 0 8px 20px color-mix(in oklab, var(--workshop-surface) 75%, transparent);
+  border-color: oklch(0.58 0.02 92 / 0.58);
+  box-shadow: 0 12px 28px oklch(0 0 0 / 0.32), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  transition: box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
-@media (min-width: 768px) {
-  .workshop-catalog {
-    background-size: 100% 2100px, 100% auto;
+.workshop-catalog li:hover {
+  border-color: color-mix(in oklab, var(--brand-yellow) 36%, var(--workshop-border));
+  box-shadow: 0 17px 38px oklch(0 0 0 / 0.42);
+  transform: translateY(-2px);
+}
+@media (max-width: 767px) {
+  .workshop-catalog::before {
+    background-size: 64px 64px;
+    opacity: 0.7;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workshop-catalog li { transition: none; }
+  .workshop-catalog li:hover { transform: none; }
 }
 .search-field:focus {
   outline: 2px solid color-mix(in oklab, var(--brand-yellow) 60%, transparent);
