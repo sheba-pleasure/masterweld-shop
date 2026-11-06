@@ -1,0 +1,412 @@
+﻿family_code;family_name;root_section;process;key;label;type;unit;filter;priority
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mains_phases;Число фаз;enum;;primary;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mains_nominal_v;Номинальное напряжение сети;number;В;primary;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mains_work_min_v;Нижняя граница рабочего напряжения;number;В;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mains_work_max_v;Верхняя граница рабочего напряжения;number;В;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_current_min_a;Минимальный ток MMA;number;А;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_current_max_a;Максимальный ток MMA;number;А;primary;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_electrode_diameters_mm;Диаметры MMA-электродов;number_list;мм;primary;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_duty_cycle_pct;ПН MMA (при указанном токе);number;%;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_duty_current_a;Ток при указанной ПН MMA;number;А;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_duty_temp_c;Температура испытания ПН MMA;number;°C;none;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;mma_continuous_current_a;Ток MMA при ПН 100%;number;А;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;hot_start;Hot Start;boolean;;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;arc_force;Arc Force;boolean;;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;anti_stick;Anti Stick;boolean;;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;vrd;VRD;boolean;;advanced;P0
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;output_connector;Силовой разъём;enum;;advanced;P1
+power_mma;Сварочные инверторы MMA;Сварочные аппараты;MMA / РДС;source_net_weight_kg;Вес источника без упаковки;number;кг;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mains_phases;Число фаз;enum;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mains_nominal_v;Номинальная сеть;number;В;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mains_work_min_v;Минимальное рабочее напряжение сети;number;В;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_current_min_a;Ток MIG/MAG минимум;number;А;advanced;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_current_max_a;Ток MIG/MAG максимум;number;А;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_duty_cycle_pct;ПН MIG (условия указаны отдельно);number;%;advanced;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_duty_current_a;Ток MIG при ПН;number;А;advanced;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_continuous_current_a;Ток MIG при ПН 100%;number;А;advanced;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_duty_temp_c;Температура ПН;number;°C;none;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_wire_diameters_mm;Поддерживаемые диаметры проволоки MIG;number_list;мм;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_solid_wire;Работа со сплошной проволокой;boolean;;advanced;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_selfshield_flux;Работа с самозащитной порошковой проволокой;boolean;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_gas_shielded_flux;Работа с газозащитной порошковой проволокой;boolean;;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_aluminum;Возможность MIG сварки алюминия;boolean;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_pulse;Импульс MIG/MAG;boolean;;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_double_pulse;Двойной импульс MIG/MAG;boolean;;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_synergy;Синергетические программы;boolean;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;feed_rollers_count;Число роликов подачи;integer;шт;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;spool_mass_max_kg;Максимальная масса катушки;number;кг;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;spool_formats;Форматы катушек;enum_list;;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;mig_torch_connector;Разъём горелки;enum;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;polarity_change;Переключение полярности;boolean;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;welding_processes;Режимы MMA/MIG/TIG/CUT;enum_list;;primary;P0
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;wire_feed_speed_min_m_min;Минимальная подача проволоки;number;м/мин;advanced;P1
+power_mig;Полуавтоматы MIG/MAG и FCAW;Сварочные аппараты;MIG/MAG / FCAW;wire_feed_speed_max_m_min;Максимальная подача проволоки;number;м/мин;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_polarity_modes;Род тока TIG;enum_list;;primary;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_current_min_a;Ток TIG минимум;number;А;advanced;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_current_max_a;Ток TIG максимум;number;А;primary;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_start_modes;Поджиг дуги HF/Lift/касанием;enum_list;;primary;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_pulse;Импульсный режим TIG;boolean;;advanced;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_2t_4t;Режимы 2T/4T;enum_list;;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_gas_preflow_s;Продувка газа до сварки;number;с;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_gas_postflow_s;Продувка газа после сварки;number;с;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_downslope_s;Спад тока;number;с;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_remote_pedal;Подключение педали/ДУ;boolean;;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_duty_cycle_pct;ПН TIG;number;%;advanced;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_duty_current_a;Ток TIG при ПН;number;А;advanced;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_duty_temp_c;Температура ПН;number;°C;none;P0
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;tig_torch_connector;Разъём TIG-горелки;enum;;advanced;P1
+power_tig_dc;Аргонодуговые аппараты TIG DC;Сварочные аппараты;TIG DC;mains_nominal_v;Номинальная сеть;number;В;primary;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_polarity_modes;Род тока TIG (AC/DC);enum_list;;primary;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_current_min_a;Ток TIG минимум;number;А;advanced;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_current_max_a;Ток TIG максимум;number;А;primary;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_ac_frequency_min_hz;Частота AC TIG минимум;number;Гц;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_ac_frequency_max_hz;Частота AC TIG максимум;number;Гц;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_ac_balance_adjustable;Регулировка баланса AC;boolean;;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_start_modes;Поджиг HF/Lift;enum_list;;primary;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_pulse;Импульсный TIG;boolean;;primary;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_pulse_freq_max_hz;Максимальная частота импульсов;number;Гц;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_2t_4t;Режимы 2T/4T;enum_list;;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_remote_pedal;Подключение педали;boolean;;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_water_cooler_support;Подключение охлаждения;boolean;;advanced;P1
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_duty_cycle_pct;ПН TIG;number;%;advanced;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_duty_current_a;Ток при ПН TIG;number;А;advanced;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;tig_duty_temp_c;Температура ПН;number;°C;none;P0
+power_tig_acdc;Аргонодуговые аппараты TIG AC/DC;Сварочные аппараты;TIG AC/DC;mains_phases;Число фаз;enum;;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;welding_processes;Фактические режимы сварки;enum_list;;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mma_current_min_a;Ток MMA минимум;number;А;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mma_current_max_a;Ток MMA максимум;number;А;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mig_current_min_a;Ток MIG минимум;number;А;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mig_current_max_a;Ток MIG максимум;number;А;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;tig_current_min_a;Ток TIG минимум;number;А;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;tig_current_max_a;Ток TIG максимум;number;А;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;tig_polarity_modes;Род тока TIG;enum_list;;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;tig_start_modes;Поджиг TIG;enum_list;;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mig_wire_diameters_mm;Диаметры MIG-проволоки;number_list;мм;primary;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mig_duty_cycle_pct;ПН MIG;number;%;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mma_duty_cycle_pct;ПН MMA;number;%;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;tig_duty_cycle_pct;ПН TIG;number;%;advanced;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;duty_test_temp_c;Температура испытания;number;°C;none;P0
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;power_consumption_by_mode_kva;Полная мощность отдельно по режимам;mode_map;кВА;none;P1
+power_multiprocess;Многопроцессные аппараты MMA/MIG/TIG;Сварочные аппараты;MMA / MIG / TIG;mains_nominal_v;Напряжение сети;number;В;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;mains_nominal_v;Номинальная сеть;number;В;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_current_min_a;Ток CUT минимум;number;А;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_current_max_a;Ток CUT максимум;number;А;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_recommended_thickness_mm;Рекомендуемая толщина реза;number;мм;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_severance_thickness_mm;Предельный разделительный рез;number;мм;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_piercing_thickness_mm;Толщина прожига;number;мм;advanced;P1
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_material;Металл, к которому относится толщина;enum;;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_speed_at_thickness_mm_min;Скорость реза при указанной толщине;number;мм/мин;advanced;P1
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_max_thickness_marketing_mm;Неуточнённая максимальная толщина (не для фасета);number;мм;none;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;compressed_air_flow_l_min;Требуемый расход воздуха;number;л/мин;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;compressed_air_pressure_bar;Требуемое давление воздуха;number;бар;primary;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;integrated_compressor;Встроенный компрессор;boolean;;primary;P1
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;pilot_arc;Пилотная дуга;boolean;;advanced;P1
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_torch_series;Серия плазмотрона;enum;;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_duty_cycle_pct;ПН CUT;number;%;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_duty_current_a;Ток при ПН CUT;number;А;advanced;P0
+power_cut;Аппараты воздушно-плазменной резки CUT;Плазменная резка;CUT;cut_duty_temp_c;Температура ПН;number;°C;none;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_current_min_a;Ток SAW минимум;number;А;advanced;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_current_max_a;Ток SAW максимум;number;А;primary;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_polarity_modes;Род тока AC/DC;enum_list;;primary;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_duty_cycle_pct;ПН при токе SAW;number;%;advanced;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_wire_diameters_mm;Диаметры SAW-проволоки;number_list;мм;primary;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_feed_speed_m_min;Скорость подачи;number;м/мин;advanced;P1
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_travel_speed_mm_min;Скорость перемещения;number;мм/мин;advanced;P1
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;saw_control_compatibility;Совместимые головки/тракторы;text;;advanced;P0
+power_saw;Источники сварки под флюсом SAW;Сварка под флюсом;SAW;mains_nominal_v;Питающая сеть;number;В;primary;P0
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_method;Тип (точечная/шовная/стыковая);enum;;primary;P0
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_rated_power_kva;Номинальная полная мощность;number;кВА;advanced;P0
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_max_power_kva;Максимальная полная мощность;number;кВА;advanced;P1
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_weld_thickness_pair_mm;Толщина каждого из двух листов (условия);text;мм;primary;P0
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_electrode_force_n;Усилие электродов;number;Н;advanced;P1
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_electrode_stroke_mm;Ход электродов;number;мм;advanced;P1
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_throat_depth_mm;Вылет электродов;number;мм;advanced;P1
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;spot_water_cooling;Водяное охлаждение;boolean;;advanced;P1
+power_spot;Контактная точечная и шовная сварка;Контактная сварка;RSW;mains_phases;Число фаз;enum;;primary;P0
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_method;Процесс (дуговая/конденсаторная);enum;;primary;P0
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_diameter_min_mm;Минимальный диаметр шпильки;number;мм;primary;P0
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_diameter_max_mm;Максимальный диаметр шпильки;number;мм;primary;P0
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_materials;Материалы шпилек;enum_list;;advanced;P1
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_weld_time_ms;Продолжительность импульса;number;мс;advanced;P1
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;stud_energy_j;Энергия импульса;number;Дж;advanced;P1
+power_stud;Аппараты приварки шпилек;Сварочные аппараты;Stud welding;mains_nominal_v;Питающая сеть;number;В;primary;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_source_power_w;Мощность лазера;number;Вт;primary;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_wavelength_nm;Длина волны;number;нм;advanced;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_process_modes;Сварка/очистка/резка;enum_list;;advanced;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_cooling;Охлаждение;enum;;advanced;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_fiber_length_m;Длина оптоволокна;number;м;advanced;P1
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_materials;Рекомендованные материалы;enum_list;;advanced;P1
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_max_thickness_by_material;Толщина по материалу и условиям;text;;none;P1
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;laser_safety_class;Класс лазерной опасности по документации;text;;advanced;P0
+power_laser;Лазерная ручная сварка;Сварочные аппараты;Laser;mains_nominal_v;Питающая сеть;number;В;primary;P0
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_materials;Материал труб (PP-R и др.);enum_list;;primary;P0
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_socket_diameters_mm;Диаметры насадок;number_list;мм;primary;P0
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_heater_power_w;Мощность нагревателя;number;Вт;advanced;P0
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_temperature_control;Терморегулятор;boolean;;advanced;P0
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_temperature_range_c;Диапазон температуры нагрева;text;°C;advanced;P1
+pipe_socket;Паяльники для раструбной сварки пластиковых труб;Сварка пластиковых труб;Polyfusion;pipe_nozzles_included;Насадки в комплекте;number_list;мм;advanced;P0
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_pipe_material;Материал труб (PE и др.);enum;;primary;P0
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_voltage_range_v;Выходное напряжение сварки;text;В;advanced;P0
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_fitting_diameters_mm;Диаметры фитингов;text;мм;primary;P0
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_barcode;Сканер штрихкодов;boolean;;advanced;P1
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_trace_logging;Протоколирование швов;boolean;;advanced;P1
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;electrofusion_connector_type;Разъём фитинга;enum;;advanced;P0
+pipe_electrofusion;Аппараты электромуфтовой сварки;Сварка пластиковых труб;Electrofusion;mains_nominal_v;Питающая сеть;number;В;primary;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_fuel;Топливо;enum;;primary;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_rated_power_kw;Номинальная активная мощность;number;кВт;advanced;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_rated_power_kva;Номинальная полная мощность;number;кВА;advanced;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_voltage_v;Выходное напряжение;number;В;primary;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_phase;Число фаз;enum;;primary;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_inverter_compatible;Совместимость с инверторами, подтверждённая производителем;boolean;;advanced;P1
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;mma_current_max_a;Ток MMA встроенного поста (если есть);number;А;advanced;P0
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_run_time_h;Автономность при нагрузке;number;ч;advanced;P1
+weld_generator;Сварочные электрогенераторы;Генераторы и компрессоры;Generator welding;generator_fuel_tank_l;Бак;number;л;advanced;P1
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_standard_class;Классификация AWS/ISO/ГОСТ (дословно);text;;primary;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_coating;Тип покрытия (рутиловое/основное/целлюлозное);enum;;primary;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_diameter_mm;Диаметр электрода;number;мм;primary;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_length_mm;Длина электрода;number;мм;advanced;P1
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_welding_positions;Пространственные положения;enum_list;;advanced;P1
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_polarity;Полярность и AC/DC;enum_list;;primary;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_current_min_a;Ток, нижняя граница для этого диаметра;number;А;advanced;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_current_max_a;Ток, верхняя граница для этого диаметра;number;А;advanced;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_deposited_metal;Класс наплавленного металла;text;;advanced;P1
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;package_net_mass_kg;Масса электродов в упаковке;number;кг;primary;P0
+consumable_mma_electrodes;Покрытые электроды MMA;Расходники для электросварки;SMAW consumable;electrode_baking;Требования к прокалке по изготовителю;text;;none;P1
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_standard_class;Класс проволоки AWS/ISO/ГОСТ;text;;primary;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_material;Материал/назначение (сталь, нержавейка, алюминий);enum;;primary;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_diameter_mm;Диаметр проволоки;number;мм;primary;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_coating;Омеднение/без покрытия;enum;;advanced;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_gas_groups;Защитный газ/смесь по данным изготовителя;enum_list;;advanced;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_spool_type;Формат катушки (D100/D200/D300 и т.п.);enum;;primary;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_spool_net_mass_kg;Масса проволоки на катушке;number;кг;primary;P0
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_polarity;Полярность;enum;;advanced;P1
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_welding_positions;Положения сварки;enum_list;;advanced;P2
+consumable_mig_wire_solid;Сплошная проволока MIG/MAG;Расходники для электросварки;GMAW wire;wire_standard_notes;Ограничения классификации;text;;none;P1
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_standard_class;Марка/классификация;text;;primary;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_diameter_mm;Диаметр;number;мм;primary;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;flux_wire_gas_mode;Самозащитная или под газом;enum;;primary;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_polarity;Необходимая полярность;enum;;primary;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_welding_positions;Пространственные положения;enum_list;;advanced;P1
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_spool_type;Тип катушки;enum;;advanced;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_spool_net_mass_kg;Масса проволоки;number;кг;primary;P0
+consumable_flux_wire;Порошковая сварочная проволока FCAW;Расходники для электросварки;FCAW wire;wire_base_metals;Материал сварки;enum_list;;advanced;P1
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_class;Марка/классификация AWS/ISO;text;;primary;P0
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_alloy;Сплав/назначение;enum;;primary;P0
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_diameter_mm;Диаметр прутка;number;мм;primary;P0
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_length_mm;Длина прутка;number;мм;advanced;P0
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_package_weight_kg;Масса упаковки;number;кг;primary;P0
+consumable_tig_rod;Присадочные прутки TIG;Расходники для электросварки;GTAW filler;filler_rod_gas;Рекомендованный газ;enum_list;;advanced;P2
+consumable_saw_wire;Проволока SAW;Сварка под флюсом;SAW wire;saw_wire_class;Марка проволоки/класс;text;;primary;P0
+consumable_saw_wire;Проволока SAW;Сварка под флюсом;SAW wire;saw_wire_diameter_mm;Диаметр проволоки;number;мм;primary;P0
+consumable_saw_wire;Проволока SAW;Сварка под флюсом;SAW wire;saw_wire_package_mass_kg;Вес бухты/кассеты;number;кг;primary;P0
+consumable_saw_wire;Проволока SAW;Сварка под флюсом;SAW wire;saw_wire_flux_pair;Совместимые флюсы по рекомендациям;text;;advanced;P1
+consumable_saw_wire;Проволока SAW;Сварка под флюсом;SAW wire;saw_wire_base_metal;Материал сварки;enum_list;;advanced;P1
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_class;Классификация флюса;text;;primary;P0
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_type;Агломерированный/плавленый;enum;;primary;P0
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_grain_min_mm;Размер зерна минимум;number;мм;advanced;P0
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_grain_max_mm;Размер зерна максимум;number;мм;advanced;P0
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_wire_pairs;Рекомендованные пары с проволокой;text;;advanced;P0
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;saw_flux_drying;Правила хранения/сушки;text;;none;P1
+consumable_saw_flux;Флюс для сварки SAW;Сварка под флюсом;SAW flux;package_net_mass_kg;Масса упаковки;number;кг;primary;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_type_iso;Маркировка ISO/изготовителя;text;;primary;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_additive;Легирование (лантан, церий и др.);enum;;primary;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_diameter_mm;Диаметр;number;мм;primary;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_length_mm;Длина;number;мм;advanced;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_ac_dc_usage;Применение AC/DC по изготовителю;enum_list;;advanced;P0
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_tip_color;Цвет маркировки (если стандартизован);enum;;advanced;P1
+consumable_tungsten;Вольфрамовые неплавящиеся электроды TIG;Расходники для электросварки;TIG tungsten;tungsten_qty_pack;Штук в упаковке;integer;шт;advanced;P1
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_series;Серия (MB15/24/36 и т. п.);enum;;primary;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_length_m;Длина рукава;number;м;primary;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_cooling;Воздушное/жидкостное охлаждение;enum;;primary;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_connector;Разъём (EURO и прочее);enum;;primary;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_amp_co2_a;Номинальный ток в CO₂;number;А;advanced;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_amp_m21_a;Номинальный ток в смеси M21;number;А;advanced;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_duty_pct;ПН горелки;number;%;advanced;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_wire_diameters_mm;Поддерживаемые диаметры проволоки;number_list;мм;primary;P0
+mig_torch;Сварочные горелки MIG/MAG;Оборудование и аксессуары;MIG torch;mig_torch_replacement_family;Совместимые семейства расходников;text;;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_series;Серия (9/17/18/26 и пр.);enum;;primary;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_length_m;Длина;number;м;primary;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_cooling;Воздушное/жидкостное охлаждение;enum;;primary;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_max_dc_a;Ток DC при заявленной ПН;number;А;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_max_ac_a;Ток AC при заявленной ПН;number;А;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_duty_pct;ПН горелки;number;%;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_power_connector;Силовой разъём;enum;;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_gas_connector;Газовый разъём;enum;;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_control_connector;Разъём кнопки управления;enum;;advanced;P0
+tig_torch;Сварочные горелки TIG;Оборудование и аксессуары;TIG torch;tig_torch_tungsten_diameters_mm;Диаметры вольфрама;number_list;мм;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_series;Серия (PT31/P80/и др.);enum;;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_current_max_a;Допустимый ток горелки;number;А;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_length_m;Длина рукава;number;м;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_ignition;Тип поджига;enum;;advanced;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_connector;Тип соединения;enum;;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_cooling;Тип охлаждения;enum;;advanced;P1
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_consumable_family;Семейство расходников;enum;;primary;P0
+cut_torch;Плазмотроны CUT;Плазменная резка;Plasma torch;cut_torch_air_flow_l_min;Потребность в воздухе;number;л/мин;advanced;P1
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_wire_diameter_mm;Диаметр проволоки;number;мм;primary;P0
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_thread;Резьба наконечника (М6/М8/иное);enum;;primary;P0
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_length_mm;Длина наконечника;number;мм;primary;P0
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_material;Материал наконечника;enum;;advanced;P1
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_torch_family;Серия совместимых горелок;enum_list;;primary;P0
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;mig_tip_holder_family;Совместимый держатель;text;;advanced;P0
+mig_contact_tip;Контактные наконечники MIG/MAG;Оборудование и аксессуары;MIG tip;quantity_pack;Штук в упаковке;integer;шт;advanced;P1
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;mig_nozzle_torch_family;Серия горелки;enum_list;;primary;P0
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;mig_nozzle_shape;Форма сопла;enum;;advanced;P1
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;mig_nozzle_inner_diameter_mm;Диаметр выходного отверстия;number;мм;primary;P0
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;mig_nozzle_length_mm;Длина сопла;number;мм;advanced;P1
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;mig_nozzle_attachment;Способ крепления;enum;;advanced;P0
+mig_gas_nozzle;Газовые сопла MIG/MAG;Оборудование и аксессуары;MIG nozzle;quantity_pack;Штук в упаковке;integer;шт;advanced;P1
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_wire_diameter_min_mm;Минимальный диаметр проволоки;number;мм;primary;P0
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_wire_diameter_max_mm;Максимальный диаметр проволоки;number;мм;primary;P0
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_length_m;Длина канала;number;м;primary;P0
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_material;Материал (сталь/PTFE и др.);enum;;primary;P0
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_torch_family;Серия горелки;enum_list;;primary;P0
+mig_liner;Каналы/направляющие проволоки MIG;Оборудование и аксессуары;MIG liner;mig_liner_end_fitting;Тип окончания/фиксатора;enum;;advanced;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_wire_diameters_mm;Диаметры проволоки;number_list;мм;primary;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_groove;Профиль канавки V/U/насечка;enum;;primary;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_outer_diameter_mm;Внешний диаметр ролика;number;мм;advanced;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_inner_diameter_mm;Посадочный диаметр;number;мм;advanced;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_width_mm;Ширина ролика;number;мм;advanced;P0
+feed_rollers;Ролики подачи сварочной проволоки;Оборудование и аксессуары;Feeder roll;roller_feeder_models;Совместимые подачи/аппараты;enum_list;;primary;P0
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_part_type;Тип (цанга/корпус/линза/сопло);enum;;primary;P0
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_torch_series;Серия TIG-горелки;enum;;primary;P0
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_tungsten_diameter_mm;Под какой диаметр вольфрама;number;мм;primary;P0
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_cup_size;Размер керамического сопла №;integer;№;advanced;P0
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_gas_lens;Газовая линза;boolean;;advanced;P1
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;tig_part_length_mm;Длина;number;мм;advanced;P1
+tig_kit_parts;Цанги, линзы, керамические сопла TIG;Оборудование и аксессуары;TIG parts;quantity_pack;Количество;integer;шт;advanced;P1
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_part_type;Тип (сопло/электрод/завихритель/щиток);enum;;primary;P0
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_torch_series;Серия плазмотрона;enum;;primary;P0
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_part_nominal_current_a;Ток/номинал сопла (если применим);number;А;primary;P0
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_nozzle_orifice_mm;Диаметр отверстия сопла;number;мм;advanced;P0
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_part_process;Ручная/механизированная резка;enum;;advanced;P1
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;cut_part_manufacturer_code;Код производителя для совместимости;text;;primary;P0
+cut_parts;Сопла, электроды, защитные колпачки CUT;Плазменная резка;CUT consumables;quantity_pack;Количество;integer;шт;advanced;P1
+mma_holder;Электрододержатели MMA;Оборудование и аксессуары;MMA holder;holder_nominal_current_a;Номинальный ток;number;А;primary;P0
+mma_holder;Электрододержатели MMA;Оборудование и аксессуары;MMA holder;holder_electrode_diameter_min_mm;Диаметр электрода минимум;number;мм;advanced;P0
+mma_holder;Электрододержатели MMA;Оборудование и аксессуары;MMA holder;holder_electrode_diameter_max_mm;Диаметр электрода максимум;number;мм;advanced;P0
+mma_holder;Электрододержатели MMA;Оборудование и аксессуары;MMA holder;holder_cable_connection;Присоединение сварочного кабеля;enum;;advanced;P0
+mma_holder;Электрододержатели MMA;Оборудование и аксессуары;MMA holder;holder_model;Конструкция/тип;enum;;advanced;P1
+ground_clamp;Зажимы массы сварочные;Оборудование и аксессуары;Ground clamp;clamp_nominal_current_a;Номинальный ток;number;А;primary;P0
+ground_clamp;Зажимы массы сварочные;Оборудование и аксессуары;Ground clamp;clamp_jaw_opening_mm;Раскрытие губок;number;мм;advanced;P1
+ground_clamp;Зажимы массы сварочные;Оборудование и аксессуары;Ground clamp;clamp_cable_connection;Подключение кабеля;enum;;advanced;P0
+ground_clamp;Зажимы массы сварочные;Оборудование и аксессуары;Ground clamp;clamp_material;Материал контактов;enum;;advanced;P1
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_conductor_cross_section_mm2;Сечение токопроводящей жилы;number;мм²;primary;P0
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_conductor_material;Материал жилы;enum;;primary;P0
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_length_m;Длина;number;м;primary;P0
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_insulation_type;Тип изоляции/марка;text;;advanced;P0
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_connector_type;Разъём/оконцевание;enum;;advanced;P0
+welding_cable;Сварочные кабели и соединения;Оборудование и аксессуары;Welding cable;cable_current_limit_a;Допустимый ток при указанных условиях;number;А;advanced;P1
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_optical_class;Оптический класс (четыре цифры);text;;primary;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_light_shade_din;Светлое состояние DIN;number;DIN;advanced;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_dark_shade_min_din;Нижний предел затемнения DIN;number;DIN;primary;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_dark_shade_max_din;Верхний предел затемнения DIN;number;DIN;primary;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_view_width_mm;Ширина зоны обзора;number;мм;advanced;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_view_height_mm;Высота зоны обзора;number;мм;advanced;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_sensors;Количество датчиков;integer;шт;advanced;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_switching_time_ms;Время затемнения при заданной t;number;мс;advanced;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_switching_temp_c;Температура замера времени затемнения;number;°C;none;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_grinding_mode;Режим шлифовки;boolean;;primary;P0
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_cut_mode;Режим резки;boolean;;advanced;P1
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_tig_lowamp;Заявленная пригодность для TIG на малых токах;boolean;;advanced;P1
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_power_type;Солнечный элемент/батарея;enum_list;;advanced;P1
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_filter_replaceable;Сменный фильтр;boolean;;advanced;P1
+mask_adf;Маски сварщика с автозатемнением;Защита сварщика;ADF mask;mask_papr_compatibility;Совместимость с блоком подачи воздуха;enum_list;;advanced;P2
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_fixed_shade_din;Постоянная степень затемнения;number;DIN;primary;P0
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_filter_width_mm;Ширина стекла;number;мм;advanced;P0
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_filter_height_mm;Высота стекла;number;мм;advanced;P0
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_filter_replaceable;Сменный светофильтр;boolean;;advanced;P1
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_body_material;Материал корпуса;enum;;advanced;P1
+mask_passive;Маски и щитки с постоянным фильтром;Защита сварщика;Passive mask;mask_helmet_attachment;Крепление к каске;boolean;;advanced;P1
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_standard;Маркировка стандарта по документации;text;;advanced;P0
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_size;Размер;enum;;primary;P0
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_material;Материал (спилок/кожа);enum;;primary;P0
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_length_cm;Длина;number;см;advanced;P0
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_welding_process;Назначение TIG/MIG/MMA;enum_list;;primary;P0
+welding_gloves;Краги и перчатки сварщика;Защита сварщика;Welding gloves;gloves_heat_resistance;Подтверждённый уровень защиты;text;;advanced;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_type;Вид СИЗ;enum;;primary;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_size;Размер/рост;enum;;primary;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_material;Материал;enum;;primary;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_protection_standard;Маркировка защитного стандарта;text;;advanced;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_protection_class;Класс защиты (если есть);text;;advanced;P0
+workwear;Костюмы, куртки, нарукавники сварщика;Защита сварщика;Welding PPE;ppe_fastener;Тип застёжки;enum;;advanced;P1
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_airflow_m3_h;Расход воздуха;number;м³/ч;primary;P0
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_filtration_class;Класс фильтра;text;;primary;P0
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_arm_length_m;Длина рукава;number;м;advanced;P0
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_power_w;Потребляемая мощность;number;Вт;advanced;P1
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_filter_area_m2;Площадь фильтра;number;м²;advanced;P1
+fume_extraction;Вытяжки сварочных аэрозолей;Оборудование и аксессуары;Fume extraction;extractor_capture_type;Тип улавливания;enum;;primary;P1
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_rollers;Число роликов;integer;шт;primary;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_wire_diameters_mm;Диаметры проволоки;number_list;мм;primary;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_speed_min_m_min;Мин. скорость;number;м/мин;advanced;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_speed_max_m_min;Макс. скорость;number;м/мин;advanced;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_spool_mass_kg;Максимальная катушка;number;кг;primary;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_source_compatibility;Совместимые источники;enum_list;;primary;P0
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_cooling;Поддержка охлаждения горелки;enum;;advanced;P1
+wire_feeder;Выносные подающие механизмы;Оборудование и аксессуары;Wire feeder;feeder_connector;Соединение со сварочным источником;enum;;advanced;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_capacity_kw;Мощность охлаждения;number;кВт;primary;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_flow_l_min;Расход жидкости;number;л/мин;advanced;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_tank_l;Объём бака;number;л;advanced;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_pressure_bar;Рабочее давление;number;бар;advanced;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_power_v;Напряжение питания;number;В;primary;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_connectors;Типы разъёмов;enum_list;;advanced;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_equipment_compatibility;Совместимые источники/горелки;enum_list;;primary;P0
+water_cooler;Блоки водяного охлаждения горелок;Оборудование и аксессуары;Water cooler;cooler_fluid_type;Допустимая охлаждающая жидкость;text;;none;P1
+welding_magnets;Магнитные угольники, держатели;Оборудование и аксессуары;Fixture magnet;magnet_holding_force_kgf;Усилие удержания по изготовителю;number;кгс;primary;P0
+welding_magnets;Магнитные угольники, держатели;Оборудование и аксессуары;Fixture magnet;magnet_angles_deg;Углы позиционирования;number_list;°;primary;P0
+welding_magnets;Магнитные угольники, держатели;Оборудование и аксессуары;Fixture magnet;magnet_switchable;Отключаемый магнит;boolean;;advanced;P1
+welding_magnets;Магнитные угольники, держатели;Оборудование и аксессуары;Fixture magnet;magnet_dimensions_mm;Габариты;text;мм;advanced;P1
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_length_mm;Длина рабочей поверхности;number;мм;primary;P0
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_width_mm;Ширина поверхности;number;мм;primary;P0
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_height_mm;Высота стола;number;мм;advanced;P0
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_hole_diameter_mm;Диаметр системных отверстий;number;мм;primary;P0
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_hole_pitch_mm;Шаг отверстий;number;мм;primary;P0
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_load_kg;Допустимая нагрузка;number;кг;advanced;P1
+welding_table;Сварочные столы и оснастка;Оборудование и аксессуары;Welding table;table_flatness;Допуск плоскостности;text;;advanced;P1
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_tool_type;Горелка/резак;enum;;primary;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_fuel_gases;Допустимый горючий газ (ацетилен/пропан и др.);enum_list;;primary;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_oxygen_pressure_bar;Диапазон давления O₂;text;бар;advanced;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_fuel_pressure_bar;Давление горючего газа;text;бар;advanced;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_cut_thickness_range_mm;Диапазон толщин с указанным соплом;text;мм;primary;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_connector_o2;Присоединение кислорода;enum;;advanced;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_connector_fuel;Присоединение горючего газа;enum;;advanced;P0
+oxy_torch;Газовые сварочные горелки и резаки;Газовая сварка и резка;Oxy-fuel;oxy_tip_compatibility;Серии совместимых мундштуков;enum_list;;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_fuel;Для какого горючего газа;enum;;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_torch_family;Совместимые резаки;enum_list;;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_cut_min_mm;Минимальная толщина реза;number;мм;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_cut_max_mm;Максимальная толщина реза;number;мм;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_part_code;Код производителя;text;;primary;P0
+oxy_cut_nozzle;Газовые мундштуки и сопла резаков;Газовая сварка и резка;Oxy nozzle;oxy_nozzle_attachment;Присоединительный размер;text;;advanced;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_gas;Назначение по газу (O₂/Ar/CO₂/топливо);enum;;primary;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_inlet_pressure_max_bar;Макс. давление на входе;number;бар;advanced;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_outlet_pressure_range_bar;Диапазон давления на выходе;text;бар;advanced;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_flow_range_l_min;Диапазон расхода газа;text;л/мин;primary;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_cylinder_thread;Подключение баллона;text;;primary;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_hose_fitting;Подключение шланга;text;;advanced;P0
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_heater_power_w;Потребляемая мощность подогревателя;number;Вт;advanced;P1
+gas_regulator;Редукторы/расходомеры/подогреватели газа;Газовая сварка и резка;Gas regulator;regulator_heater_voltage_v;Напряжение питания подогревателя;number;В;advanced;P1
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_gas;Назначение по газу;enum;;primary;P0
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_inner_diameter_mm;Внутренний диаметр;number;мм;primary;P0
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_length_m;Длина;number;м;primary;P0
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_work_pressure_bar;Рабочее давление;number;бар;advanced;P0
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_standard_marking;Нормативная маркировка;text;;advanced;P1
+gas_hose;Газовые рукава и соединители;Газовая сварка и резка;Gas hose;hose_fittings;Фитинги/резьба;enum_list;;advanced;P0
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_delivered_air_l_min;Фактическая производительность на выходе;number;л/мин;primary;P0
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_pressure_bar;Рабочее давление;number;бар;primary;P0
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_receiver_l;Объём ресивера;number;л;advanced;P0
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_motor_power_kw;Мощность двигателя;number;кВт;advanced;P0
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_oil_free;Безмасляный;boolean;;advanced;P1
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_dryer_filter;Осушитель/фильтр;boolean;;advanced;P1
+air_compressor;Воздушные компрессоры для плазморезов;Генераторы и компрессоры;Air compressor;compressor_mains_v;Напряжение питания;number;В;primary;P0
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_gas_type;Тип газа (не взаимозаменять подключения);enum;;primary;P0
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_capacity_l;Водяной объём баллона;number;л;primary;P0
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_pressure_bar;Рабочее давление (если задано);number;бар;advanced;P0
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_valve_thread;Тип вентиля/резьбы;text;;primary;P0
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_service_status;Сведения о поверке/освидетельствовании (для конкретного экземпляра);text;;none;P1
+gas_cylinder;Газовые баллоны, переходники, тележки;Газовая сварка и резка;Gas cylinders;cylinder_empty_weight_kg;Масса пустого баллона;number;кг;advanced;P1
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_alloy;Класс/состав припоя;text;;primary;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_product_form;Пруток/проволока/паста;enum;;primary;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_diameter_mm;Диаметр/размер;number;мм;primary;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_melting_range_c;Интервал плавления;text;°C;advanced;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_flux_type;Тип флюса;enum;;advanced;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;brazing_base_materials;Назначение по материалам;enum_list;;advanced;P0
+brazing_solder;Припои и флюсы для пайки;Другие товары для сварки и резки;Brazing;package_net_mass_kg;Масса упаковки;number;кг;advanced;P1
