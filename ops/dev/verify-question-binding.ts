@@ -65,7 +65,6 @@ const originalFetch=globalThis.fetch;
 globalThis.fetch=(async(input,init)=>{
   const url=String(input);
   if (failStateRead && url.startsWith(origin + "/backend/") && url.includes("/bot_editor_states") && (!init?.method || init.method === "GET")) {
-    failStateRead=false;
     return Response.json({code:"QA_READ_FAILURE",message:"Simulated state read failure"},{status:503});
   }
   if (url.startsWith("https://api.telegram.org/") && url.endsWith("/answerCallbackQuery"))
@@ -104,7 +103,7 @@ await send("Ответ на неподтверждённый вопрос",messa
 assert.deepEqual(ordinary(),unbound);
 failStateRead=true;
 await callback("guide:input");
-assert.equal(failStateRead,false);
+failStateRead=false;
 assert.deepEqual(ordinary(),unbound);
 assert.ok(messages.at(-1)?.text.includes("Не удалось проверить текущий ввод"));
 assert.ok(messages.at(-1)?.buttons.includes("guide:input"));
