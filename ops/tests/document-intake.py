@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real isolated PostgreSQL: private originals, duplicate receipts, worker leases and safe import handoff."""
 import base64
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -40,7 +41,7 @@ try:
         time.sleep(.2)
     else: raise RuntimeError("PG_NOT_READY")
     paths=[ROOT/"ops/dev/bootstrap.sql",*sorted((ROOT/"drizzle/migrations").glob("*.sql")),
-        *sorted((ROOT/"docs/migrations").glob("*.sql"))]
+        *[p for p in sorted((ROOT/"docs/migrations").glob("*.sql")) if p.name[:4] <= "0026"]]
     sql("BEGIN;\n"+"\n".join(p.read_text() for p in paths)+"\nCOMMIT;")
     spec=importlib.util.spec_from_file_location("migration",ROOT/"ops/dev/apply-document-intake.py")
     migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
@@ -76,13 +77,65 @@ try:
     assert sql("SELECT count(*) FROM products")=="0"
     assert sql("SELECT count(*) FROM catalog_imports")=="1"
     assert sql("SELECT count(*) FROM document_import_links")=="1"
-    # Restart retains both the original and the one import link.
+    # New review gate must also block the legacy unreviewed preview, without erasing it.
+    sql((ROOT/"docs/migrations/0027_document_review.sql").read_text())
+    rpc("table",id=first["id"],payload={"index":0},error="DOCUMENT_REVIEW_REQUIRED")
+    def review(op, rid=None, rev=None, row=0, col=None, payload=None, actor=101, error=None):
+        args=[str(actor),lit(op),lit(rid) if rid else "NULL",str(rev) if rev is not None else "NULL",
+              str(row),"NULL" if col is None else str(col),lit(json.dumps(payload or {}))]
+        result=sql("SET ROLE service_role; SELECT bot_document_review("+",".join(args)+");",error)
+        return json.loads(result) if not error else None
+    for role in ("anon","authenticated","service_role"):
+        sql(f"SET ROLE {role}; SELECT * FROM document_review_rows","permission denied")
+    sql("SET ROLE anon; SELECT bot_document_review(101,'input')","permission denied")
+    sql("SET ROLE service_role; SELECT mw_private.bot_catalog_import(101,'home')","permission denied")
+    sql("SET ROLE service_role; SELECT bot_catalog_import(101,'apply',"+lit(linked["id"])+", '{}',0,0)",
+        "DOCUMENT_REVIEW_REQUIRED")
+    review("open",first["id"],actor=103,error="DOCUMENT_DENIED")
+    review("open",first["id"],actor=102,error="DOCUMENT_NOT_FOUND")
+    r=review("open",first["id"]); rid=r["id"]
+    assert r["counts"]=={"pending":1,"approved":0,"excluded":0,"total":1}
+    assert review("open",first["id"])["id"]==rid
+    assert r["locator"]=="sheet:1/row:2"
+    review("handoff",rid,0,error="DOCUMENT_UNREVIEWED")
+    sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour')")
+    review("edit",rid,0,col=2,error="DOCUMENT_OTHER_INPUT")
+    sql("DELETE FROM bot_editor_states WHERE staff_telegram_id=101")
+    r=review("edit",rid,0,col=2);assert r["revision"]==1
+    sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour')",
+        "DOCUMENT_INPUT_ACTIVE")
+    review("save",rid,1,col=2,payload={"value":"12","reply_to":500},error="DOCUMENT_PROMPT")
+    review("bind",rid,1,col=2,payload={"message_id":500})
+    review("save",rid,1,col=2,payload={"value":"12","reply_to":499},error="DOCUMENT_PROMPT")
+    r=review("save",rid,1,col=2,payload={"value":"12","reply_to":500})
+    assert r["cells"]==["DEV-ONLY","Training","12"] and r["original"]==["DEV-ONLY","Training","10"]
+    assert r["decision"]=="pending"
+    review("save",rid,1,col=2,payload={"value":"99","reply_to":500},error="DOCUMENT_STALE")
+    r=review("approve",rid,r["revision"]);assert r["counts"]["approved"]==1
+    review("handoff",rid,r["revision"],error="DOCUMENT_LEGACY_IMPORT")
+    sql("SET ROLE service_role; SELECT bot_catalog_import(101,'cancel',"+lit(linked["id"])+")")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        concurrent_results=list(pool.map(lambda _: review("handoff",rid,r["revision"]),range(4)))
+    assert len({v["import_id"] for v in concurrent_results})==1
+    new_import=concurrent_results[0]["import_id"]
+    assert review("handoff",rid,r["revision"])["import_id"]==new_import
+    assert review("get",rid)["import_id"]==new_import
+    review("edit",rid,r["revision"],col=2,error="DOCUMENT_FROZEN")
+    assert sql("SELECT source->'rows' FROM catalog_imports WHERE id="+lit(new_import))=='[["DEV-ONLY", "Training", "12"]]'
+    assert sql("SELECT source->'provenance'->0->>'locator' FROM catalog_imports WHERE id="+lit(new_import))=="sheet:1/row:2"
+    assert sql("SELECT count(*) FROM catalog_imports")=="2"
+    assert sql("SELECT count(*) FROM products")=="0"
+    sql("SET ROLE service_role; SELECT bot_catalog_import(101,'apply',"+lit(linked["id"])+", '{}',0,0)",
+        "DOCUMENT_REVIEW_REQUIRED")
+    assert rpc("get",id=first["id"])["extraction"]==content
+    # Restart retains originals, edited derivatives, and the one reviewed import link.
     command(["docker","restart",NAME])
     for _ in range(100):
         if subprocess.run(["docker","exec",NAME,"pg_isready","-h","127.0.0.1","-U","postgres"],capture_output=True).returncode==0: break
         time.sleep(.2)
     else: raise RuntimeError("PG_NOT_READY")
-    assert rpc("table",id=first["id"],payload={"index":0})["id"]==linked["id"]
+    assert review("handoff",rid,r["revision"])["import_id"]==new_import
+    assert review("get",rid)["original"]==["DEV-ONLY","Training","10"]
     second=worker("claim")
     assert second["id"]!=claim["id"]
     rpc("cancel",102,second["id"])
@@ -94,6 +147,39 @@ try:
     assert rpc("get",id=third["id"])["state"]=="failed"
     assert upload(b"different")["state"]=="failed"
     assert sql("SELECT count(*) FROM shop_orders")=="0"
-    print("PASS: private originals, seller denial, enrollment replay, duplicate files, lease/cancel/restart, one import handoff, no catalog/order mutations")
+    # A prompt remains bound across a real database restart; expired and revoked access fail closed.
+    # New documents require every row to be decided; changes revoke prior approval.
+    fourth=upload(b"review rows")
+    claim4=worker("claim");assert claim4["id"]==fourth["id"]
+    content4={**content,"sha256":fourth["checksum"],"tables":[{**content["tables"][0],
+      "rows":[["A","Product A","20"],["B","Product B","30"],["C","Product C","40"]],
+      "row_locators":["sheet:1/row:2","sheet:1/row:3","sheet:1/row:4"]}]}
+    worker("finish",claim4["id"],claim4["lease"],content4)
+    q=review("open",fourth["id"]);qid=q["id"]
+    q=review("approve",qid,q["revision"]);assert q["row"]==1
+    q=review("exclude",qid,q["revision"],row=1);assert q["row"]==2
+    review("handoff",qid,q["revision"],error="DOCUMENT_UNREVIEWED")
+    q=review("approve",qid,q["revision"],row=2)
+    q=review("edit",qid,q["revision"],col=2)
+    review("bind",qid,q["revision"],col=2,payload={"message_id":501})
+    old_revision=q["revision"]
+    sql("UPDATE staff SET active=false WHERE telegram_id=101")
+    review("save",qid,old_revision,col=2,payload={"value":"25","reply_to":501},error="DOCUMENT_DENIED")
+    sql("UPDATE staff SET active=true WHERE telegram_id=101")
+    command(["docker","restart",NAME])
+    for _ in range(100):
+        if subprocess.run(["docker","exec",NAME,"pg_isready","-h","127.0.0.1","-U","postgres"],capture_output=True).returncode==0: break
+        time.sleep(.2)
+    else: raise RuntimeError("PG_NOT_READY")
+    assert review("input")["prompt"]["message_id"]==501
+    q=review("save",qid,old_revision,col=2,payload={"value":"25","reply_to":501})
+    assert q["decision"]=="pending"
+    q=review("approve",qid,q["revision"])
+    result=review("handoff",qid,q["revision"])
+    source=json.loads(sql("SELECT source FROM catalog_imports WHERE id="+lit(result["import_id"])))
+    assert source["rows"]==[["A","Product A","25"],["C","Product C","40"]]
+    assert [p["source_row"] for p in source["provenance"]]==[0,2]
+    assert sql("SELECT count(*) FROM products")=="0"
+    print("PASS: private originals, enrollment, review ownership, exact questions, stale edits, approval invalidation, skipped rows, provenance, legacy gate, restart, one reviewed handoff, no catalog/order mutations")
 finally:
     if created: subprocess.run(["docker","rm","-fv",NAME],capture_output=True)

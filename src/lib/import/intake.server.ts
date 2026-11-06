@@ -3,7 +3,7 @@ import { can, type StaffMember } from "@/lib/bot/permissions";
 import { isPrivateChat } from "@/lib/bot/catalog";
 import { tg } from "@/lib/bot/telegram.server";
 import { downloadIntakeDocument, type ImportDocument } from "./telegram-file.server";
-import { renderImport, type ImportView } from "./catalog-view";
+import { openDocumentReview } from "./review.server";
 import { renderIntake, type IntakeView, parseIntakeCallback } from "./intake-view";
 
 const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
@@ -51,10 +51,11 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
   if (!allowed(m, chat))
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "🔒 Документы поставщиков доступны администратору: внутри могут быть закупочные цены.",
+      text: "🔒 Разбор документов и импорт доступны администратору. Продавцы могут смотреть закупочные цены в карточках товаров.",
     });
   const request = parseIntakeCallback(data);
   if (!request) return;
+  if (request.op === "table") return openDocumentReview(m, chat, request.id!, request.index!);
   let result: IntakeView;
   try {
     const r = await rpc("bot_document_intake", {
@@ -69,14 +70,6 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
     return tg("sendMessage", {
       chat_id: chat.id,
       text: "⚠️ Не удалось прочитать результат. Откройте /documents; не начинайте новый импорт для восстановления старого.",
-    });
-  }
-  if (request.op === "table") {
-    const view = renderImport(result as unknown as ImportView);
-    return tg("sendMessage", {
-      chat_id: chat.id,
-      text: view.text,
-      reply_markup: { inline_keyboard: view.rows },
     });
   }
   if (request.op === "original" && result.original_base64) {
@@ -119,7 +112,7 @@ export async function enrollSellers(m: StaffMember, chat: Chat, args: string[], 
   )
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "Добавление продавцов: /sellers ID ID. Только известные вам числовые Telegram ID. Закупка, цены и управление доступом продавцам недоступны.",
+      text: "Добавление продавцов: /sellers ID ID. Только известные вам числовые Telegram ID. Продавцам доступен просмотр закупки. Изменение цен, импорт и управление доступом недоступны.",
     });
   const r = await rpc("bot_enroll_sellers", {
     p_actor: m.telegram_id,
@@ -131,6 +124,6 @@ export async function enrollSellers(m: StaffMember, chat: Chat, args: string[], 
     text:
       r.error || !r.data?.ok
         ? "⚠️ Результат добавления требует проверки. Откройте «Сотрудники». Существующие другие роли и отключённые записи автоматически не меняются."
-        : "✅ Продавцы добавлены. Права одинаковые: товары, фото, наличие и заказы. Без закупочных цен, изменения цен и управления доступом. Для уведомлений каждый должен запустить этого бота.",
+        : "✅ Продавцы добавлены. Права одинаковые: товары, фото, наличие и заказы. Закупочные цены доступны для просмотра. Изменение цен, импорт и управление доступом недоступны. Для уведомлений каждый должен запустить этого бота.",
   });
 }

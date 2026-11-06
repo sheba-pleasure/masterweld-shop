@@ -9,6 +9,11 @@ import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
 import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
 import { showIntake, receiveIntakeDocument, enrollSellers } from "@/lib/import/intake.server";
+import {
+  showDocumentReview,
+  handleDocumentReviewText,
+  documentReviewControl,
+} from "@/lib/import/review.server";
 import { parseImportCallback } from "@/lib/import/catalog-view";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
@@ -1026,9 +1031,11 @@ async function setEditorState(
     await tg("sendMessage", {
       chat_id: staffTelegramId,
       text:
-        error.message === "EDITOR_TECHNICAL_ACTIVE"
-          ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
-          : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Нажмите «Продолжить ввод», чтобы проверить текущий вопрос.",
+        error.message === "DOCUMENT_INPUT_ACTIVE"
+          ? "✏️ Сначала завершите исправление строки документа. Нажмите «Продолжить ввод» или «Отмена ввода». Текущие данные сохранены."
+          : error.message === "EDITOR_TECHNICAL_ACTIVE"
+            ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
+            : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Нажмите «Продолжить ввод», чтобы проверить текущий вопрос.",
       reply_markup: INPUT_RECOVERY_MARKUP,
     });
   }
@@ -1547,7 +1554,7 @@ async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean, 
       DRAFT_STEP_EXPIRED:
         "Время подтверждения истекло. Черновик этой попыткой не создан; начните заново: /cancel, затем /new.",
       BOT_SKU_DUPLICATE:
-        "⚠️ Такой артикул уже есть в каталоге. Проверьте товар; для исправления ввода: /cancel, затем /new.",
+        "⚠️ Такой артикул уже есть в к��талоге. Проверьте товар; для исправления ввода: /cancel, затем /new.",
       BOT_BAD_VALUE: "⚠️ Данные черновика не прошли проверку. Исправьте ввод: /cancel, затем /new.",
     };
     const explanation = error && known[error.message];
@@ -2025,10 +2032,12 @@ async function handleCommand(
     case "/actions":
       return pendingHistory(m, chat.id);
     case "/input":
+      if (await documentReviewControl(m, chat, "resume")) return;
       return resumeEditorInput(m, chat.id);
     case "/technical":
       return technicalEditor(m, chat, from, { command: "/technical" });
     case "/cancel": {
+      if (await documentReviewControl(m, chat, "cancel")) return;
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
       const st = await getEditorState(m);
@@ -2299,6 +2308,8 @@ export async function handleUpdate(update: TgUpdate) {
       can(m, "upload_photos")
     )
       return tg("sendMessage", { chat_id: chat.id, text: PHOTO_UPLOAD_NOT_CONNECTED_MSG });
+    if (await handleDocumentReviewText(m, chat, text, update.message?.reply_to_message?.message_id))
+      return;
     if (
       can(m, "edit_products") &&
       (await technicalEditor(m, chat, from, {
@@ -2358,6 +2369,7 @@ export async function handleUpdate(update: TgUpdate) {
     return sendMenu(chat.id, { ...m, elevated });
   }
   if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
+  if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
   if (cb.data === "staff" && can(m, "manage_staff")) {
     try {
       await audit(m.telegram_id, "staff_read");

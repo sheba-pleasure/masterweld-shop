@@ -37,6 +37,8 @@ type Session = z.infer<typeof sessionSchema>;
 type Chat = { id: number; type?: string };
 type Button = { text: string; callback_data: string };
 const safeErrors: Record<string, string> = {
+  DOCUMENT_INPUT_ACTIVE:
+    "✏️ Сначала завершите исправление строки документа. /input — продолжить, /cancel — отменить ввод. Уже сохранённые строки останутся в разборе.",
   EDITOR_ORDINARY_ACTIVE:
     "✏️ Сначала завершите текущий ввод товара или отмените его командой /cancel. Затем снова откройте проверенные характеристики. Текущий ввод сохранён.",
   TECH_PRIMARY_SOURCE_REQUIRED:
