@@ -1,9 +1,9 @@
 name: verify
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
   pull_request:
-    branches: [main]
+    branches: [dev, main]
 permissions:
   contents: read
 concurrency:
@@ -25,6 +25,10 @@ jobs:
           bun-version: 1.2.x
       - name: Install (lockfile)
         run: bun install --frozen-lockfile
+      - name: Environment and release gates
+        run: |
+          node --test ops/runtime/environment.test.mjs
+          python3 -m unittest discover -s ops/production -p 'test_*.py'
       - name: Tests (обязательно)
         run: npm test
       - name: Build default preset (обязательно)

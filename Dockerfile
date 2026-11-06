@@ -11,15 +11,19 @@ RUN npm install -g bun@1.2 && npm cache clean --force
 COPY package.json bun.lock bunfig.toml ./
 RUN bun install --frozen-lockfile
 COPY . .
+ARG VITE_APP_ENV
+ARG PUBLIC_ORIGIN
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_SUPABASE_PROJECT_ID
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+ENV VITE_APP_ENV=$VITE_APP_ENV \
+    PUBLIC_ORIGIN=$PUBLIC_ORIGIN \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID \
     NITRO_PRESET=node-server
 # LOVABLE_SANDBOX не задан, поэтому пресет node-server не игнорируется.
-RUN npx vite build && test -f .output/server/index.mjs
+RUN npx vite build && test -f .output/server/index.mjs && node ops/runtime/write-manifest.mjs
 
 FROM node:22-bookworm-slim AS runtime
 ARG GIT_SHA
@@ -29,8 +33,9 @@ LABEL org.opencontainers.image.revision=$GIT_SHA \
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 RELEASE_SHA=$GIT_SHA
 WORKDIR /app
 COPY --from=build --chown=node:node /app/.output ./.output
+COPY --from=build --chown=node:node /app/ops/runtime ./ops/runtime
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "ops/runtime/start.mjs"]

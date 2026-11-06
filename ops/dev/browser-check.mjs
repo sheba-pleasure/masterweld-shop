@@ -1,0 +1,43 @@
+// Run inside the Playwright container, against the explicitly isolated DEV only.
+import { chromium } from "/node_modules/playwright/index.mjs";
+import assert from "node:assert/strict";
+const origin = "https://masterweld-dev.138-124-106-211.sslip.io";
+const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+const page = await context.newPage();
+const errors = [];
+page.on("pageerror", e => errors.push(e.message));
+page.on("response", r => { if (r.status() >= 400) errors.push(r.status() + " " + r.url().split("?")[0]); });
+try {
+  await page.goto(origin, { waitUntil: "networkidle", timeout: 45000 });
+  assert.match(await page.locator("body").innerText(), /Тестовый магазин/);
+  await page.evaluate(() => document.fonts.ready);
+  assert.equal(await page.locator('img').evaluateAll(imgs => imgs.every(i => i.complete && i.naturalWidth > 0)), true);
+  await page.screenshot({ path: "/artifacts/masterweld-dev-desktop.png", fullPage: true });
+  await page.getByRole("button", { name: "В корзину", exact: true }).first().click();
+  await page.getByRole("button", { name: /Корзина: 1 шт/ }).click();
+  await page.getByLabel("Имя покупателя", { exact: true }).fill("DEV QA");
+  await page.getByLabel("Телефон покупателя", { exact: true }).fill("+79990000000");
+  await page.getByLabel("Комментарий к заказу", { exact: true }).fill("Автоматическая проверка DEV. Не звонить.");
+  await page.screenshot({ path: "/artifacts/masterweld-dev-cart.png", fullPage: true });
+  await page.getByRole("button", { name: /Оформить (учебный )?заказ/, exact: true }).click();
+  await page.getByText(/Спасибо! Заказ .* принят/).waitFor({ timeout: 15000 });
+  await page.screenshot({ path: "/artifacts/masterweld-dev-order.png", fullPage: true });
+  console.log("Checkout:", await page.getByText(/Спасибо! Заказ .* принят/).innerText());
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.screenshot({ path: "/artifacts/masterweld-dev-mobile.png", fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "mobile horizontal overflow");
+  await page.getByRole("button", { name: "В корзину", exact: true }).first().click();
+  await page.getByRole("button", { name: /Корзина: 1 шт/ }).click();
+  await page.getByLabel("Имя покупателя", { exact: true }).fill("DEV mobile QA");
+  await page.screenshot({ path: "/artifacts/masterweld-dev-mobile-cart.png", fullPage: false, animations: "disabled" });
+  const box = await page.getByLabel("Имя покупателя", { exact: true }).boundingBox();
+  assert.ok(box && box.x >= 0 && box.x + box.width <= 390, "mobile checkout input fits viewport");
+  console.log("Fonts:", await page.evaluate(() => ({ sans: document.fonts.check('400 16px "Montserrat Variable"', "Проверка"), display: document.fonts.check('400 16px "Russo One"', "Проверка") })));
+  console.log("Browser errors:", JSON.stringify(errors));
+  assert.deepEqual(errors, []);
+  console.log("DEV desktop/mobile checkout passed");
+} finally { await browser.close(); }

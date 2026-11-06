@@ -1,6 +1,8 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "@fontsource-variable/montserrat";
+@import "@fontsource/russo-one";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -59,8 +61,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Montserrat", system-ui, sans-serif;
-  --font-display: "Russo One", "Montserrat", sans-serif;
+  --font-sans: "Montserrat Variable", system-ui, sans-serif;
+  --font-display: "Russo One", "Montserrat Variable", sans-serif;
   --color-brand-yellow: var(--brand-yellow);
   --color-brand-deep: var(--brand-deep);
   --color-workshop-surface: var(--workshop-surface);
