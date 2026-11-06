@@ -28,6 +28,8 @@ export function previewRequestId(update: TgUpdate, botId: string | undefined): s
 
 export function isDirectPreview(update: TgUpdate): boolean {
   if (update.callback_query)
-    return /^(?:pxp|pxs|phm|phu|phn|phx|stp|rb):/.test(update.callback_query.data ?? "");
+    return /^(?:pxp|pxs|phm|phu|phn|phx|pfm|pfu|pfn|pfx|stp|rb):/.test(
+      update.callback_query.data ?? "",
+    );
   return /^\/(?:price|stock|set)(?:@[a-z0-9_]+)?(?:\s|$)/i.test(update.message?.text ?? "");
 }

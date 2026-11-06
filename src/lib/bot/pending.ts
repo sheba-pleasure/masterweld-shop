@@ -142,12 +142,12 @@ export function describePendingChange(
   }
   if (action === "category") return "перенесён в другой раздел";
   const short = (v: unknown) => (typeof v === "string" ? v.slice(0, 8) : "—");
-  const pos = (v: unknown) => (typeof v === "number" ? `#${v + 1}` : "—");
   if (action === "photo_main")
     return `основное фото: #${short(b["prev_main_id"])} → #${short(a["photo_id"])}`;
   if (action === "photo_reorder")
-    return `порядок фото: ${pos(b["sort_order"])} → ${pos(a["sort_order"])}`;
-  if (action === "photo_delete") return `фото #${short(a["photo_id"])} скрыто (обратимо)`;
+    return `фото #${short(a["photo_id"])}: место среди обычных фото — ${typeof a["sort_order"] === "number" ? a["sort_order"] : "—"}`;
+  if (action === "photo_delete")
+    return `фото #${short(a["photo_id"])}: ${a["deleted"] === true ? "скрыть (обратимо)" : "восстановить из карантина"}`;
   return `${EDITOR_FIELD_LABEL[action]}: ${describeTextChange(b[action], a[action])}`;
 }
 

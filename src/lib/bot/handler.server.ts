@@ -77,6 +77,9 @@ import {
 import {
   galleryText,
   parsePhotoDetailCallback,
+  parsePhotoActionCallback,
+  photoActionCallback,
+  photoMenuCallback,
   PHOTO_UPLOAD_NOT_CONNECTED_MSG,
   photoDeletePreviewText,
   photoDetailText,
@@ -312,30 +315,27 @@ async function sendProductCard(chatId: number, productId: string, m: StaffMember
 // Загрузка новых фото из Telegram заблокирована (fail closed) до живой проверки,
 // что gateway отдаёт бинарные файлы (см. TELEGRAM_PHOTO_UPLOAD_VERIFIED в photos.ts).
 
-// Колонка deleted_at появляется в 0007 — до неё выборка работает без неё.
-let photoSoftDeleteCol: boolean | null = null;
-
-async function fetchPhotos(productId: string): Promise<BotPhoto[]> {
-  if (photoSoftDeleteCol === null) {
-    const probe = await supabaseAdmin.from("product_photos").select("deleted_at").limit(1);
-    photoSoftDeleteCol = !probe.error;
-  }
-  const cols = "id,url,sort_order,is_main,created_at" + (photoSoftDeleteCol ? ",deleted_at" : "");
-  let q = supabaseAdmin
+// Current independent schema always has deleted_at. A failed read is not an empty gallery.
+async function fetchPhotos(productId: string): Promise<BotPhoto[] | null> {
+  const { data, error } = await supabaseAdmin
     .from("product_photos")
-    .select(cols)
+    .select("id,url,sort_order,is_main,created_at")
     .eq("product_id", productId)
+    .is("deleted_at", null)
     .order("is_main", { ascending: false })
     .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
-  if (photoSoftDeleteCol) q = q.is("deleted_at", null);
-  const { data, error } = await q;
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   if (error) {
     console.error("[bot] photos read failed");
-    return [];
+    return null;
   }
   return (data ?? []) as unknown as BotPhoto[];
 }
+
+const PHOTO_READ_FAILED =
+  "⚠️ Не удалось прочитать фотографии. Откройте галерею позже; это не означает, что она пуста.";
+const PHOTO_CHANGED = "Это фото больше недоступно или галерея изменилась. Откройте галерею заново.";
 
 async function sendPhotoGallery(m: StaffMember, chatId: number, productId: string) {
   if (!can(m, "upload_photos"))
@@ -343,39 +343,83 @@ async function sendPhotoGallery(m: StaffMember, chatId: number, productId: strin
   const p = await fetchProductById(productId);
   if (!p) return tg("sendMessage", { chat_id: chatId, text: "Товар не найден." });
   const photos = await fetchPhotos(productId);
-  const rows = photoRows(productId, photos, true);
+  if (!photos) return tg("sendMessage", { chat_id: chatId, text: PHOTO_READ_FAILED });
   return tg("sendMessage", {
     chat_id: chatId,
     text: galleryText(p, photos),
-    reply_markup: { inline_keyboard: rows },
+    reply_markup: { inline_keyboard: photoRows(productId, photos, true) },
   });
 }
 
-async function sendPhotoDetail(m: StaffMember, chatId: number, productId: string, index: number) {
-  if (!can(m, "upload_photos"))
-    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для управления фото." });
-  const p = await fetchProductById(productId);
-  if (!p) return tg("sendMessage", { chat_id: chatId, text: "Товар не найден." });
-  const photos = await fetchPhotos(productId);
-  const ph = photos[index];
-  if (!ph)
-    return tg("sendMessage", {
+async function photoContext(m: StaffMember, chatId: number, photoId: string) {
+  if (!can(m, "upload_photos")) {
+    await tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для управления фото." });
+    return null;
+  }
+  const result = await supabaseAdmin
+    .from("product_photos")
+    .select("product_id")
+    .eq("id", photoId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) {
+    await tg("sendMessage", { chat_id: chatId, text: PHOTO_READ_FAILED });
+    return null;
+  }
+  if (!result.data) {
+    await tg("sendMessage", {
       chat_id: chatId,
-      text: "Список фото изменился — откройте галерею заново.",
+      text: PHOTO_CHANGED,
+      reply_markup: { inline_keyboard: [[{ text: "🗂 К каталогу", callback_data: "cat:0" }]] },
+    });
+    return null;
+  }
+  const productId = result.data.product_id;
+  const product = await loose
+    .from("products")
+    .select(PRODUCT_COLS)
+    .eq("id", productId)
+    .maybeSingle();
+  const photos = await fetchPhotos(productId);
+  if (product.error || !photos) {
+    await tg("sendMessage", { chat_id: chatId, text: PHOTO_READ_FAILED });
+    return null;
+  }
+  const index = photos.findIndex((ph) => ph.id === photoId);
+  if (!product.data || index < 0) {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: PHOTO_CHANGED,
       reply_markup: {
-        inline_keyboard: [[{ text: "🖼 К галерее", callback_data: `ph:${productId}` }]],
+        inline_keyboard: [[{ text: "🖼 К галерее", callback_data: photoMenuCallback(productId) }]],
       },
     });
+    return null;
+  }
+  return {
+    p: normalizeProduct(product.data as Record<string, unknown>),
+    photos,
+    ph: photos[index]!,
+    index,
+  };
+}
+
+async function sendPhotoDetail(m: StaffMember, chatId: number, photoId: string) {
+  const context = await photoContext(m, chatId, photoId);
+  if (!context) return;
+  const { p, photos, ph, index } = context;
   const rows: Btn[][] = [];
   if (!ph.is_main)
-    rows.push([{ text: "⭐ Сделать основным", callback_data: `phm:${productId}:${index}` }]);
+    rows.push([{ text: "⭐ Сделать основным", callback_data: photoActionCallback("m", ph.id) }]);
+  const movable = photos.filter((item) => !item.is_main);
+  const place = movable.findIndex((item) => item.id === ph.id);
   const nav: Btn[] = [];
-  if (index > 0) nav.push({ text: "⬆️ Выше", callback_data: `phu:${productId}:${index}` });
-  if (index < photos.length - 1)
-    nav.push({ text: "⬇️ Ниже", callback_data: `phn:${productId}:${index}` });
-  if (nav.length > 0) rows.push(nav);
-  rows.push([{ text: "🗑 Удалить (обратимо)", callback_data: `phx:${productId}:${index}` }]);
-  rows.push([{ text: "⬅️ К галерее", callback_data: `ph:${productId}` }]);
+  if (place > 0) nav.push({ text: "⬆️ Выше", callback_data: photoActionCallback("u", ph.id) });
+  if (place >= 0 && place < movable.length - 1)
+    nav.push({ text: "⬇️ Ниже", callback_data: photoActionCallback("n", ph.id) });
+  if (nav.length) rows.push(nav);
+  rows.push([{ text: "🗑 Удалить (обратимо)", callback_data: photoActionCallback("x", ph.id) }]);
+  rows.push([{ text: "⬅️ К галерее", callback_data: photoMenuCallback(p.id) }]);
   return tg("sendMessage", {
     chat_id: chatId,
     text: photoDetailText(p, ph, index, photos.length),
@@ -386,23 +430,22 @@ async function sendPhotoDetail(m: StaffMember, chatId: number, productId: string
 async function photoMainPreview(
   m: StaffMember,
   chatId: number,
-  productId: string,
-  index: number,
+  photoId: string,
   requestId: string,
 ) {
-  const photos = await fetchPhotos(productId);
-  const ph = photos[index];
-  const p = await fetchProductById(productId);
-  if (!p || !ph)
+  const context = await photoContext(m, chatId, photoId);
+  if (!context) return;
+  const { p, photos, ph, index } = context;
+  if (ph.is_main)
     return tg("sendMessage", {
       chat_id: chatId,
-      text: "Список фото изменился — откройте галерею заново.",
+      text: "Это фото уже основное. Откройте галерею, чтобы проверить её текущее состояние.",
     });
-  const prevMain = photos.find((x) => x.is_main) ?? null;
+  const prevMain = photos.find((item) => item.is_main) ?? null;
   return createPending(
     m,
     chatId,
-    productId,
+    p.id,
     "photo_main",
     {
       photo_id: ph.id,
@@ -419,28 +462,31 @@ async function photoMainPreview(
 async function photoReorderPreview(
   m: StaffMember,
   chatId: number,
-  productId: string,
-  index: number,
+  photoId: string,
   dir: -1 | 1,
   requestId: string,
 ) {
-  const photos = await fetchPhotos(productId);
-  const ph = photos[index];
-  const p = await fetchProductById(productId);
-  const to = index + dir;
-  if (!p || !ph || to < 0 || to >= photos.length || ph.is_main)
+  const context = await photoContext(m, chatId, photoId);
+  if (!context) return;
+  const { p, photos, ph, index } = context;
+  const movable = photos.filter((item) => !item.is_main);
+  const place = movable.findIndex((item) => item.id === ph.id);
+  const destination = place + dir;
+  if (place < 0 || destination < 0 || destination >= movable.length)
     return tg("sendMessage", {
       chat_id: chatId,
-      text: "Список фото изменился — откройте галерею заново.",
+      text: "Фото уже у края списка или стало основным. Откройте галерею заново.",
     });
+  // SQL ranks non-main photos 1..n, even when the source has gaps or no main.
+  const toIndex = photos.findIndex((item) => item.id === movable[destination]!.id);
   return createPending(
     m,
     chatId,
-    productId,
+    p.id,
     "photo_reorder",
     { photo_id: ph.id, sort_order: ph.sort_order, is_main: ph.is_main },
-    { photo_id: ph.id, sort_order: to },
-    photoReorderPreviewText(p, ph, index, to),
+    { photo_id: ph.id, sort_order: destination + 1 },
+    photoReorderPreviewText(p, ph, index, toIndex),
     requestId,
   );
 }
@@ -448,22 +494,16 @@ async function photoReorderPreview(
 async function photoDeletePreview(
   m: StaffMember,
   chatId: number,
-  productId: string,
-  index: number,
+  photoId: string,
   requestId: string,
 ) {
-  const photos = await fetchPhotos(productId);
-  const ph = photos[index];
-  const p = await fetchProductById(productId);
-  if (!p || !ph)
-    return tg("sendMessage", {
-      chat_id: chatId,
-      text: "Список фото изменился — откройте галерею заново.",
-    });
+  const context = await photoContext(m, chatId, photoId);
+  if (!context) return;
+  const { p, ph, index } = context;
   return createPending(
     m,
     chatId,
-    productId,
+    p.id,
     "photo_delete",
     { photo_id: ph.id, is_main: ph.is_main, sort_order: ph.sort_order },
     { photo_id: ph.id, deleted: true },
@@ -2439,32 +2479,43 @@ export async function handleUpdate(update: TgUpdate) {
     if (!can(m, "upload_photos")) return;
     return tg("sendMessage", { chat_id: chat.id, text: PHOTO_UPLOAD_NOT_CONNECTED_MSG });
   }
+  const legacyPhoto = data_str.match(/^ph[dmunx]:([0-9a-f-]{36}):\d{1,2}$/);
+  if (legacyPhoto) {
+    if (!priv) return catalogGuard();
+    if (!can(m, "upload_photos"))
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: "Недостаточно прав для управления фото.",
+      });
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: "Эта кнопка использует старый номер фото. Откройте галерею заново, чтобы выбрать нужное изображение.",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🖼 Открыть галерею", callback_data: photoMenuCallback(legacyPhoto[1]!) }],
+        ],
+      },
+    });
+  }
   const phd = parsePhotoDetailCallback(data_str);
   if (phd) {
     if (!priv) return catalogGuard();
-    return sendPhotoDetail(m, chat.id, phd.productId, phd.index);
+    return sendPhotoDetail(m, chat.id, phd.photoId);
   }
-  const phmM = data_str.match(/^phm:([0-9a-f-]{36}):(\d{1,2})$/);
-  if (phmM) {
+  const photoAction = parsePhotoActionCallback(data_str);
+  if (photoAction) {
     if (!priv) return catalogGuard();
-    return photoMainPreview(m, chat.id, phmM[1]!, Number(phmM[2]), requestId);
-  }
-  const phrM = data_str.match(/^ph([un]):([0-9a-f-]{36}):(\d{1,2})$/);
-  if (phrM) {
-    if (!priv) return catalogGuard();
+    if (photoAction.action === "m")
+      return photoMainPreview(m, chat.id, photoAction.photoId, requestId);
+    if (photoAction.action === "x")
+      return photoDeletePreview(m, chat.id, photoAction.photoId, requestId);
     return photoReorderPreview(
       m,
       chat.id,
-      phrM[2]!,
-      Number(phrM[3]),
-      phrM[1] === "u" ? -1 : 1,
+      photoAction.photoId,
+      photoAction.action === "u" ? -1 : 1,
       requestId,
     );
-  }
-  const phxM = data_str.match(/^phx:([0-9a-f-]{36}):(\d{1,2})$/);
-  if (phxM) {
-    if (!priv) return catalogGuard();
-    return photoDeletePreview(m, chat.id, phxM[1]!, Number(phxM[2]), requestId);
   }
 
   // Редактор карточек (C2A): все пути — только личный чат + RBAC внутри обработчиков.
