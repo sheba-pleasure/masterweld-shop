@@ -1,0 +1,569 @@
+{
+  "version": 1,
+  "checked_at": "2026-11-06",
+  "source_project_id": "ab84e929-8a04-4ce0-a95a-8f14b6f9f3fe",
+  "scope": "Read-only Cloud category snapshot with draft review suggestions. Not an import, approved dictionary, per-product classification or full data backup.",
+  "dictionary_package_received": true,
+  "changes_applied": false,
+  "rows": [
+    {
+      "id": "6b5f1102-c1fc-40d0-aab5-eadf4c766224",
+      "name": "Товары по акции",
+      "parent_id": null,
+      "product_count": 3,
+      "slug": "a-zdes-tovary-po-aktsii",
+      "sort_order": 0,
+      "review_status": "pending",
+      "note": "Маркетинговая подборка, не техническое семейство. Тип определяется отдельно у каждого товара.",
+      "candidate_family_codes": []
+    },
+    {
+      "id": "5e541329-ef48-4615-96a6-49409ac6940d",
+      "name": "Сварочные аппараты",
+      "parent_id": null,
+      "product_count": 55,
+      "slug": "elektrosvarka-apparaty-invertornye",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_mma",
+        "power_mig",
+        "power_tig_dc",
+        "power_tig_acdc",
+        "power_multiprocess",
+        "power_stud",
+        "power_laser"
+      ]
+    },
+    {
+      "id": "038d5306-003e-4c83-880a-719c9276b069",
+      "name": "Расходники для электросварки",
+      "parent_id": null,
+      "product_count": 43,
+      "slug": "elektrosvarka-rashodniki-i-komplektuyuschie",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "consumable_mma_electrodes",
+        "consumable_mig_wire_solid",
+        "consumable_flux_wire",
+        "consumable_tig_rod",
+        "consumable_tungsten"
+      ]
+    },
+    {
+      "id": "de17a8b3-f009-439c-b2ff-ec9acfc332f8",
+      "name": "Плазменная резка",
+      "parent_id": null,
+      "product_count": 0,
+      "slug": "vozdushno-plazmennaya-rezka-metallov",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_cut",
+        "cut_torch",
+        "cut_parts"
+      ]
+    },
+    {
+      "id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "name": "Газовая сварка и резка",
+      "parent_id": null,
+      "product_count": 0,
+      "slug": "gazosvarka-i-rezka-metallov",
+      "sort_order": 4,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_torch",
+        "oxy_cut_nozzle",
+        "gas_regulator",
+        "gas_hose",
+        "gas_cylinder"
+      ]
+    },
+    {
+      "id": "75ef95a9-41f1-4f93-8bab-54b7084a034d",
+      "name": "Контактная сварка",
+      "parent_id": null,
+      "product_count": 15,
+      "slug": "kontaktnaya-svarka",
+      "sort_order": 5,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_spot"
+      ]
+    },
+    {
+      "id": "cc8003a2-e383-4e44-adcf-eb897364b15a",
+      "name": "Сварка под флюсом (SAW)",
+      "parent_id": null,
+      "product_count": 2,
+      "slug": "avtomaticheskaya-svarka-saw",
+      "sort_order": 6,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_saw",
+        "consumable_saw_wire",
+        "consumable_saw_flux"
+      ]
+    },
+    {
+      "id": "6690fb6e-0b2b-4a8e-a8f2-36644ab0423a",
+      "name": "Сварка пластиковых труб",
+      "parent_id": null,
+      "product_count": 1,
+      "slug": "svarka-plastikovyh-trub",
+      "sort_order": 7,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "pipe_socket",
+        "pipe_electrofusion"
+      ]
+    },
+    {
+      "id": "d1878107-85a1-43a6-8da9-80b195d17b28",
+      "name": "Оборудование и аксессуары",
+      "parent_id": null,
+      "product_count": 39,
+      "slug": "oborudovanie-i-aksessuary-po-vidam-svarki",
+      "sort_order": 8,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "mig_torch",
+        "tig_torch",
+        "mig_contact_tip",
+        "mig_gas_nozzle",
+        "mig_liner",
+        "feed_rollers",
+        "tig_kit_parts",
+        "mma_holder",
+        "ground_clamp",
+        "welding_cable",
+        "fume_extraction",
+        "wire_feeder",
+        "water_cooler",
+        "welding_magnets",
+        "welding_table"
+      ]
+    },
+    {
+      "id": "84ce908e-3f9e-4bbc-b7a3-4fdc838e82a3",
+      "name": "Защита сварщика",
+      "parent_id": null,
+      "product_count": 3,
+      "slug": "sredstva-zaschity-odezhda-elektro-i-gazo-svarschika",
+      "sort_order": 9,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "mask_adf",
+        "mask_passive",
+        "welding_gloves",
+        "workwear"
+      ]
+    },
+    {
+      "id": "4c8c270b-3e1a-4e8d-a441-975a50af6e68",
+      "name": "Генераторы и компрессоры",
+      "parent_id": null,
+      "product_count": 0,
+      "slug": "generatory-i-kompressory",
+      "sort_order": 10,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "weld_generator",
+        "air_compressor"
+      ]
+    },
+    {
+      "id": "e52fb0a5-a595-4695-8f98-21d9161ab0fe",
+      "name": "Другие товары для сварки и резки",
+      "parent_id": null,
+      "product_count": 58,
+      "slug": "vse-tovary-dlya-svarki-i-rezki-metalla",
+      "sort_order": 11,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "brazing_solder"
+      ]
+    },
+    {
+      "id": "e450df79-e530-467b-a628-07b4a02f33f9",
+      "name": "Расходники для MIG/MAG",
+      "parent_id": "038d5306-003e-4c83-880a-719c9276b069",
+      "product_count": 150,
+      "slug": "elektrosvarka-rashodniki-i-komplektuyuschie--mig-mag-svarka-rashodnye-materialy-komplektuyuschie",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "consumable_mig_wire_solid",
+        "consumable_flux_wire",
+        "mig_torch",
+        "mig_contact_tip",
+        "mig_gas_nozzle",
+        "mig_liner",
+        "feed_rollers"
+      ]
+    },
+    {
+      "id": "53e2983a-94ae-4283-9355-427cacb6adc5",
+      "name": "Расходники для TIG",
+      "parent_id": "038d5306-003e-4c83-880a-719c9276b069",
+      "product_count": 192,
+      "slug": "elektrosvarka-rashodniki-i-komplektuyuschie--tig-svarka-komplektuyuschie-i-rashodnye-materialy",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "tig_torch",
+        "consumable_tungsten",
+        "consumable_tig_rod",
+        "tig_kit_parts"
+      ]
+    },
+    {
+      "id": "e16f65e6-ed88-4d6d-940a-41ece1345cfb",
+      "name": "Расходники для MMA",
+      "parent_id": "038d5306-003e-4c83-880a-719c9276b069",
+      "product_count": 25,
+      "slug": "elektrosvarka-rashodniki-i-komplektuyuschie--mma-svarka-rashodnye-materialy-i-komplektuyuschie",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "consumable_mma_electrodes",
+        "mma_holder"
+      ]
+    },
+    {
+      "id": "3e56e38b-c64e-422e-8a78-b81de1cad591",
+      "name": "Клеммы заземления",
+      "parent_id": "038d5306-003e-4c83-880a-719c9276b069",
+      "product_count": 4,
+      "slug": "elektrosvarka-rashodniki-i-komplektuyuschie--klemmy-zazemleniya",
+      "sort_order": 4,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "ground_clamp"
+      ]
+    },
+    {
+      "id": "929c804d-0ca3-4d54-b095-0233b614194f",
+      "name": "Бензиновые генераторы",
+      "parent_id": "4c8c270b-3e1a-4e8d-a441-975a50af6e68",
+      "product_count": 21,
+      "slug": "generatory-i-kompressory--benzinovye-generatory",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "В пакете есть только weld_generator. Нельзя считать обычные генераторы сварочными; для этой категории автоматическое соответствие не задано.",
+      "candidate_family_codes": []
+    },
+    {
+      "id": "2660d5e6-b162-4bc1-915f-6341362ba437",
+      "name": "Дизельные генераторы",
+      "parent_id": "4c8c270b-3e1a-4e8d-a441-975a50af6e68",
+      "product_count": 2,
+      "slug": "generatory-i-kompressory--dizelnye-generatory",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "В пакете есть только weld_generator. Нельзя считать обычные генераторы сварочными; для этой категории автоматическое соответствие не задано.",
+      "candidate_family_codes": []
+    },
+    {
+      "id": "b0d1d0c1-9668-47b3-ad5e-dd20514b7fe1",
+      "name": "Инверторные генераторы",
+      "parent_id": "4c8c270b-3e1a-4e8d-a441-975a50af6e68",
+      "product_count": 3,
+      "slug": "generatory-i-kompressory--invertornye-generatory",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "В пакете есть только weld_generator. Нельзя считать обычные генераторы сварочными; для этой категории автоматическое соответствие не задано.",
+      "candidate_family_codes": []
+    },
+    {
+      "id": "032c9167-1f25-40e6-821c-44a06d18cf35",
+      "name": "Компрессоры",
+      "parent_id": "4c8c270b-3e1a-4e8d-a441-975a50af6e68",
+      "product_count": 18,
+      "slug": "generatory-i-kompressory--kompressory",
+      "sort_order": 4,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "air_compressor"
+      ]
+    },
+    {
+      "id": "1142fb4e-2f2d-4f5c-b956-b75e4caf2804",
+      "name": "Полуавтоматы MIG/MAG",
+      "parent_id": "5e541329-ef48-4615-96a6-49409ac6940d",
+      "product_count": 16,
+      "slug": "elektrosvarka-apparaty-invertornye--apparaty-mig-mag-poluavtomaticheskaya-svarka",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_mig",
+        "power_multiprocess"
+      ]
+    },
+    {
+      "id": "f1a99891-7fbc-4d95-8032-3fdae0d17000",
+      "name": "Аргонодуговые аппараты TIG",
+      "parent_id": "5e541329-ef48-4615-96a6-49409ac6940d",
+      "product_count": 29,
+      "slug": "elektrosvarka-apparaty-invertornye--apparaty-tig-argonodugovaya-svarka",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_tig_dc",
+        "power_tig_acdc",
+        "power_multiprocess"
+      ]
+    },
+    {
+      "id": "83744d1c-8a4d-4d69-b895-cd9a10c8298a",
+      "name": "Аппараты ручной дуговой сварки MMA",
+      "parent_id": "5e541329-ef48-4615-96a6-49409ac6940d",
+      "product_count": 11,
+      "slug": "elektrosvarka-apparaty-invertornye--apparaty-mma-ruchnaya-dugovaya-svarka",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_mma",
+        "power_multiprocess"
+      ]
+    },
+    {
+      "id": "5fe04f9e-dc6f-4720-af53-2121bebd7cdd",
+      "name": "Комплектующие и расходники для контактной сварки",
+      "parent_id": "75ef95a9-41f1-4f93-8bab-54b7084a034d",
+      "product_count": 7,
+      "slug": "kontaktnaya-svarka--kontaktnaya-svarka-komplektuyuschie-i-rashoniki",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "power_spot описывает оборудование, не его расходники; точного семейства в пакете не определено.",
+      "candidate_family_codes": []
+    },
+    {
+      "id": "0ae0f2f1-f919-4c23-9448-0ab82fc868c5",
+      "name": "Сварочные маски",
+      "parent_id": "84ce908e-3f9e-4bbc-b7a3-4fdc838e82a3",
+      "product_count": 87,
+      "slug": "sredstva-zaschity-odezhda-elektro-i-gazo-svarschika--svarochnye-maski",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "mask_adf",
+        "mask_passive"
+      ]
+    },
+    {
+      "id": "24fc6764-482d-4d9c-aad7-db294c625e0e",
+      "name": "Перчатки и краги",
+      "parent_id": "84ce908e-3f9e-4bbc-b7a3-4fdc838e82a3",
+      "product_count": 7,
+      "slug": "sredstva-zaschity-odezhda-elektro-i-gazo-svarschika--perchatki-i-kragi-svarschika",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "welding_gloves"
+      ]
+    },
+    {
+      "id": "214062f6-a96a-4385-84e1-d2e0bf62b226",
+      "name": "Спецодежда и обувь",
+      "parent_id": "84ce908e-3f9e-4bbc-b7a3-4fdc838e82a3",
+      "product_count": 2,
+      "slug": "sredstva-zaschity-odezhda-elektro-i-gazo-svarschika--spets-odezhda-kostyumy-fartuki-i-obuv",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "workwear"
+      ]
+    },
+    {
+      "id": "e6bd7357-50a1-44ba-beeb-ecb6f2b060d5",
+      "name": "Редукторы и регуляторы расхода газа",
+      "parent_id": "d1878107-85a1-43a6-8da9-80b195d17b28",
+      "product_count": 53,
+      "slug": "oborudovanie-i-aksessuary-po-vidam-svarki--reduktory-regulyatory-rashoda-gaza",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "gas_regulator"
+      ]
+    },
+    {
+      "id": "83631466-cc53-4945-b941-069b718676c8",
+      "name": "Магнитные держатели",
+      "parent_id": "d1878107-85a1-43a6-8da9-80b195d17b28",
+      "product_count": 5,
+      "slug": "oborudovanie-i-aksessuary-po-vidam-svarki--magnitnye-prisposobleniya",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "welding_magnets"
+      ]
+    },
+    {
+      "id": "4a870218-080d-432d-97fb-fde839891682",
+      "name": "Сварочные кабели и комплекты",
+      "parent_id": "d1878107-85a1-43a6-8da9-80b195d17b28",
+      "product_count": 1,
+      "slug": "oborudovanie-i-aksessuary-po-vidam-svarki--kabeli-komplekty-kabeley",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "welding_cable"
+      ]
+    },
+    {
+      "id": "542a1e51-9703-4a06-ad08-a34847f61179",
+      "name": "Аппараты плазменной резки",
+      "parent_id": "de17a8b3-f009-439c-b2ff-ec9acfc332f8",
+      "product_count": 20,
+      "slug": "vozdushno-plazmennaya-rezka-metallov--apparaty-vozdushno-plazmennoy-rezki-cut",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "power_cut"
+      ]
+    },
+    {
+      "id": "b9547e1f-d75a-4417-b683-4eab3146c310",
+      "name": "Плазмотроны",
+      "parent_id": "de17a8b3-f009-439c-b2ff-ec9acfc332f8",
+      "product_count": 18,
+      "slug": "vozdushno-plazmennaya-rezka-metallov--plazmotrony-cut",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "cut_torch"
+      ]
+    },
+    {
+      "id": "8a6b7789-7d4e-4776-8a9b-5d87e528523d",
+      "name": "Расходники для плазмотронов",
+      "parent_id": "de17a8b3-f009-439c-b2ff-ec9acfc332f8",
+      "product_count": 56,
+      "slug": "vozdushno-plazmennaya-rezka-metallov--rashodnye-chasti-k-plazmatronam",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "cut_parts"
+      ]
+    },
+    {
+      "id": "224cf529-77de-4683-9f21-7be886434984",
+      "name": "Газовые резаки",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 30,
+      "slug": "gazosvarka-i-rezka-metallov--rezaki-gazovye",
+      "sort_order": 1,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_torch"
+      ]
+    },
+    {
+      "id": "205690ce-744d-4a5a-b932-e749193ef74e",
+      "name": "Газовые горелки",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 5,
+      "slug": "gazosvarka-i-rezka-metallov--gorelki-gazovye",
+      "sort_order": 2,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_torch"
+      ]
+    },
+    {
+      "id": "ca49d0e4-7185-4bf6-8a5b-7fc48b4a5092",
+      "name": "Газовоздушные и кровельные горелки",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 43,
+      "slug": "gazosvarka-i-rezka-metallov--gorelki-gazovozdushnye-krovelnye",
+      "sort_order": 3,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_torch"
+      ]
+    },
+    {
+      "id": "fb5120e3-b47b-48d6-8aa8-d4b67ae24155",
+      "name": "Кислородно-газовые горелки",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 2,
+      "slug": "gazosvarka-i-rezka-metallov--gorelki-kislorod-goryuchiy-gaz",
+      "sort_order": 4,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_torch"
+      ]
+    },
+    {
+      "id": "91853c3e-2821-4d66-ab2f-744922953b3c",
+      "name": "Газовые рукава",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 10,
+      "slug": "gazosvarka-i-rezka-metallov--rukava-gazovye",
+      "sort_order": 5,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "gas_hose"
+      ]
+    },
+    {
+      "id": "c63a43c8-3bb1-49a3-881f-7b245caab9f4",
+      "name": "Принадлежности для газовой сварки",
+      "parent_id": "e02ab9dd-255a-42e5-90f3-79f011076a5a",
+      "product_count": 2,
+      "slug": "gazosvarka-i-rezka-metallov--prinadlezhnosti-dlya-gazovoy-svarki",
+      "sort_order": 6,
+      "review_status": "pending",
+      "note": "Кандидаты по назначению раздела, не классификация товаров и не исчерпывающий перечень. Проверить документы конкретных товаров, включая собственные товары родительских категорий; свойства не наследуются автоматически.",
+      "candidate_family_codes": [
+        "oxy_cut_nozzle",
+        "gas_regulator",
+        "gas_hose",
+        "gas_cylinder"
+      ]
+    }
+  ],
+  "dictionary_path": "research/welding-catalog-2026-11-06/MasterWeld_Attribute_Dictionary_v1.json",
+  "dictionary_sha256": "8c47ff8fe7376364560dc62a6053f3270b0269b270845d81ea6623322f1c2be2",
+  "product_classification": {
+    "confirmed": 0,
+    "pending": 1038,
+    "basis": "No individual product was technically reviewed or assigned a family in this intake."
+  }
+}
