@@ -85,8 +85,8 @@ wait_healthy() {
 
 write_gateway_conf() {
   local port="$1"
-  mkdir -p "$STATE_DIR/gateway"
-  cat > "$STATE_DIR/gateway/default.conf.tmp" <<EOF
+  mkdir -p "$STATE_DIR/gateway" || return 1
+  cat > "$STATE_DIR/gateway/default.conf.tmp" <<EOF || return 1
 # Генерируется ops/lib.sh. Активный upstream: $port
 server {
   listen $BIND_IP:$GATEWAY_PORT;
@@ -107,7 +107,7 @@ EOF
 }
 
 switch_gateway() {
-  write_gateway_conf "$(slot_port "$1")"
+  write_gateway_conf "$(slot_port "$1")" || return 1
   docker exec "$GATEWAY_NAME" nginx -t >/dev/null && docker exec "$GATEWAY_NAME" nginx -s reload >/dev/null
 }
 
@@ -121,6 +121,50 @@ require_state_file() {
   (( (8#$mode & 8#022) == 0 )) || die "файл состояния $1 доступен на запись группе/другим ($mode)"
 }
 
+# Только этот подкаталог (без ключей и разрешений выпуска) монтируется в приложение read-only.
+# Пустой JSON означает паузу. Обновление атомарно; незавершённая отправка не переигрывается.
+workers_validate() {
+  local d="$STATE_DIR/workers" f="$STATE_DIR/workers/active.json"
+  local active="${1:-}" sha="${2:-}" mode
+  [ ! -L "$STATE_DIR" ] && [ "$(stat -c %u "$STATE_DIR")" = "$(id -u)" ] \
+    || die "небезопасный каталог состояния"
+  mode="$(stat -c %a "$STATE_DIR")"
+  (( (8#$mode & 8#022) == 0 )) || die "каталог состояния доступен на запись другим"
+  if [ -e "$d" ] || [ -L "$d" ]; then
+    [ -d "$d" ] && [ ! -L "$d" ] && [ "$(stat -c %u "$d")" = "$(id -u)" ] \
+      || die "небезопасный каталог workers"
+    mode="$(stat -c %a "$d")"
+    (( (8#$mode & 8#022) == 0 )) || die "каталог workers доступен на запись другим"
+  fi
+  if [ -e "$f" ] || [ -L "$f" ]; then
+    require_state_file workers/active.json
+    python3 - "$f" "$active" "$sha" <<'PY' || die "workers/active.json не соответствует активному выпуску"
+import json, sys
+with open(sys.argv[1], encoding="utf8") as stream:
+    control = json.loads(stream.read(257))
+if control != {} and control != {"slot": sys.argv[2], "sha": sys.argv[3]}:
+    raise SystemExit(1)
+PY
+  fi
+}
+workers_write() {
+  local tmp
+  tmp="$(mktemp "$STATE_DIR/workers/.active.XXXXXX")"
+  printf '%s\n' "$1" > "$tmp"
+  chmod 644 "$tmp"
+  mv -fT "$tmp" "$STATE_DIR/workers/active.json"
+}
+workers_prepare() {
+  [ -d "$STATE_DIR/workers" ] || mkdir -m 755 "$STATE_DIR/workers"
+  [ -f "$STATE_DIR/workers/active.json" ] || workers_pause
+}
+workers_pause() { workers_write '{}'; }
+workers_activate() {
+  case "$1" in a|b) ;; *) die "неизвестный worker slot" ;; esac
+  require_sha "$2"
+  workers_write "{\"slot\":\"$1\",\"sha\":\"$2\"}"
+}
+
 # Журнал утверждённых выпусков: только дописывается release.sh после успешного выпуска.
 approved_contains() { require_state_file approved; grep -qx "$1 $2" "$STATE_DIR/approved"; }
 approved_append() {
@@ -132,7 +176,7 @@ approved_append() {
 
 # Взаимное исключение release/rollback/build: один lock, без ожидания (fail closed).
 acquire_lock() {
-  mkdir -p "$STATE_DIR"
+  mkdir -p -m 700 "$STATE_DIR"
   exec 9>"$STATE_DIR/release.lock"
   flock -n 9 || die "другая операция выпуска/отката уже выполняется (release.lock) — отказ"
 }
@@ -154,6 +198,6 @@ write_gateway_maintenance() {
   mv "$STATE_DIR/gateway/default.conf.tmp" "$STATE_DIR/gateway/default.conf"
 }
 gateway_maintenance() {
-  write_gateway_maintenance
+  write_gateway_maintenance || return 1
   docker exec "$GATEWAY_NAME" nginx -t >/dev/null && docker exec "$GATEWAY_NAME" nginx -s reload >/dev/null
 }

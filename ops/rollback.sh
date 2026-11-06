@@ -21,15 +21,32 @@ NAME="$(slot_name "$PREV")"; PORT="$(slot_port "$PREV")"
 CT_SHA="$(container_sha "$NAME")" || die "контейнер $NAME отсутствует — откат невозможен, восстановление не выполняется (нужен новый выпуск)"
 [ "$CT_SHA" = "$PREV_SHA" ] || die "контейнер $NAME на $CT_SHA, а не на $PREV_SHA — отказ"
 
+ACTIVE="$(state_get active_slot)"; ACTIVE_SHA="$(state_get active_sha)"
+if [ -n "$ACTIVE" ]; then
+  require_state_file active_slot; require_state_file active_sha
+  require_sha "$ACTIVE_SHA"
+  slot_port "$ACTIVE" >/dev/null
+  [ "$(container_sha "$(slot_name "$ACTIVE")" || true)" = "$ACTIVE_SHA" ] \
+    || die "активное состояние не соответствует контейнеру"
+fi
+workers_validate "$ACTIVE" "$ACTIVE_SHA"
+workers_prepare
+
 [ "$(docker inspect --format '{{.State.Running}}' "$NAME")" = true ] || docker start "$NAME" >/dev/null
 { wait_healthy "http://$BIND_IP:$PORT" && smoke "http://$BIND_IP:$PORT"; } || die "slot $PREV не проходит проверку — откат не выполнен"
 
-ACTIVE="$(state_get active_slot)"; ACTIVE_SHA="$(state_get active_sha)"
-switch_gateway "$PREV"
-if ! smoke "http://$BIND_IP:$GATEWAY_PORT"; then
-  if [ -n "$ACTIVE" ]; then switch_gateway "$ACTIVE"; else gateway_maintenance; fi
+workers_pause
+if ! { switch_gateway "$PREV" && smoke "http://$BIND_IP:$GATEWAY_PORT"; }; then
+  if [ -n "$ACTIVE" ]; then
+    switch_gateway "$ACTIVE"
+    smoke "http://$BIND_IP:$GATEWAY_PORT" || die "возврат после сбоя отката не прошёл проверку; уведомления на паузе"
+    workers_activate "$ACTIVE" "$ACTIVE_SHA"
+  else
+    gateway_maintenance
+  fi
   die "после отката проверка не прошла — возвращено прежнее состояние"
 fi
 state_set active_slot "$PREV"; state_set active_sha "$PREV_SHA"
 state_set previous_slot "$ACTIVE"; state_set previous_sha "$ACTIVE_SHA"
+workers_activate "$PREV" "$PREV_SHA"
 log "ОТКАТ ГОТОВ: активен slot $PREV, SHA $PREV_SHA; БД не откатывалась"

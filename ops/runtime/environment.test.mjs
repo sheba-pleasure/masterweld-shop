@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateEnvironment, validateIdentity } from "./environment.mjs";
+import {
+  validateEnvironment,
+  validateIdentity,
+  validateNotificationWebhook,
+} from "./environment.mjs";
 const manifest = { environment: "dev", origin: "https://dev.example.test", publicKey: "dev-anon" };
 const env = {
   APP_ENV: "dev",
@@ -50,6 +54,7 @@ for (const [field, value, code] of [
   ["SUPABASE_PUBLISHABLE_KEY", "prod-anon", "PUBLIC_KEY_MISMATCH"],
   ["SUPABASE_SERVICE_ROLE_KEY", "dev-anon", "SERVICE_KEY_REQUIRED"],
   ["TELEGRAM_ENABLED", "", "TELEGRAM_MODE_REQUIRED"],
+  ["ORDER_NOTIFICATIONS_ENABLED", "yes", "NOTIFICATION_MODE_INVALID"],
 ])
   test("reject " + field, () =>
     assert.throws(
@@ -65,6 +70,29 @@ test("reject another dev database", () =>
   assert.throws(() => validateIdentity({ environment: "dev", instanceId: "other" }, env)));
 test("accept correct DB identity", () =>
   validateIdentity({ environment: "dev", instanceId: env.MW_INSTANCE_ID }, env));
+test("production notifications require the exact new staff webhook", () => {
+  const alerts = {
+    APP_ENV: "production",
+    ORDER_NOTIFICATIONS_ENABLED: "true",
+    PUBLIC_ORIGIN: "https://shop.masterweld.ru",
+  };
+  for (const payload of [
+    null,
+    { ok: false },
+    { ok: true, result: { url: "" } },
+    { ok: true, result: { url: "https://old.example.test/webhook" } },
+    { ok: true, result: { url: alerts.PUBLIC_ORIGIN + "/api/public/telegram/customer" } },
+  ])
+    assert.throws(
+      () => validateNotificationWebhook(payload, alerts),
+      /NOTIFICATION_WEBHOOK_CUTOVER_REQUIRED/,
+    );
+  validateNotificationWebhook(
+    { ok: true, result: { url: alerts.PUBLIC_ORIGIN + "/api/public/telegram/webhook" } },
+    alerts,
+  );
+  validateNotificationWebhook(null, { ...alerts, ORDER_NOTIFICATIONS_ENABLED: "false" });
+});
 test("production cannot launch without a verified bot", () =>
   assert.throws(
     () =>

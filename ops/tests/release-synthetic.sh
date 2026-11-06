@@ -26,6 +26,7 @@ if [[ "$url" == fake-gh/* ]]; then f="$FAKE_GH/${url#fake-gh/repos/sheba-pleasur
 [[ "$url" == http://127.0.0.1:* ]] || exit 6
 port="${url#http://127.0.0.1:}"; port="${port%%/*}"
 if [ "$port" = 18080 ]; then
+  printf "gateway %s\\n" "$(cat "$STATE_DIR/workers/active.json")" >> "$FAKE_CONTROL_LOG"
   grep -q 'return 503' "$STATE_DIR/gateway/default.conf" && exit 22
   port="$(grep -o '127.0.0.1:1808[12]' "$STATE_DIR/gateway/default.conf" | tail -1 | cut -d: -f2)"
   [ -f "$FAKE_MODE/gw-$port" ] && exit 22
@@ -42,11 +43,15 @@ cat > "$T/bin/docker" <<'EOF'
 echo "$*" >> "$FAKE_LOG"
 [ -n "${FAKE_DOCKER_SLEEP:-}" ] && [ "$1" = run ] && sleep "$FAKE_DOCKER_SLEEP"
 case "$1" in
+  exec) if [[ "$*" == *"nginx -s reload"* ]]; then
+      port="$(grep -o '127.0.0.1:1808[12]' "$STATE_DIR/gateway/default.conf" | tail -1 | cut -d: -f2)"
+      [ -f "$FAKE_MODE/reload-$port" ] && exit 1
+    fi; exit 0 ;;
   network) [ -f "$FAKE_MODE/no-prod-network" ] && exit 1; echo production ;;
   image) img="${@: -1}"; sha="${img#masterweld-shop:}"; [ -f "$FAKE_IMAGES/$sha" ] && echo "$sha" || exit 1 ;;
   inspect) name="${@: -1}"; [ "$name" = mw-shop-gateway ] && exit 0; [ -f "$FAKE_CT/$name" ] || exit 1
     if [[ "$*" == *State.Running* ]]; then [ -f "$FAKE_CT/$name.stopped" ] && echo false || echo true; else cat "$FAKE_CT/$name"; fi ;;
-  run) prev=""; name=""; for a in "$@"; do [ "$prev" = --name ] && name="$a"; prev="$a"; done; sha="${@: -1}"
+  run) printf "candidate %s\\n" "$(cat "$STATE_DIR/workers/active.json")" >> "$FAKE_CONTROL_LOG"; prev=""; name=""; for a in "$@"; do [ "$prev" = --name ] && name="$a"; prev="$a"; done; sha="${@: -1}"
     echo "${sha#masterweld-shop:}" > "$FAKE_CT/$name"; rm -f "$FAKE_CT/$name.stopped"; echo id ;;
   rm) rm -f "$FAKE_CT/${@: -1}" "$FAKE_CT/${@: -1}.stopped" ;;
   stop) [ -f "$FAKE_CT/${@: -1}" ] && touch "$FAKE_CT/${@: -1}.stopped"; exit 0 ;;
@@ -59,7 +64,7 @@ EOF
 chmod +x "$T/bin/"*
 
 export PATH="$T/bin:$PATH" GITHUB_API=fake-gh FAKE_GH="$T/gh" STATE_DIR="$T/state" SECRETS_ENV="$T/secrets/shop.env" \
-  FAKE_LOG="$T/docker.log" FAKE_IMAGES="$T/img" FAKE_CT="$T/ct" FAKE_MODE="$T/mode" FAKE_BUILD="$T/build" HEALTH_TRIES=2 HEALTH_SLEEP=0
+  FAKE_CONTROL_LOG="$T/control.log" FAKE_LOG="$T/docker.log" FAKE_IMAGES="$T/img" FAKE_CT="$T/ct" FAKE_MODE="$T/mode" FAKE_BUILD="$T/build" HEALTH_TRIES=2 HEALTH_SLEEP=0
 mkdir -p "$FAKE_IMAGES" "$FAKE_CT" "$FAKE_MODE"
 touch "$FAKE_IMAGES/$S1" "$FAKE_IMAGES/$S2" "$FAKE_IMAGES/$S3"
 
@@ -87,25 +92,47 @@ check "нет production-сети — отказ до изменения кон�
 check "  … без действий docker" "$(nactions)" 0
 rm "$FAKE_MODE/no-prod-network"
 
+# --- небезопасный управляющий файл/каталог: отказ до действий ---
+mkdir -p "$STATE_DIR"
+ln -s "$T/secrets" "$STATE_DIR/workers"; dlog
+check "workers symlink — отказ" "$(run release.sh $S1)" 1
+check "  … без действий docker" "$(nactions)" 0
+rm "$STATE_DIR/workers"
+mkdir -m 755 "$STATE_DIR/workers"
+echo '{}' > "$STATE_DIR/workers/active.json"; chmod 666 "$STATE_DIR/workers/active.json"; dlog
+check "workers writable — отказ" "$(run release.sh $S1)" 1
+check "  … без действий docker" "$(nactions)" 0
+rm "$STATE_DIR/workers/active.json"
+ln -s "$SECRETS_ENV" "$STATE_DIR/workers/active.json"; dlog
+check "control symlink — отказ" "$(run release.sh $S1)" 1
+check "  … без действий docker" "$(nactions)" 0
+rm "$STATE_DIR/workers/active.json"
+
 # --- первый выпуск: сбой после переключения → 503, не успех ---
 mkdir -p "$STATE_DIR"; touch "$FAKE_MODE/gw-18081"
 check "первый выпуск: сбой после switch → код 2" "$(run release.sh $S1)" 2
 check "  … вход переведён в 503" "$(gw 'return 503')" 1
 check "  … состояние active не записано" "$(st active_slot)" ""
 check "  … в журнале approved пусто" "$(st approved)" ""
+check "  … worker остаётся на паузе" "$(st workers/active.json)" "{}"
 rm "$FAKE_MODE/gw-18081"
 
 check "первый выпуск S1" "$(run release.sh $S1)" 0
 check "активен slot a" "$(st active_slot)" a
+check "worker активен только a/S1" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
+check "candidate первого выпуска ждал проверки" "$(head -1 "$FAKE_CONTROL_LOG")" "candidate {}"
+check "перед переключением mount read-only" "$(grep -c 'target=/run/mw-workers,readonly' "$FAKE_LOG")" 2
 check "повтор активного SHA отклонён" "$(run release.sh $S1)" 1
 echo indexable > "$FAKE_MODE/18082"
 check "без noindex — не переключать" "$(run release.sh $S2)" 1
 check "трафик остался на a" "$(gw 'proxy_pass http://127.0.0.1:18081')" 1
+check "неуспешный candidate не сменил worker" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
 rm "$FAKE_MODE/18082"
 check "выпуск S2" "$(run release.sh $S2)" 0
 check "активен b/S2" "$(st active_slot)/$(st active_sha)" "b/$S2"
 check "предыдущий a/S1 сохранён" "$(st previous_slot)/$(st previous_sha)" "a/$S1"
 check "контейнер a не удалён" "$(cat "$FAKE_CT/mw-shop-slot-a")" "$S1"
+check "старый контейнер работает, но очередь у b/S2" "$(st workers/active.json)" "{\"slot\":\"b\",\"sha\":\"$S2\"}"
 
 # --- «Откати» ---
 check "откат на чужой SHA отклонён" "$(run rollback.sh $S2)" 1
@@ -121,6 +148,7 @@ rm "$FAKE_IMAGES/$S1"; touch "$FAKE_CT/mw-shop-slot-a.stopped"; dlog
 check "«Откати» без аргумента — OFFLINE, без образа" "$(GITHUB_API=fake-off run rollback.sh)" 0
 check "активен a/S1" "$(st active_slot)/$(st active_sha)" "a/$S1"
 check "previous стал b/S2" "$(st previous_slot)/$(st previous_sha)" "b/$S2"
+check "офлайн откат передал очередь a/S1" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
 check "откат не обращался к образам" "$(grep -c '^image' "$FAKE_LOG")" 0
 touch "$FAKE_IMAGES/$S1"
 # возврат вперёд через откат с явным SHA
@@ -136,13 +164,31 @@ echo "$S3" > "$FAKE_CT/mw-shop-slot-a"
 check "чужая метка контейнера — отказ" "$(run rollback.sh)" 1
 echo "$S1" > "$FAKE_CT/mw-shop-slot-a"
 
+# --- неуспешный откат восстанавливает управление worker ---
+touch "$FAKE_MODE/gw-18081"
+check "неуспешный rollback — отказ" "$(run rollback.sh)" 1
+check "rollback вернул worker b/S2" "$(st workers/active.json)" "{\"slot\":\"b\",\"sha\":\"$S2\"}"
+rm "$FAKE_MODE/gw-18081"
+cp "$STATE_DIR/workers/active.json" "$T/control.bak"
+echo '{"slot":"a","sha":"wrong"}' > "$STATE_DIR/workers/active.json"; dlog
+check "несогласованный control — отказ" "$(run rollback.sh)" 1
+check "  … без действий docker" "$(nactions)" 0
+cp "$T/control.bak" "$STATE_DIR/workers/active.json"
+
 # --- автооткат при сбое после переключения ---
 check "откат на a/S1" "$(run rollback.sh)" 0
 touch "$FAKE_MODE/gw-18082"
 check "сбой после переключения → код 2" "$(run release.sh $S2)" 2
 check "автооткат вернул gateway на a" "$(gw 'proxy_pass http://127.0.0.1:18081')" 1
 check "состояние осталось a/S1" "$(st active_slot)/$(st active_sha)" "a/$S1"
+check "автооткат восстановил очередь a/S1" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
 rm "$FAKE_MODE/gw-18082"
+
+# --- ошибка reload: возврат к проверенному старому выпуску ---
+touch "$FAKE_MODE/reload-18082"
+check "ошибка reload — автооткат" "$(run release.sh $S2)" 2
+check "reload failure оставил worker a/S1" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
+rm "$FAKE_MODE/reload-18082"
 
 # --- взаимное исключение (общий release.lock) ---
 flock "$STATE_DIR/release.lock" sleep 3 & LOCKPID=$!; sleep 0.3
@@ -173,4 +219,5 @@ check "  … рабочие файлы не тронуты" "$(cat "$R/a.txt")" 
 check "повторная сборка — отказ" "$(CONFIRM_BUILD=yes run build-approved.sh $B)" 1
 
 check "ни один скрипт не вызывает psql/миграции" "$(grep -El 'psql|supabase db|migrat' "$OPS"/*.sh | wc -l | tr -d ' ')" 0
+check "на всех проверках gateway очередь на паузе" "$(grep '^gateway ' "$FAKE_CONTROL_LOG" | grep -vc '^gateway {}$' || true)" 0
 echo "итог: $pass ok, $fail fail"; [ "$fail" = 0 ]

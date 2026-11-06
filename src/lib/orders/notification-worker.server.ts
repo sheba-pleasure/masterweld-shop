@@ -3,18 +3,8 @@ import { tg } from "../bot/telegram.server";
 import { dispatchOne, type NotificationJob, type NotificationStore } from "./notifications.server";
 import type { StaffMember } from "../bot/permissions";
 
-export function notificationsEnabled(env: NodeJS.ProcessEnv): boolean {
-  if (env["ORDER_NOTIFICATIONS_ENABLED"] !== "true") return false;
-  if (
-    env["APP_ENV"] !== "dev" ||
-    env["TELEGRAM_ENABLED"] !== "true" ||
-    env["TELEGRAM_BOT_USERNAME"] !== "testmw639bot" ||
-    env["TELEGRAM_BOT_ID"] !== "8996533708"
-  ) {
-    throw new Error("NOTIFICATION_ENVIRONMENT_MISMATCH");
-  }
-  return true;
-}
+import { notificationsEnabled, notificationWorkerActive } from "./notification-environment.server";
+export { notificationsEnabled, notificationWorkerActive } from "./notification-environment.server";
 
 export function createNotificationStore(): NotificationStore {
   // Independent server-only schema: not generated Cloud types. Runtime identity is checked before startup.
@@ -72,6 +62,17 @@ export function createNotificationStore(): NotificationStore {
   };
 }
 
+// Recheck before every claim, including the next job in the same tick after a release switch.
+export async function dispatchNotificationBatch(
+  store: NotificationStore,
+  send: Parameters<typeof dispatchOne>[1],
+  active: () => boolean,
+) {
+  for (let n = 0; n < 5 && active(); n++) {
+    if (!(await dispatchOne(store, send))) break;
+  }
+}
+
 export function startOrderNotifications() {
   if (!notificationsEnabled(process.env)) return;
   const store = createNotificationStore();
@@ -85,13 +86,14 @@ export function startOrderNotifications() {
   process.once("SIGINT", stop);
   const tick = async () => {
     try {
-      for (let n = 0; n < 5 && !stopped; n++) {
-        const found = await dispatchOne(store, async (message) => {
+      await dispatchNotificationBatch(
+        store,
+        async (message) => {
           const result = await (await tg("sendMessage", message)).json();
           return result?.result?.message_id;
-        });
-        if (!found) break;
-      }
+        },
+        () => !stopped && notificationWorkerActive(process.env),
+      );
     } catch {
       // No payload, token, customer/staff data or provider response in logs.
       console.error("[order-notifications] worker failed; durable state retained");

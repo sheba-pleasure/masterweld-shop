@@ -151,12 +151,14 @@ describe("durable order notifications", () => {
     expect(message.text).toContain("900");
     expect(Object.keys(message)).toEqual(["chat_id", "text", "reply_markup"]);
   });
-  it("worker is opt-in and refuses production or another bot", () => {
+  it("DEV worker is opt-in and refuses a production environment with the DEV bot", () => {
     expect(notificationsEnabled({ APP_ENV: "dev" })).toBe(false);
     const env = {
       ORDER_NOTIFICATIONS_ENABLED: "true",
       APP_ENV: "dev",
       TELEGRAM_ENABLED: "true",
+      TELEGRAM_TRANSPORT: "direct",
+      TELEGRAM_BOT_TOKEN: "8996533708:" + "t".repeat(30),
       TELEGRAM_BOT_USERNAME: "testmw639bot",
       TELEGRAM_BOT_ID: "8996533708",
     };
