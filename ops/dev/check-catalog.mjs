@@ -53,6 +53,11 @@ try {
       assert.equal(await page.getByLabel("Минимальная цена, рублей").isVisible(), true);
       assert.equal(await page.getByLabel("Минимальная цена, рублей").inputValue(), "800");
       await toggle.click();
+    } else {
+      assert.equal(
+        await page.getByRole("button", { name: "Фильтры и сортировка", exact: true }).isVisible(),
+        false,
+      );
     }
     await page.locator("#catalog").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `/artifacts/catalog-${width}.png`, animations: "disabled" });

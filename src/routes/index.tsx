@@ -337,15 +337,17 @@ function Catalog() {
               </div>
             )}
             <div className="workshop-filters mb-6 flex flex-col gap-3">
-              <button
-                type="button"
-                aria-expanded={filtersOpen}
-                aria-controls="catalog-filters"
-                onClick={() => setFiltersOpen((open) => !open)}
-                className="filter-chip justify-between md:hidden"
-              >
-                Фильтры и сортировка <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
-              </button>
+              <div className="md:hidden">
+                <button
+                  type="button"
+                  aria-expanded={filtersOpen}
+                  aria-controls="catalog-filters"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  className="filter-chip w-full justify-between"
+                >
+                  Фильтры и сортировка <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
+                </button>
+              </div>
               <div
                 id="catalog-filters"
                 className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
@@ -463,7 +465,7 @@ function Catalog() {
                 )}
               </div>
             ) : (
-              <ul className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              <ul className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {list.slice(0, limit).map((p) => {
                   const img = mainPhoto(p.product_photos);
                   return (
