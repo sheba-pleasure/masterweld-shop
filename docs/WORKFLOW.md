@@ -57,6 +57,9 @@ python3 -m unittest discover -s ops/production -p 'test_*.py'
 npm run build
 NITRO_PRESET=node-server npm run build
 bash ops/tests/release-synthetic.sh
+python3 ops/tests/release-containers.py
+
+Последняя команда требует локальные node:22-bookworm-slim и nginx:1.27-alpine; создаёт отдельные учебные ресурсы, проверяет настоящий gateway и удаляет их. Состав, настройки и ограничения: [RELEASE-CONTAINER-REHEARSAL.md](RELEASE-CONTAINER-REHEARSAL.md).
 
 Инфраструктура: HTTPS/сертификат/noindex, заказ DEV, SQL-права, маркер базы, возврат предыдущей версии.
 TypeScript: npm run typecheck — обязательный этап verify сразу после установки зависимостей. Действует неизменённый строгий tsconfig: src/**/*.ts/tsx (включая тесты), vite.config.ts и vitest.config.ts. Отдельные ops/*.ts этим tsconfig не охвачены; для них сохраняются собственные проверки. Не отключать strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes или noPropertyAccessFromIndexSignature ради зелёной проверки. Полный lint имеет старый долг; изменённые участки проверяются отдельно.
