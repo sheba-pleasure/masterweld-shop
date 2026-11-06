@@ -16,7 +16,7 @@
 |---|---|
 | Владельцу | [Управление и выпуск](docs/OWNER.md), [Что осталось до запуска](docs/LAUNCH-CHECKLIST.md) |
 | Сотруднику | [Работа с магазином](docs/STAFF.md) |
-| Администратору | [Среды и обслуживание](docs/ENVIRONMENTS.md), [Массовый импорт](docs/CATALOG-IMPORT.md) |
+| Администратору | [Среды и обслуживание](docs/ENVIRONMENTS.md), [Массовый импорт](docs/CATALOG-IMPORT.md), [Резервные копии](docs/DATABASE-BACKUPS.md) |
 | Разработчику | [Порядок работы](docs/WORKFLOW.md), [Архитектура](docs/ARCHITECTURE.md) |
 | Всем | [Что работает и что осталось](STATUS.md) |
 
