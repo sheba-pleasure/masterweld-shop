@@ -60,7 +60,9 @@ BEGIN
      OR EXISTS(SELECT 1 FROM technical_editor_sessions WHERE staff_telegram_id=actor_id AND phase IN('editing','preview') AND expires_at>now())
    THEN RAISE EXCEPTION 'DOCUMENT_OTHER_INPUT'; END IF;
  ELSE
-   IF EXISTS(SELECT 1 FROM document_review_prompts WHERE actor=actor_id AND expires_at>now())
+   IF EXISTS(SELECT 1 FROM document_review_prompts p JOIN staff owner ON owner.telegram_id=p.actor
+     WHERE p.actor=actor_id AND p.expires_at>now() AND owner.active
+       AND(owner.role::text='admin' OR(owner.role::text='director' AND owner.elevated)))
    THEN RAISE EXCEPTION 'DOCUMENT_INPUT_ACTIVE'; END IF;
  END IF;
  RETURN NEW;
@@ -126,6 +128,8 @@ BEGIN
      OR jsonb_typeof(t->'rows') IS DISTINCT FROM 'array' OR jsonb_array_length(t->'rows') NOT BETWEEN 1 AND 5000
      OR EXISTS(SELECT 1 FROM jsonb_array_elements(t->'header') x WHERE jsonb_typeof(x)<>'string' OR length(x#>>'{}')>100)
      OR EXISTS(SELECT 1 FROM jsonb_array_elements(t->'rows') x WHERE jsonb_typeof(x)<>'array')
+   THEN RAISE EXCEPTION 'DOCUMENT_TABLE'; END IF;
+   IF EXISTS(SELECT 1 FROM jsonb_array_elements(t->'rows') x WHERE jsonb_array_length(x)>30)
    THEN RAISE EXCEPTION 'DOCUMENT_TABLE'; END IF;
    IF EXISTS(SELECT 1 FROM jsonb_array_elements(t->'rows') x CROSS JOIN LATERAL jsonb_array_elements(x) c
      WHERE jsonb_typeof(c)<>'string' OR length(c#>>'{}')>2000)

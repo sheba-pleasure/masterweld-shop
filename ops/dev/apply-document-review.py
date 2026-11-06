@@ -42,7 +42,7 @@ DO $after$ DECLARE t record; h text; BEGIN
   EXECUTE format('SELECT md5(coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),''[]''::jsonb)::text) FROM public.%I r',t.name) INTO h;
   IF h IS DISTINCT FROM t.fingerprint THEN RAISE EXCEPTION 'DOCUMENT_EXISTING_DATA_CHANGED'; END IF;
  END LOOP;
- IF EXISTS(SELECT 1 FROM unnest(ARRAY['document_reviews','document_review_rows','document_review_prompts','document_import_origins']) t CROSS JOIN unnest(ARRAY['anon','authenticated','service_role']) r WHERE has_table_privilege(r,t,'SELECT,INSERT,UPDATE,DELETE'))
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['document_reviews','document_review_rows','document_review_prompts','document_import_origins']) AS tab(table_name) CROSS JOIN unnest(ARRAY['anon','authenticated','service_role']) AS rol(role_name) WHERE has_table_privilege(rol.role_name,tab.table_name,'SELECT,INSERT,UPDATE,DELETE'))
     OR has_function_privilege('anon','bot_document_review(bigint,text,uuid,integer,integer,integer,jsonb)','EXECUTE')
     OR has_function_privilege('service_role','mw_private.bot_catalog_import(bigint,text,uuid,jsonb,integer,integer)','EXECUTE')
     OR has_table_privilege('anon','document_intakes','SELECT') OR has_table_privilege('service_role','document_intakes','INSERT')

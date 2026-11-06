@@ -78,7 +78,10 @@ try:
     assert sql("SELECT count(*) FROM catalog_imports")=="1"
     assert sql("SELECT count(*) FROM document_import_links")=="1"
     # New review gate must also block the legacy unreviewed preview, without erasing it.
-    sql((ROOT/"docs/migrations/0027_document_review.sql").read_text())
+    sql((ROOT/"ops/dev/identity.sql").read_text())
+    review_spec=importlib.util.spec_from_file_location("review_migration",ROOT/"ops/dev/apply-document-review.py")
+    review_migration=importlib.util.module_from_spec(review_spec);review_spec.loader.exec_module(review_migration)
+    sql(review_migration.transaction((ROOT/review_migration.PATH).read_text(),review_migration.EXPECTED))
     rpc("table",id=first["id"],payload={"index":0},error="DOCUMENT_REVIEW_REQUIRED")
     def review(op, rid=None, rev=None, row=0, col=None, payload=None, actor=101, error=None):
         args=[str(actor),lit(op),lit(rid) if rid else "NULL",str(rev) if rev is not None else "NULL",
@@ -102,6 +105,10 @@ try:
     review("edit",rid,0,col=2,error="DOCUMENT_OTHER_INPUT")
     sql("DELETE FROM bot_editor_states WHERE staff_telegram_id=101")
     r=review("edit",rid,0,col=2);assert r["revision"]==1
+    sql("UPDATE staff SET role='seller' WHERE telegram_id=101")
+    sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour')")
+    sql("DELETE FROM bot_editor_states WHERE staff_telegram_id=101")
+    sql("UPDATE staff SET role='admin' WHERE telegram_id=101")
     sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour')",
         "DOCUMENT_INPUT_ACTIVE")
     review("save",rid,1,col=2,payload={"value":"12","reply_to":500},error="DOCUMENT_PROMPT")
@@ -162,6 +169,8 @@ try:
     q=review("approve",qid,q["revision"],row=2)
     q=review("edit",qid,q["revision"],col=2)
     review("bind",qid,q["revision"],col=2,payload={"message_id":501})
+    assert q["decision"]=="pending"
+    review("handoff",qid,q["revision"],error="DOCUMENT_UNREVIEWED")
     old_revision=q["revision"]
     sql("UPDATE staff SET active=false WHERE telegram_id=101")
     review("save",qid,old_revision,col=2,payload={"value":"25","reply_to":501},error="DOCUMENT_DENIED")
