@@ -171,7 +171,23 @@ try:
     # Never change the identity of an actual DEV/production database.
     migration22=(ROOT / "docs/migrations/0022_catalog_draft_results.sql").read_text()
     sql(operator.transaction(migration22,draft_results=True))
+    sql(operator.transaction((ROOT / "docs/migrations/0023_catalog_editor_previews.sql").read_text(),editor_previews=True))
+    sql(operator.transaction((ROOT / "docs/migrations/0024_pending_result_recovery.sql").read_text(),pending_recovery=True))
     upgrade_checks=(ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+    for fn in ["bot_apply_pending","bot_cancel_pending","bot_set_photo_main","bot_reorder_photo","bot_delete_photo_meta"]:
+        sql("GRANT EXECUTE ON FUNCTION "+fn+"(uuid,bigint) TO service_role")
+        sql(upgrade_checks,"REHEARSAL_PENDING_BYPASS_OPEN")
+        sql("REVOKE EXECUTE ON FUNCTION "+fn+"(uuid,bigint) FROM service_role")
+    for signature,code in [
+        ("bot_editor_preview(bigint,uuid,text,jsonb)","REHEARSAL_PREVIEW_RPC_UNAVAILABLE"),
+        ("bot_pending_operation(bigint,uuid,text)","REHEARSAL_PENDING_RPC_UNAVAILABLE"),
+    ]:
+        sql("REVOKE EXECUTE ON FUNCTION "+signature+" FROM service_role")
+        sql(upgrade_checks,code)
+        sql("GRANT EXECUTE ON FUNCTION "+signature+" TO service_role")
+    sql("GRANT SELECT ON bot_editor_previews TO service_role")
+    sql(upgrade_checks,"REHEARSAL_TECH_DIRECT_ACCESS")
+    sql("REVOKE SELECT ON bot_editor_previews FROM service_role")
     sql("GRANT EXECUTE ON FUNCTION bot_create_draft(bigint,text,text,numeric) TO service_role;")
     sql(upgrade_checks,"REHEARSAL_DRAFT_BYPASS_OPEN")
     sql("REVOKE EXECUTE ON FUNCTION bot_create_draft(bigint,text,text,numeric) FROM service_role;")
@@ -193,6 +209,9 @@ try:
     checked=json.loads(sql(upgrade_checks))
     assert checked["editorApplyDuplicateUndo"] and checked["fixturesRolledBack"]
     assert checked["draftReceiptPrivate"] and checked["draftRecoveryPreservesNewInput"] and checked["draftCancelDurable"]
+    assert checked["previewReceiptPrivate"] and checked["previewRecoveryPreservesNewInput"]
+    assert checked["pendingReadNeverMutates"] and checked["pendingApplyCancelDurable"] and checked["pendingLegacyRpcClosed"]
+    assert sql("SELECT count(*) FROM bot_editor_previews")=="0"
     assert sql("SELECT count(*) FROM bot_draft_results")=="0"
     assert sql("SELECT count(*) FROM technical_editor_sessions")=="0"
     assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
