@@ -51,7 +51,9 @@ describe("durable order notifications", () => {
       expect(send).toHaveBeenCalledWith(
         expect.objectContaining({
           chat_id: 42,
-          reply_markup: { inline_keyboard: [[{ callback_data: "order:" + order.id }]] },
+          reply_markup: {
+            inline_keyboard: [[{ text: "📄 Открыть заказ", callback_data: "order:" + order.id }]],
+          },
         }),
       );
       expect(f.store.finish).toHaveBeenCalledWith(f.job, {

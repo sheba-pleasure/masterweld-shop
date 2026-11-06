@@ -51,7 +51,11 @@ export function createNotificationStore(): NotificationStore {
     async finish(job, outcome) {
       const { data, error } = await db
         .from("order_notifications")
-        .update({ ...outcome, reason: outcome.reason ?? null, updated_at: new Date().toISOString() })
+        .update({
+          ...outcome,
+          reason: outcome.reason ?? null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("order_id", job.order_id)
         .eq("staff_telegram_id", job.staff_telegram_id)
         .eq("claim_token", job.claim_token)
