@@ -70,6 +70,7 @@ def verify(folder):
         checks[name] = {"rows": len(values), "sha256": hashlib.sha256(raw).hexdigest(),
                         "source_md5": entry["payload_md5"], "bytes": len(raw)}
     metadata_manifest = read_json(folder / "metadata-manifest.json")
+    require(metadata_manifest["source_snapshot"] == manifest["source_snapshot"], "MIXED_METADATA_SNAPSHOT")
     private(folder / "metadata.json")
     raw = (folder / "metadata.json").read_bytes()
     require(len(raw) == metadata_manifest["payload_bytes"]

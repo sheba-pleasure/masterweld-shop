@@ -92,6 +92,14 @@ class CloudSnapshotTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "MIXED_SNAPSHOTS"):
             snapshot.verify(self.folder)
 
+    def test_metadata_from_different_snapshot_refused(self):
+        path = self.folder / "metadata-manifest.json"
+        metadata_manifest = json.loads(path.read_bytes())
+        metadata_manifest["source_snapshot"] = "2:2:"
+        self.write(path.name, json.dumps(metadata_manifest).encode())
+        with self.assertRaisesRegex(RuntimeError, "MIXED_METADATA_SNAPSHOT"):
+            snapshot.verify(self.folder)
+
     def test_duplicate_table_cannot_replace_missing_table(self):
         self.manifest["tables"][-1] = dict(self.manifest["tables"][0])
         self.save_manifest()
