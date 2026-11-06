@@ -33,6 +33,8 @@ jobs:
         run: node ops/check-independence.mjs
       - name: Assortment transactions (isolated PostgreSQL)
         run: python3 ops/tests/assortment.py
+      - name: Catalog import transactions (isolated PostgreSQL)
+        run: python3 ops/tests/catalog-import.py
       - name: Tests (обязательно)
         run: npm test
       - name: Build default preset (обязательно)
