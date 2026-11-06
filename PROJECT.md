@@ -6,8 +6,9 @@
 Интеграция: dev. Выпуск: main после «обнови main» и проверки.
 
 Стек: React 19, TypeScript, TanStack Start/Router/Query, Tailwind 4.
-Рабочая Cloud-база: Supabase, состояние заново проверяется перед выпуском.
-DEV: отдельный PostgreSQL 17 + PostgREST 12, совместимый с используемыми REST/RPC-вызовами Supabase-клиента.
+Целевой backend: собственные PostgreSQL 17 + PostgREST 12. Подготовленная production-база пока пустая, схема 0000–0013; рабочий выпуск не выполнен.
+DEV: отдельные PostgreSQL/PostgREST, схема 0000–0018. Supabase JS используется как клиент протокола, без зависимости от hosted Supabase.
+Исторический Cloud Lovable остаётся источником переноса; его данные сохранены и не подключены к новому runtime.
 Это не полный self-hosted Supabase: Auth, Storage, Realtime и Studio пока не развёрнуты. Личный кабинет является заглушкой и в исходном приложении.
 
 Браузер → каталог → корзина → createOrder → серверный пересчёт → shop_orders.
