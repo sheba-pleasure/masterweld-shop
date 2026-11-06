@@ -30,7 +30,8 @@ PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_
            "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
            "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
            "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql",
-           "0025_pending_preview_requests.sql")
+           "0025_pending_preview_requests.sql", "0026_document_intake.sql",
+           "0027_document_review.sql", "0028_document_structure.sql")
 
 
 def require(value, code):
@@ -249,6 +250,8 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
         after = fingerprints("candidate")
         technical_sql = (ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
         technical = json.loads(sql(technical_sql))
+        document_sql = (ROOT / "ops/standalone/check-document-upgrade.sql").read_text()
+        documents = json.loads(sql(document_sql))
         require(fingerprints("candidate") == after, "TECHNICAL_FIXTURES_NOT_ROLLED_BACK")
         # Initial import must refuse a second pass; it cannot resurrect later exclusions.
         duplicate = command(["docker", "exec", "-i", name, "psql", "-U", "postgres", "-d", "candidate",
@@ -271,11 +274,15 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
         verify_import("candidate"); verify_import("roundtrip")
         require(json.loads(sql(technical_sql, "candidate")) == technical and
                 json.loads(sql(technical_sql, "roundtrip")) == technical, "TECHNICAL_RESTORE_CHANGED")
+        require(json.loads(sql(document_sql, "candidate")) == documents and
+                json.loads(sql(document_sql, "roundtrip")) == documents, "DOCUMENT_RESTORE_CHANGED")
         require(fingerprints("candidate") == after and fingerprints("roundtrip") == after
                 and fingerprints("rollbackcheck") == baseline, "RESTART_TARGET_CHANGED")
-        return {"rehearsed": True, "schema": "0025", "offlineNetwork": "none", "ports": [],
+        return {"rehearsed": True, "schema": "0028", "offlineNetwork": "none", "ports": [],
                 "catalogOriginalFieldsPreserved": True, "allSourceTablesArchivedPrivately": True,
                 "technicalChecks": technical,
+                "documentChecks": documents,
+                "documentChecksSha256": hashlib.sha256(document_sql.encode()).hexdigest(),
                 "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
                 "activeStaffAndOrdersImported": False, "historicalNotifications": 0,
                 "repeatImportRejected": True, "dumpRestoreRestartVerified": True,

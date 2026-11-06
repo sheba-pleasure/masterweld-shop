@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0025.
+"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0028.
 Never changes the source database, webhooks, app containers or release approvals.
 """
 import hashlib
@@ -25,7 +25,8 @@ PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_
            "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
            "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
            "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql",
-           "0025_pending_preview_requests.sql")
+           "0025_pending_preview_requests.sql", "0026_document_intake.sql",
+           "0027_document_review.sql", "0028_document_structure.sql")
 
 
 def run(args, **kwargs):
@@ -133,6 +134,8 @@ def main():
                 raise ValueError("RESTORED_DATA_CHANGED")
         technical_sql = (ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
         technical = json.loads(sql(name, technical_sql))
+        document_sql = (ROOT / "ops/standalone/check-document-upgrade.sql").read_text()
+        documents = json.loads(sql(name, document_sql))
         if fingerprint(name) != after:
             raise ValueError("REHEARSAL_FIXTURES_NOT_ROLLED_BACK")
         first_claim = sql(name, """DO $$ BEGIN
@@ -148,6 +151,7 @@ def main():
             raise ValueError("INITIAL_RECEIPT_CLAIM_FAILED")
         if sql(name, "SET ROLE service_role; SELECT public.claim_telegram_bot_update(1,42,true);") != "f":
             raise ValueError("REPLAY_BARRIER_FAILED")
+        before_restart = fingerprint(name)
         run(["docker", "restart", name])
         wait_ready(name)
         if identity(name) != expected_identity:
@@ -156,6 +160,10 @@ def main():
             raise ValueError("RESTART_REPLAY_BARRIER_FAILED")
         if json.loads(sql(name, technical_sql)) != technical:
             raise ValueError("TECHNICAL_RESTART_MISMATCH")
+        if json.loads(sql(name, document_sql)) != documents:
+            raise ValueError("DOCUMENT_RESTART_MISMATCH")
+        if fingerprint(name) != before_restart:
+            raise ValueError("RESTART_FIXTURES_NOT_ROLLED_BACK")
         if fingerprint(SOURCE) != before:
             raise ValueError("SOURCE_CHANGED_DURING_REHEARSAL")
         report = {
@@ -164,8 +172,10 @@ def main():
             "backupSha256": hashlib.sha256(backup).hexdigest(),
             "rolesSha256": hashlib.sha256(roles).hexdigest(),
             "sourceUnchanged": True, "restoredInSeparateOfflineCluster": True,
-            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0025",
+            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0028",
             "technicalChecks": technical,
+            "documentChecks": documents,
+            "documentChecksSha256": hashlib.sha256(document_sql.encode()).hexdigest(),
             "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
             "migrations": {f: hashes["docs/migrations/" + f] for f in PENDING},
             "existingTableFingerprintsPreserved": True, "directOrderInsertClosed": True,
