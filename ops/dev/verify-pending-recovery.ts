@@ -74,7 +74,7 @@ function ordinary() {
 }
 function unchanged() {
   return sql(`SELECT jsonb_build_object(
-    'products',(SELECT md5(jsonb_agg(CASE WHEN id='20000000-0000-4000-8000-000000000001' THEN to_jsonb(r)-'updated_at' ELSE to_jsonb(r) END ORDER BY id)::text) FROM products r),
+    'products',(SELECT md5(jsonb_agg(CASE WHEN id='20000000-0000-4000-8000-000000000001' THEN to_jsonb(r)-'updated_at'-'assortment_revision' ELSE to_jsonb(r) END ORDER BY id)::text) FROM products r),
     'orders',(SELECT md5(jsonb_agg(to_jsonb(r) ORDER BY id)::text) FROM shop_orders r),
     'notifications',(SELECT md5(jsonb_agg(to_jsonb(r) ORDER BY order_id,staff_telegram_id)::text) FROM order_notifications r),
     'technical',(SELECT md5(coalesce(jsonb_agg(to_jsonb(r) ORDER BY product_id),'[]'::jsonb)::text) FROM technical_cards r));`);
@@ -86,6 +86,9 @@ assert.ok(
 );
 assert.equal(await editor("current"), null, "Do not replace the owner's technical draft");
 const before = unchanged();
+const revisionBefore = Number(
+  sql("SELECT assortment_revision FROM products WHERE id='" + productId + "';"),
+);
 
 const messages: { messageId: number; text: string; buttons: string[] }[] = [];
 let loseNextResult = false;
@@ -203,6 +206,14 @@ assert.deepEqual(ordinary(), later);
 await command("/cancel");
 assert.ok(ordinary().consumed_at);
 assert.equal(unchanged(), before);
+const revisionAfter = Number(
+  sql("SELECT assortment_revision FROM products WHERE id='" + productId + "';"),
+);
+assert.equal(
+  revisionAfter,
+  revisionBefore + 2,
+  "One apply and one rollback, without replay writes",
+);
 assert.equal(
   sql("SELECT title FROM products WHERE id='" + productId + "';"),
   "ТЕСТ — сварочный аппарат",
@@ -218,7 +229,9 @@ const report = {
   readApplyCancelRecoveredSameOutcome: true,
   oneApplyAudit: true,
   laterInputPreserved: true,
-  productsRestoredExceptTestProductUpdatedAt: true,
+  productsRestoredExceptTestProductUpdatedAtAndRevision: true,
+  revisionBefore,
+  revisionAfter,
   ordersNotificationsTechnicalUnchanged: true,
   noActiveInputRemains: true,
   pendingId,
