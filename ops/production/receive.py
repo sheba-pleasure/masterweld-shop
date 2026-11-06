@@ -41,7 +41,9 @@ def main():
         if info["Config"]["Labels"].get("org.opencontainers.image.revision")!=sha: raise ValueError("IMAGE_SHA_MISMATCH")
         # The immutable image's runtime manifest must be for production before release.sh starts it.
         probe=subprocess.check_output(["docker","run","--rm","--network","none","--entrypoint","node",image,"-e","console.log(require('fs').readFileSync('/app/.output/mw-environment.json','utf8'))"])
-        if json.loads(probe).get("environment")!="production": raise ValueError("PRODUCTION_IMAGE_REQUIRED")
+        manifest=json.loads(probe)
+        if manifest.get("environment")!="production": raise ValueError("PRODUCTION_IMAGE_REQUIRED")
+        if manifest.get("revision")!=sha: raise ValueError("BUILD_REVISION_MISMATCH")
         # Consume before the first possible deployment effect; failures need an explicit fresh review.
         used=STATE/("consumed-"+sha)
         fd=os.open(used,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)

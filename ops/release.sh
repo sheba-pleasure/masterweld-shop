@@ -47,13 +47,13 @@ docker run -d --name "$NAME" --restart unless-stopped \
   --label "mw-shop.sha=$SHA" --label "mw-shop.slot=$TARGET" \
   "$IMAGE_REPO:$SHA" >/dev/null
 
-if ! wait_healthy "http://$BIND_IP:$PORT" || ! smoke "http://$BIND_IP:$PORT"; then
+if ! wait_healthy "http://$BIND_IP:$PORT" || ! smoke "http://$BIND_IP:$PORT" "$SHA"; then
   docker stop "$NAME" >/dev/null 2>&1 || true
   die "новый slot $TARGET не прошёл проверки — трафик не переключён"
 fi
 
 workers_pause
-if switch_gateway "$TARGET" && smoke "http://$BIND_IP:$GATEWAY_PORT"; then
+if switch_gateway "$TARGET" && smoke "http://$BIND_IP:$GATEWAY_PORT" "$SHA"; then
   [ -n "$ACTIVE" ] && { state_set previous_slot "$ACTIVE"; state_set previous_sha "$ACTIVE_SHA"; }
   state_set active_slot "$TARGET"; state_set active_sha "$SHA"
   approved_append "$TARGET" "$SHA"
@@ -66,7 +66,7 @@ log "проверка после переключения не прошла — 
 if [ -n "$ACTIVE" ]; then
   switch_gateway "$ACTIVE"
   docker stop "$NAME" >/dev/null 2>&1 || true
-  smoke "http://$BIND_IP:$GATEWAY_PORT" || die "автооткат на slot $ACTIVE тоже не прошёл проверку — нужен человек"
+  smoke "http://$BIND_IP:$GATEWAY_PORT" "$ACTIVE_SHA" || die "автооткат на slot $ACTIVE тоже не прошёл проверку — нужен человек"
   workers_activate "$ACTIVE" "$ACTIVE_SHA"
   log "автооткат выполнен: slot $ACTIVE, SHA $ACTIVE_SHA; состояние не изменено"
 else

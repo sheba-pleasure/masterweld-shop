@@ -2,6 +2,8 @@ export function validateEnvironment(manifest, env) {
   const fail = (code) => {
     throw new Error(code);
   };
+  if (!/^[0-9a-f]{40}$/.test(manifest.revision || "")) fail("BUILD_REVISION_REQUIRED");
+  if (env.RELEASE_SHA !== manifest.revision) fail("RELEASE_REVISION_MISMATCH");
   if (!["dev", "production"].includes(env.APP_ENV)) fail("APP_ENV_REQUIRED");
   if (manifest.environment !== env.APP_ENV) fail("BUILD_ENVIRONMENT_MISMATCH");
   if (!/^[0-9a-f-]{36}$/.test(env.MW_INSTANCE_ID || "")) fail("INSTANCE_ID_REQUIRED");

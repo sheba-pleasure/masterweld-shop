@@ -25,6 +25,7 @@ for ((i=1;i<=$#;i++)); do [ "${!i}" = -o ] && { j=$((i+1)); out="${!j}"; }; done
 if [[ "$url" == fake-gh/* ]]; then f="$FAKE_GH/${url#fake-gh/repos/sheba-pleasure/masterweld-shop/}/r"; [ -f "$f" ] && cat "$f" && exit 0; exit 22; fi
 [[ "$url" == http://127.0.0.1:* ]] || exit 6
 port="${url#http://127.0.0.1:}"; port="${port%%/*}"
+is_gateway=no; [ "$port" = 18080 ] && is_gateway=yes
 if [ "$port" = 18080 ]; then
   printf "gateway %s\\n" "$(cat "$STATE_DIR/workers/active.json")" >> "$FAKE_CONTROL_LOG"
   grep -q 'return 503' "$STATE_DIR/gateway/default.conf" && exit 22
@@ -35,6 +36,21 @@ slot=a; [ "$port" = 18082 ] && slot=b
 { [ -f "$FAKE_CT/mw-shop-slot-$slot" ] && [ ! -f "$FAKE_CT/mw-shop-slot-$slot.stopped" ]; } || exit 7
 mode="$(cat "$FAKE_MODE/$port" 2>/dev/null || echo ok)"
 [ "$mode" = down ] && exit 22
+if [[ "$url" == *"/api/public/release-health?"* ]]; then
+  sha="$(cat "$FAKE_CT/mw-shop-slot-$slot")"; environment=production
+  [ "$mode" = wrongrevision ] && sha=0000000000000000000000000000000000000000
+  [ "$mode" = devhealth ] && environment=dev
+  [ "$mode" = badhealth ] && { echo 'not-json'; exit 0; }
+  if [ "$is_gateway" = yes ]; then
+    [ -f "$FAKE_MODE/gw-revision-$port" ] && sha=0000000000000000000000000000000000000000
+    if [ -f "$FAKE_MODE/gw-stale-once-$port" ]; then
+      sha=0000000000000000000000000000000000000000
+      rm "$FAKE_MODE/gw-stale-once-$port"
+    fi
+  fi
+  printf '{"ready":true,"revision":"%s","environment":"%s"}\n' "$sha" "$environment"
+  exit 0
+fi
 html='<meta name="robots" content="noindex, nofollow"/>'; [ "$mode" = indexable ] && html='<meta name="robots" content="index"/>'
 [ -n "$out" ] && exit 0; echo "$html"
 EOF
@@ -69,8 +85,8 @@ mkdir -p "$FAKE_IMAGES" "$FAKE_CT" "$FAKE_MODE"
 touch "$FAKE_IMAGES/$S1" "$FAKE_IMAGES/$S2" "$FAKE_IMAGES/$S3"
 
 pass=0; fail=0
-check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); echo "ok  - $1"; else fail=$((fail+1)); echo "FAIL- $1 (ожидалось '$3', получено '$2')"; fi; }
-run() { "$OPS/$1" "${@:2}" >/dev/null 2>&1; echo $?; }
+check() { if [ "$2" = "$3" ]; then pass=$((pass+1)); echo "ok  - $1"; else fail=$((fail+1)); echo "FAIL- $1 (ожидалось '$3', получено '$2')"; head -12 "$T/last-run.log" 2>/dev/null; fi; }
+run() { "$OPS/$1" "${@:2}" >"$T/last-run.log" 2>&1; echo $?; }
 st() { cat "$STATE_DIR/$1" 2>/dev/null; }
 gw() { grep -c "$1" "$STATE_DIR/gateway/default.conf" 2>/dev/null || echo 0; }
 dlog() { : > "$FAKE_LOG"; }
@@ -128,8 +144,20 @@ check "без noindex — не переключать" "$(run release.sh $S2)" 1
 check "трафик остался на a" "$(gw 'proxy_pass http://127.0.0.1:18081')" 1
 check "неуспешный candidate не сменил worker" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
 rm "$FAKE_MODE/18082"
+for identity_mode in wrongrevision devhealth badhealth; do
+  echo "$identity_mode" > "$FAKE_MODE/18082"
+  check "candidate $identity_mode — отказ без переключения" "$(run release.sh $S2)" 1
+  check "  … активен прежний a/S1" "$(st active_slot)/$(st active_sha)" "a/$S1"
+done
+rm "$FAKE_MODE/18082"
+touch "$FAKE_MODE/gw-revision-18082"
+check "gateway ответил чужим SHA — автооткат" "$(run release.sh $S2)" 2
+check "  … активен a/S1 и его worker" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
+rm "$FAKE_MODE/gw-revision-18082"
+touch "$FAKE_MODE/gw-stale-once-18082"
 check "выпуск S2" "$(run release.sh $S2)" 0
 check "активен b/S2" "$(st active_slot)/$(st active_sha)" "b/$S2"
+check "старый ответ gateway дождался правильного SHA" "$(test -e "$FAKE_MODE/gw-stale-once-18082"; echo $?)" 1
 check "предыдущий a/S1 сохранён" "$(st previous_slot)/$(st previous_sha)" "a/$S1"
 check "контейнер a не удалён" "$(cat "$FAKE_CT/mw-shop-slot-a")" "$S1"
 check "старый контейнер работает, но очередь у b/S2" "$(st workers/active.json)" "{\"slot\":\"b\",\"sha\":\"$S2\"}"

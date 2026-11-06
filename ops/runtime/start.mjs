@@ -67,6 +67,13 @@ try {
       validateNotificationWebhook(data, env);
     }
   }
+  // A public allowlisted readiness snapshot exists only after every startup guard passes.
+  // It reports the immutable build revision, never an unverified environment override.
+  Object.defineProperty(globalThis, Symbol.for("masterweld.runtime.health"), {
+    value: Object.freeze({ ready: true, revision: manifest.revision, environment: manifest.environment }),
+    writable: false,
+    configurable: false,
+  });
   console.info("[startup] environment and database identity verified:", env.APP_ENV);
 } catch (error) {
   const safe =

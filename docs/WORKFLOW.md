@@ -34,7 +34,7 @@ deploy-production: только успешный verify от push main.
 Сервер сначала требует разрешение на точный SHA; произвольный push без него не выпускается.
 Production-образ собирается с production public-настройками; DEV-образ не переносится.
 Передача по SSH с закреплённым host key; forced command принимает только check/deploy и полный SHA.
-Сервер повторно проверяет merge/CI, SHA и среду образа; release.sh выполняет blue/green, smoke и автооткат.
+Сервер повторно проверяет merge/CI, SHA и среду образа; release.sh выполняет blue/green, smoke и автооткат. Smoke требует точный SHA и production-среду из readiness до/после переключения; старый HTTP 200 не подтверждает новый выпуск. Manifest и runtime RELEASE_SHA обязаны совпасть. Подробности и границы: [RELEASE-HEALTH.md](RELEASE-HEALTH.md).
 Разрешение одноразовое, срок 24 часа. После сбоя нужен новый разбор. Миграции/данные не переносятся.
 
 ## Настройка автодеплоя пока не завершена

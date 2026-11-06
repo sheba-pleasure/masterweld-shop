@@ -33,13 +33,13 @@ workers_validate "$ACTIVE" "$ACTIVE_SHA"
 workers_prepare
 
 [ "$(docker inspect --format '{{.State.Running}}' "$NAME")" = true ] || docker start "$NAME" >/dev/null
-{ wait_healthy "http://$BIND_IP:$PORT" && smoke "http://$BIND_IP:$PORT"; } || die "slot $PREV не проходит проверку — откат не выполнен"
+{ wait_healthy "http://$BIND_IP:$PORT" && smoke "http://$BIND_IP:$PORT" "$PREV_SHA"; } || die "slot $PREV не проходит проверку — откат не выполнен"
 
 workers_pause
-if ! { switch_gateway "$PREV" && smoke "http://$BIND_IP:$GATEWAY_PORT"; }; then
+if ! { switch_gateway "$PREV" && smoke "http://$BIND_IP:$GATEWAY_PORT" "$PREV_SHA"; }; then
   if [ -n "$ACTIVE" ]; then
     switch_gateway "$ACTIVE"
-    smoke "http://$BIND_IP:$GATEWAY_PORT" || die "возврат после сбоя отката не прошёл проверку; уведомления на паузе"
+    smoke "http://$BIND_IP:$GATEWAY_PORT" "$ACTIVE_SHA" || die "возврат после сбоя отката не прошёл проверку; уведомления на паузе"
     workers_activate "$ACTIVE" "$ACTIVE_SHA"
   else
     gateway_maintenance

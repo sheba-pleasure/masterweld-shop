@@ -5,9 +5,10 @@ import {
   validateIdentity,
   validateNotificationWebhook,
 } from "./environment.mjs";
-const manifest = { environment: "dev", origin: "https://dev.example.test", publicKey: "dev-anon" };
+const manifest = { revision: "a".repeat(40), environment: "dev", origin: "https://dev.example.test", publicKey: "dev-anon" };
 const env = {
   APP_ENV: "dev",
+  RELEASE_SHA: manifest.revision,
   PUBLIC_ORIGIN: manifest.origin,
   SUPABASE_PUBLISHABLE_KEY: "dev-anon",
   SUPABASE_SERVICE_ROLE_KEY: "dev-service",
@@ -49,6 +50,8 @@ test("customer and staff webhook secrets cannot overlap", () =>
 test("isolated dev can run without a bot while onboarding", () =>
   assert.equal(validateEnvironment(manifest, env), true));
 for (const [field, value, code] of [
+  ["RELEASE_SHA", "b".repeat(40), "RELEASE_REVISION_MISMATCH"],
+  ["RELEASE_SHA", "", "RELEASE_REVISION_MISMATCH"],
   ["APP_ENV", "production", "BUILD_ENVIRONMENT_MISMATCH"],
   ["PUBLIC_ORIGIN", "https://shop.example.test", "PUBLIC_ORIGIN_MISMATCH"],
   ["SUPABASE_PUBLISHABLE_KEY", "prod-anon", "PUBLIC_KEY_MISMATCH"],
@@ -62,6 +65,10 @@ for (const [field, value, code] of [
       new RegExp(code),
     ),
   );
+test("manifest without immutable revision is refused", () => {
+  for (const revision of [undefined, "", "short", "g".repeat(40)])
+    assert.throws(() => validateEnvironment({ ...manifest, revision }, env), /BUILD_REVISION_REQUIRED/);
+});
 test("reject production DB even with a matching URL/key", () =>
   assert.throws(() =>
     validateIdentity({ environment: "production", instanceId: env.MW_INSTANCE_ID }, env),

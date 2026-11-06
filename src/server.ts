@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { releaseHealth } from "./lib/release-health.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -46,6 +47,15 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    if (new URL(request.url).pathname === "/api/public/release-health") {
+      if (request.method !== "GET") {
+        return new Response(null, {
+          status: 405,
+          headers: { Allow: "GET", "Cache-Control": "no-store" },
+        });
+      }
+      return releaseHealth();
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
