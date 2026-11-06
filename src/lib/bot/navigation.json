@@ -25,6 +25,11 @@
     "button": "✏️ Продолжить ввод"
   },
   {
+    "command": "actions",
+    "description": "Мои предпросмотры и результаты",
+    "button": "📝 Мои правки"
+  },
+  {
     "command": "cancel",
     "description": "Отменить текущий ввод",
     "button": "✖️ Отмена ввода"
