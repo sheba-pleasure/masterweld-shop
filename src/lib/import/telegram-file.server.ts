@@ -9,12 +9,17 @@ export interface ImportDocument {
 }
 export async function downloadCatalogDocument(doc: ImportDocument): Promise<Uint8Array> {
   if (!doc.file_name || !/\.csv$/i.test(doc.file_name)) throw new Error("FILE_FORMAT");
+  return downloadTelegramDocument(doc, CATALOG_FILE_BYTES);
+}
+export async function downloadIntakeDocument(doc: ImportDocument): Promise<Uint8Array> {
+  if (!doc.file_name || doc.file_name.length > 200) throw new Error("FILE_FORMAT");
+  return downloadTelegramDocument(doc, 5 * 1024 * 1024);
+}
+async function downloadTelegramDocument(doc: ImportDocument, limit: number): Promise<Uint8Array> {
   if (!doc.file_id || doc.file_id.length > 512) throw new Error("FILE_DOWNLOAD");
   if (
     doc.file_size !== undefined &&
-    (!Number.isSafeInteger(doc.file_size) ||
-      doc.file_size < 0 ||
-      doc.file_size > CATALOG_FILE_BYTES)
+    (!Number.isSafeInteger(doc.file_size) || doc.file_size < 0 || doc.file_size > limit)
   )
     throw new Error("FILE_TOO_LARGE");
   try {
@@ -29,7 +34,7 @@ export async function downloadCatalogDocument(doc: ImportDocument): Promise<Uint
       path.split("/").includes("..")
     )
       throw new Error("FILE_DOWNLOAD");
-    if (typeof data.result?.file_size === "number" && data.result.file_size > CATALOG_FILE_BYTES)
+    if (typeof data.result?.file_size === "number" && data.result.file_size > limit)
       throw new Error("FILE_TOO_LARGE");
     // Only the fixed Telegram origin. No arbitrary URLs, redirects, filesystem paths or logging.
     const token = config.baseUrl.split("/bot")[1];
@@ -40,7 +45,7 @@ export async function downloadCatalogDocument(doc: ImportDocument): Promise<Uint
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok || !res.body) throw new Error("FILE_DOWNLOAD");
-    if (Number(res.headers.get("content-length")) > CATALOG_FILE_BYTES) {
+    if (Number(res.headers.get("content-length")) > limit) {
       await res.body.cancel();
       throw new Error("FILE_TOO_LARGE");
     }
@@ -52,7 +57,7 @@ export async function downloadCatalogDocument(doc: ImportDocument): Promise<Uint
         const next = await reader.read();
         if (next.done) break;
         size += next.value.byteLength;
-        if (size > CATALOG_FILE_BYTES) {
+        if (size > limit) {
           await reader.cancel();
           throw new Error("FILE_TOO_LARGE");
         }

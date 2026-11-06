@@ -52,6 +52,12 @@ jobs:
         run: python3 ops/tests/catalog-previews.py
       - name: Catalog draft recovery (isolated PostgreSQL)
         run: python3 ops/tests/catalog-drafts.py
+      - name: Document intake and seller enrollment (isolated PostgreSQL)
+        run: python3 ops/tests/document-intake.py
+      - name: Offline document extraction and real OCR
+        run: |
+          docker build --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --memory 1g --cpus 1 -v "$PWD/ops/intake:/tests:ro" mw-document-qa /usr/bin/python3 /tests/test_extract.py
       - name: Database backup snapshot and restore (isolated PostgreSQL)
         run: python3 ops/tests/database-backup.py
       - name: Technical catalog transactions (isolated PostgreSQL)

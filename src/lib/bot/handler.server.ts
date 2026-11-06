@@ -8,6 +8,7 @@ import { PRO_SHOP_PENDING, staffShopMessage } from "./shop-environments";
 import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
 import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
+import { showIntake, receiveIntakeDocument, enrollSellers } from "@/lib/import/intake.server";
 import { parseImportCallback } from "@/lib/import/catalog-view";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
@@ -157,6 +158,8 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "📥 Импорт товаров и цен", callback_data: "import" },
       { text: "🗂 Разделы", callback_data: "categories" },
     ]);
+  if (can(m, "import_prices") && can(m, "view_costs"))
+    rows.push([{ text: "📚 Документы → товары", callback_data: "di:home" }]);
   if (can(m, "edit_products"))
     rows.push([{ text: "⚙️ Продолжить характеристики", callback_data: "te:resume" }]);
   if (can(m, "manage_assortment"))
@@ -1903,6 +1906,10 @@ async function handleCommand(
       return sendOrdersList(chat.id, 0);
     case "/import":
       return showCatalogImport(m, chat, { op: "home" });
+    case "/documents":
+      return showIntake(m, chat);
+    case "/sellers":
+      return enrollSellers(m, chat, args, requestId);
     case "/assort":
       return showAssortment(
         m,
@@ -2241,9 +2248,12 @@ export async function handleUpdate(update: TgUpdate) {
     const command = navigationCommand(text);
     if (command) return handleCommand(m, chat, command, from, requestId);
     if (text.startsWith("/")) return handleCommand(m, chat, text, from, requestId);
-    // CSV documents are handled only after the private-actor and staff gates.
-    if (update.message?.document && can(m, "import_prices"))
-      return receiveCatalogDocument(m, chat, update.message.document, update.update_id);
+    // Raw supplier documents may contain costs; both flows recheck permissions server-side.
+    if (update.message?.document && can(m, "import_prices")) {
+      if (/\.csv$/i.test(update.message.document.file_name ?? ""))
+        return receiveCatalogDocument(m, chat, update.message.document, update.update_id);
+      return receiveIntakeDocument(m, chat, update.message.document);
+    }
     if (
       isPrivateChat(chat, from) &&
       (update.message?.photo || update.message?.document) &&
@@ -2299,6 +2309,7 @@ export async function handleUpdate(update: TgUpdate) {
       return tg("sendMessage", { chat_id: chat.id, text: NOT_ACTIVATED_MSG });
     return sendMenu(chat.id, { ...m, elevated });
   }
+  if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
   if (cb.data === "staff" && can(m, "manage_staff")) {
     try {
       await audit(m.telegram_id, "staff_read");
