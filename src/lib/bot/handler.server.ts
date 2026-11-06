@@ -87,6 +87,7 @@ import {
 } from "./photos";
 import { isDiscounted, normalizeText } from "@/lib/search";
 import { parseB2BCommand, parseB2BCallback } from "@/lib/b2b/navigation";
+import { technicalEditor } from "@/lib/technical/editor.server";
 
 type Btn = { text: string; callback_data: string };
 type Chat = { id: number; type?: string };
@@ -97,6 +98,8 @@ export interface TgUpdate {
     from?: { id: number };
     chat?: Chat;
     text?: string;
+    message_id?: number;
+    reply_to_message?: { message_id: number };
     photo?: unknown;
     document?: ImportDocument;
   };
@@ -150,6 +153,8 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "📥 Импорт товаров и цен", callback_data: "import" },
       { text: "🗂 Разделы", callback_data: "categories" },
     ]);
+  if (can(m, "edit_products"))
+    rows.push([{ text: "⚙️ Продолжить характеристики", callback_data: "te:resume" }]);
   if (can(m, "manage_assortment"))
     rows.push([{ text: "📋 Ассортимент · массовые действия", callback_data: "as:home" }]);
   if (can(m, "manage_staff"))
@@ -1380,7 +1385,11 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return startSetCommand(m, chat.id, args);
     case "/new":
       return startNewDraft(m, chat.id);
+    case "/technical":
+      return technicalEditor(m, chat, from, { command: "/technical" });
     case "/cancel": {
+      if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
+        return;
       const cleared = await consumeEditorState(m.telegram_id);
       return tg("sendMessage", {
         chat_id: chat.id,
@@ -1637,6 +1646,14 @@ export async function handleUpdate(update: TgUpdate) {
       can(m, "upload_photos")
     )
       return tg("sendMessage", { chat_id: chat.id, text: PHOTO_UPLOAD_NOT_CONNECTED_MSG });
+    if (
+      can(m, "edit_products") &&
+      (await technicalEditor(m, chat, from, {
+        text,
+        replyTo: update.message?.reply_to_message?.message_id,
+      }))
+    )
+      return;
     // Текст в личном чате может продолжать активный диалог редактора (C2A).
     if (isPrivateChat(chat, from) && (await handleEditorText(m, chat.id, text.trim()))) return;
     return sendMenu(chat.id, m);
@@ -1735,6 +1752,7 @@ export async function handleUpdate(update: TgUpdate) {
   }
 
   const data_str = typeof cb.data === "string" ? cb.data : "";
+  if (data_str.startsWith("te:")) return technicalEditor(m, chat, from, { callback: data_str });
   if (data_str.startsWith("ci:"))
     return showCatalogImport(m, chat, parseImportCallback(data_str), cb.message?.message_id);
   if (data_str.startsWith("as:"))

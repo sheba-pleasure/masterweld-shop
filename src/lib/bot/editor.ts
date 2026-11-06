@@ -222,9 +222,13 @@ export function editMenuRows(p: BotProduct, opts: EditMenuOpts): BtnRows {
       { text: "📄 Описание", callback_data: editFieldCallback("description", p.id) },
     ]);
     rows.push([
-      { text: "⚙️ Характеристики", callback_data: editFieldCallback("specs", p.id) },
+      {
+        text: "📄 Прежнее описание характеристик",
+        callback_data: editFieldCallback("specs", p.id),
+      },
       { text: "🏭 Бренд", callback_data: editFieldCallback("brand", p.id) },
     ]);
+    rows.push([{ text: "⚙️ Проверенные характеристики", callback_data: `te:open:${p.id}` }]);
     rows.push([{ text: "🔢 Артикул", callback_data: editFieldCallback("sku", p.id) }]);
   }
   if (opts.canManageCategories)
