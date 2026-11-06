@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { showOrderMessage } from "./order-message.server";
 import { customerMessage, shopUrl } from "./customer";
 import { PRO_SHOP_PENDING, staffShopMessage } from "./shop-environments";
 import { parseAssortmentCallback } from "./assortment";
@@ -1498,17 +1499,30 @@ async function sendOrdersList(chatId: number, page: number) {
   await tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
 }
 
-async function sendOrderCard(chatId: number, orderId: string) {
+async function sendOrderCard(chatId: number, orderId: string, messageId?: number, notice?: string) {
   const { order } = await fetchOrder(orderId);
   if (!order) {
-    await tg("sendMessage", { chat_id: chatId, text: "Заказ не найден." });
+    await showOrderMessage(
+      chatId,
+      {
+        text: "Заказ не найден.",
+        rows: [[{ text: "⬅️ К списку", callback_data: "orders:0" }]],
+      },
+      messageId,
+    );
     return;
   }
   const { text, rows } = buildOrderCard(order, "");
-  await tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
+  await showOrderMessage(chatId, { text: notice ? notice + "\n\n" + text : text, rows }, messageId);
 }
 
-async function applyStatus(m: StaffMember, chatId: number, orderId: string, next: OrderStatus) {
+async function applyStatus(
+  m: StaffMember,
+  chatId: number,
+  orderId: string,
+  next: OrderStatus,
+  messageId?: number,
+) {
   const { order, hasStatusColumn } = await fetchOrder(orderId);
   if (!order) {
     await tg("sendMessage", { chat_id: chatId, text: "Заказ не найден." });
@@ -1516,7 +1530,7 @@ async function applyStatus(m: StaffMember, chatId: number, orderId: string, next
   }
   const check = checkTransition(order, next, hasStatusColumn);
   if (!check.ok) {
-    await tg("sendMessage", { chat_id: chatId, text: check.message });
+    await sendOrderCard(chatId, orderId, messageId, check.message);
     return;
   }
   // Review-only 0010: locked status + both audit records in one transaction.
@@ -1543,11 +1557,7 @@ async function applyStatus(m: StaffMember, chatId: number, orderId: string, next
     });
     return;
   }
-  await tg("sendMessage", {
-    chat_id: chatId,
-    text: `Заказ ${orderNumber(orderId)}: «${check.from ? STATUS_LABEL[check.from] : "—"}» → «${STATUS_LABEL[next]}».`,
-  });
-  await sendOrderCard(chatId, orderId);
+  await sendOrderCard(chatId, orderId, messageId);
 }
 
 // ---------- Обработка обновлений ----------
@@ -1896,32 +1906,33 @@ export async function handleUpdate(update: TgUpdate) {
     if (data_str === "orders:noop") return;
 
     const orderMatch = data_str.match(/^order:([0-9a-f-]{36})$/);
-    if (orderMatch) return sendOrderCard(chat.id, orderMatch[1]!);
+    if (orderMatch) return sendOrderCard(chat.id, orderMatch[1]!, cb.message?.message_id);
 
     const stcMatch = data_str.match(/^stc:([0-9a-f-]{36}):(\w+)$/);
     if (stcMatch) {
       const orderId = stcMatch[1]!;
       const next = stcMatch[2]!;
       if (!(next in STATUS_LABEL)) return;
-      return tg("sendMessage", {
-        chat_id: chat.id,
-        text: `Подтвердите: перевести заказ ${orderNumber(orderId)} в статус «${STATUS_LABEL[next as OrderStatus]}»?`,
-        reply_markup: {
-          inline_keyboard: [
+      return showOrderMessage(
+        chat.id,
+        {
+          text: `Подтвердите: перевести заказ ${orderNumber(orderId)} в статус «${STATUS_LABEL[next as OrderStatus]}»?`,
+          rows: [
             [
               { text: "✅ Подтвердить", callback_data: `st:${orderId}:${next}` },
               { text: "⬅️ Отмена", callback_data: `order:${orderId}` },
             ],
           ],
         },
-      });
+        cb.message?.message_id,
+      );
     }
     const stMatch = data_str.match(/^st:([0-9a-f-]{36}):(\w+)$/);
     if (stMatch) {
       const orderId = stMatch[1]!;
       const next = stMatch[2]!;
       if (!(next in STATUS_LABEL)) return;
-      return applyStatus(m, chat.id, orderId, next as OrderStatus);
+      return applyStatus(m, chat.id, orderId, next as OrderStatus, cb.message?.message_id);
     }
     return;
   }

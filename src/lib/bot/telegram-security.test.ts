@@ -14,6 +14,51 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Telegram typed safe failures", () => {
+  it.each([200, 400])(
+    "classifies an unchanged edit without retaining provider text (HTTP %i)",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          Response.json(
+            {
+              ok: false,
+              error_code: 400,
+              description: "Bad Request: message is not modified: PRIVATE_PHONE",
+            },
+            { status },
+          ),
+        ),
+      );
+      await expect(tg("editMessageText", {})).rejects.toMatchObject({
+        status: 400,
+        messageUnchanged: true,
+        message: "TELEGRAM_DELIVERY_FAILED",
+      });
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("PRIVATE_PHONE");
+    },
+  );
+  it.each([
+    ["sendMessage", 400, "Bad Request: message is not modified"],
+    ["editMessageText", 403, "Bad Request: message is not modified"],
+    ["editMessageText", 400, "Bad Request: message to edit not found"],
+    ["editMessageText", 400, "Bad Request: message is not modified but unknown"],
+  ])("keeps other errors as failures (%s, %i)", async (method, code, description) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            ok: false,
+            error_code: code,
+            description,
+          },
+          { status: code },
+        ),
+      ),
+    );
+    await expect(tg(method, {})).rejects.toMatchObject({ messageUnchanged: false });
+  });
   it("uploads a document with a multipart boundary and DEV caption without mutating input", async () => {
     vi.stubEnv("APP_ENV", "dev");
     const fetcher = vi.fn().mockResolvedValue(Response.json({ ok: true }));
