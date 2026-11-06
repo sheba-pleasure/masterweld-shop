@@ -27,7 +27,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Media backup decoder (pinned wheel hashes)
-        run: python3 -m pip install --require-hashes --only-binary=:all: -r ops/standalone/requirements-media.txt
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: -r ops/standalone/requirements-media.txt
       - name: Install (lockfile)
         run: bun install --frozen-lockfile
       - name: TypeScript strict check (обязательно)
