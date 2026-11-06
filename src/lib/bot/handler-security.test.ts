@@ -106,6 +106,7 @@ describe("single service gate", () => {
     "audit",
     "elevate_on",
     "elevate_off",
+    "deliveries",
     "orders",
     `st:${orderId}:processing`,
     "cat:0",
@@ -171,9 +172,23 @@ describe("single service gate", () => {
   );
   it("seller cannot disclose staff/audit or elevate", async () => {
     member = { ...actor, role: "seller" };
-    for (const data of ["staff", "audit", "elevate_on"]) await handleUpdate(callback(data));
+    for (const data of ["staff", "audit", "elevate_on", "deliveries"])
+      await handleUpdate(callback(data));
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(events).not.toContain("audit");
+  });
+  it("administrator delivery read is audited; failure does not disclose details", async () => {
+    await handleUpdate(callback("deliveries"));
+    expect(events.indexOf("audit")).toBeLessThan(events.indexOf("from:order_notifications"));
+    expect(mocks.tg).toHaveBeenCalledWith(
+      "sendMessage",
+      expect.objectContaining({ text: expect.stringContaining("Очередь уведомлений пуста") }),
+    );
+    events = [];
+    auditFails = true;
+    await handleUpdate(callback("deliveries"));
+    expect(events).not.toContain("from:order_notifications");
+    expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("SECRET_PHONE");
   });
   it("authorised private start gets menu", async () => {
     await handleUpdate({

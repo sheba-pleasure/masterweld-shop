@@ -102,6 +102,22 @@ export function buildOrdersList(
 }
 
 /** Карточка заказа: состав, сумма, статус, кнопки смены статуса. */
+export function orderDateMoscow(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "дата недоступна";
+  return (
+    new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(date) + " МСК"
+  );
+}
+
 export function buildOrderCard(
   order: OrderRow,
   staffName: string,
@@ -117,7 +133,7 @@ export function buildOrderCard(
   const st = status ? STATUS_LABEL[status] : "статус не подключён";
   const text = [
     `Заказ #${order.id.slice(0, 8)} · ${st}`,
-    `Дата: ${order.created_at.slice(0, 16).replace("T", " ")}`,
+    `Дата: ${orderDateMoscow(order.created_at)}`,
     `Имя: ${order.name}`,
     `Телефон: ${order.phone}`,
     order.comment ? `Комментарий: ${order.comment}` : null,
