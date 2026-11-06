@@ -48,11 +48,13 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseReviewCallback(value: string): ReviewAction | null {
   const m = value.match(
     new RegExp(
-      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|cancel|approve|exclude|pending|handoff|cols|raw):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
+      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
     ),
   );
   if (!m || Number(m[4]) > 4999 || (m[5] !== undefined && Number(m[5]) > 29)) return null;
-  if (["edit", "cols"].includes(m[3]!) !== (m[5] !== undefined)) return null;
+  if (["edit", "cols", "values", "full", "orig"].includes(m[3]!) !== (m[5] !== undefined))
+    return null;
+  if (m[3] === "values" && Number(m[5]) > 3) return null;
   return {
     id: m[1]!,
     revision: Number(m[2]),
@@ -85,7 +87,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
   const c = r.counts;
   let text = `🔎 Проверка документа\n${short(r.file_name)} · ${short(r.table_label)}\n\n✅ Проверено: ${c.approved} · ⏭ Пропущено: ${c.excluded} · ⏳ Осталось: ${c.pending}\n`;
   if (r.notice) text += `\n${r.notice}\n`;
-  if (r.import_id) {
+  if (r.import_id && !["values", "full", "orig"].includes(screen)) {
     text +=
       "\nПроверенные строки уже переданы в предпросмотр импорта. Этот разбор закрыт для изменений. Каталог этим действием не изменён. Откройте импорт, чтобы проверить его текущее состояние.";
     rows.push([
@@ -109,21 +111,60 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     else if (c.approved) add("✅ Подтверждаю — передать в предпросмотр", "handoff");
     else text += "\n\nВсе строки пропущены. Импорт не создаётся.";
     add("🔎 Продолжить проверку", "next");
-  } else if (screen === "cols") {
-    text += `\nСтрока ${r.position ?? r.row + 1}. Выберите поле для исправления. Изменение будет сохранено только в разборе документа. После исправления строку нужно проверить заново.\n`;
+  } else if (screen === "cols" || screen === "values") {
+    const reading = screen === "values";
+    text += reading
+      ? `\n🔎 Строка ${r.position ?? r.row + 1}. Выберите поле, чтобы прочитать значение целиком и сравнить с оригиналом. Просмотр не меняет данные и решение по строке.\n`
+      : `\nСтрока ${r.position ?? r.row + 1}. Выберите поле для исправления. Изменение будет сохранено только в разборе документа. После исправления строку нужно проверить заново.\n`;
     r.header
       .slice(columnPage * 8, columnPage * 8 + 8)
       .forEach((h, i) =>
         add(
-          "✏️ " + short(reviewColumnLabel(h, columnPage * 8 + i), 45),
-          "edit",
+          (reading ? "🔎 " : "✏️ ") + short(reviewColumnLabel(h, columnPage * 8 + i), 45),
+          reading ? "full" : "edit",
           r.row,
           columnPage * 8 + i,
         ),
       );
-    if (columnPage > 0) add("← Предыдущие поля", "cols", r.row, columnPage - 1);
+    if (columnPage > 0) add("← Предыдущие поля", screen, r.row, columnPage - 1);
     if ((columnPage + 1) * 8 < r.header.length)
-      add("Следующие поля →", "cols", r.row, columnPage + 1);
+      add("Следующие поля →", screen, r.row, columnPage + 1);
+    add("↩️ К строке", "get");
+  } else if (screen === "full" || screen === "orig") {
+    const index = columnPage;
+    if (!Number.isInteger(index) || index < 0 || index >= r.header.length) {
+      text += "\nЭто поле больше недоступно. Откройте список полей заново.";
+    } else {
+      const original = screen === "orig";
+      text += `\nСтрока ${r.position ?? r.row + 1} · ${status[r.decision]}\nПоле ${index + 1} из ${r.header.length}: ${reviewColumnLabel(r.header[index], index)}\n\n`;
+      if (original) {
+        text += "📎 Значение в исходном распознавании\n";
+        text += `Заголовок в оригинале: ${(r.original_header ?? r.header)[index] || "(Пусто)"}\n\n`;
+        text +=
+          r.source_origin === "manual"
+            ? "Строка добавлена вручную. Исходного распознанного значения нет."
+            : r.original[index] || "(Пусто)";
+        if (r.source_origin === "split")
+          text += "\n\nЭто значение общей строки до разделения на товары.";
+        add("↩️ К сохранённому значению", "full", r.row, index);
+      } else {
+        text += `🔎 Сохранённое значение целиком\n\n${r.cells[index] || "(Пусто)"}`;
+        if (r.cells[index] !== r.original[index])
+          text += "\n\n✏️ Значение отличается от исходного распознавания.";
+        add("📎 Сравнить с исходным значением", "orig", r.row, index);
+        if (!r.import_id) add("✏️ Исправить — проверить заново", "edit", r.row, index);
+      }
+      text += "\n\nПросмотр не меняет данные и решение по строке.";
+      if (r.import_id) text += " Разбор уже передан в импорт; исправления закрыты.";
+      if (index > 0) add("← Предыдущее поле", screen, r.row, index - 1);
+      if (index + 1 < r.header.length) add("Следующее поле →", screen, r.row, index + 1);
+    }
+    add(
+      "📋 Выбрать другое поле",
+      "values",
+      r.row,
+      Number.isInteger(index) && index >= 0 && index < r.header.length ? Math.floor(index / 8) : 0,
+    );
     add("↩️ К строке", "get");
   } else if (screen === "raw") {
     text += `\n📎 Исходная строка ${r.position ?? r.row + 1}\nМесто в файле: ${r.locator ?? "точное место не определено; сверьте с оригиналом"}\n\n`;
@@ -151,6 +192,10 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
         "\n\n⚠️ Число ячеек не совпадает с заголовком. Недостающие поля можно заполнить. Лишние ячейки видны в исходной строке; такую строку пропустите и подготовьте исправленный файл.";
     text +=
       "\n\nСверьте строку с оригиналом. «Строка проверена» означает, что данные верны. «Пропустить» исключает строку только из этого импорта, а не удаляет товар из магазина.";
+    if (r.cells.some((value) => value.length > 100))
+      text +=
+        "\n\n🔎 Длинные значения здесь сокращены. Нажмите «Прочитать значения целиком», чтобы увидеть весь сохранённый текст.";
+    add("🔎 Прочитать значения целиком", "values", r.row, 0);
     add("📎 Посмотреть исходную строку", "raw");
     add("✏️ Исправить поле", "cols", r.row, 0);
     rows.push([
