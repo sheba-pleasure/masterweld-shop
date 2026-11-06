@@ -54,4 +54,4 @@ SHA-256: a561f93b5f0a82e1cd7bb1e0a3de9672ccf4b65cee13e70e137d90caa43ecf14.
 Сборка: ops/.state/dev/artifacts/preview-recovery-build.log.
 HTTPS readiness подтвердил точный SHA/dev, контейнер healthy.
 
-Main, рабочие боты, Cloud и production не менялись. Закрытые production/Cloud/первоначальный перенос пока проверены до 0022: расширение до 0023 и новая репетиция остаются обязательными перед выпуском. Копия на Яндекс.Диске остаётся прежним пакетом до 0020.
+Main, рабочие боты, Cloud и production не менялись. Следующими этапами подтверждение pending обновлено до 0024, а закрытые production/Cloud/первоначальный перенос проверены до 0024. Доказательства: [CLOUD-TRANSFER.md](CLOUD-TRANSFER.md). Копия на Яндекс.Диске остаётся прежним пакетом до 0020.

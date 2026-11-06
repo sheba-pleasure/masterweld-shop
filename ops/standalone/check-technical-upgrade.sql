@@ -8,12 +8,12 @@ BEGIN
     OR (SELECT count(*) FROM technical_family_attributes)<>69
     OR (SELECT count(*) FROM technical_units)<>14
     THEN RAISE EXCEPTION 'REHEARSAL_TECH_DICTIONARY_MISMATCH'; END IF;
-  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results'] LOOP
+  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews'] LOOP
     EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)',t) INTO strict role_name;
     IF role_name::boolean THEN RAISE EXCEPTION 'REHEARSAL_UNEXPECTED_TECH_BACKFILL'; END IF;
   END LOOP;
   FOREACH t IN ARRAY ARRAY['technical_units','technical_families','technical_attributes','technical_family_attributes',
-      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results'] LOOP
+      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews'] LOOP
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=('public.'||t)::regclass)
       THEN RAISE EXCEPTION 'REHEARSAL_TECH_RLS_DISABLED'; END IF;
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
@@ -46,6 +46,14 @@ BEGIN
     THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_BYPASS_OPEN'; END IF;
   IF NOT has_function_privilege('service_role','public.bot_finish_draft(bigint,uuid,boolean)','EXECUTE')
     THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_RPC_UNAVAILABLE'; END IF;
+  FOREACH t IN ARRAY ARRAY['bot_apply_pending','bot_cancel_pending','bot_set_photo_main','bot_reorder_photo','bot_delete_photo_meta'] LOOP
+    IF has_function_privilege('service_role','public.'||t||'(uuid,bigint)','EXECUTE')
+      THEN RAISE EXCEPTION 'REHEARSAL_PENDING_BYPASS_OPEN'; END IF;
+  END LOOP;
+  IF NOT has_function_privilege('service_role','public.bot_editor_preview(bigint,uuid,text,jsonb)','EXECUTE')
+    THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_RPC_UNAVAILABLE'; END IF;
+  IF NOT has_function_privilege('service_role','public.bot_pending_operation(bigint,uuid,text)','EXECUTE')
+    THEN RAISE EXCEPTION 'REHEARSAL_PENDING_RPC_UNAVAILABLE'; END IF;
   IF EXISTS(SELECT 1 FROM staff WHERE telegram_id=7000000000000001)
     OR EXISTS(SELECT 1 FROM products WHERE id='f0000000-0000-4000-8000-000000000020'
       OR slug='qa-private-upgrade-0020')
@@ -150,11 +158,62 @@ BEGIN
     OR (SELECT count(*) FROM products)<>before_count+1
     THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_CANCEL_CHANGED'; END IF;
 END $draft$;
+DO $pending$
+DECLARE actor bigint:=7000000000000001; revision uuid:=gen_random_uuid(); canceled uuid:=gen_random_uuid();
+  fixture uuid:='f0000000-0000-4000-8000-000000000020'; answer jsonb; repeated jsonb;
+  later jsonb; saved jsonb; pending_id uuid; canceled_id uuid; audits bigint;
+BEGIN
+  UPDATE bot_editor_states SET state='edit_title',consumed_at=NULL,product_id=fixture,
+    data=jsonb_build_object('_revision',revision,'_prompt_message_id',1),
+    expires_at=now()+interval '1 hour' WHERE staff_telegram_id=actor;
+  answer:=bot_editor_preview(actor,revision,'prepare','"[Учебный] Восстановленный предпросмотр"'::jsonb);
+  pending_id:=(answer->>'id')::uuid;
+  IF pending_id IS NULL OR answer->>'action' IS DISTINCT FROM 'title'
+    OR NOT EXISTS(SELECT 1 FROM bot_editor_states WHERE staff_telegram_id=actor AND consumed_at IS NOT NULL)
+    THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_NOT_SAVED'; END IF;
+  UPDATE bot_editor_states SET state='new_title',consumed_at=NULL,product_id=NULL,
+    data=jsonb_build_object('_revision',gen_random_uuid()) WHERE staff_telegram_id=actor;
+  SELECT to_jsonb(e) INTO later FROM bot_editor_states e WHERE staff_telegram_id=actor;
+  repeated:=bot_editor_preview(actor,revision,'prepare','"Другое значение"'::jsonb);
+  IF repeated->>'id' IS DISTINCT FROM answer->>'id' OR repeated->'after' IS DISTINCT FROM answer->'after'
+    OR bot_editor_preview(actor,revision,'read')->>'id' IS DISTINCT FROM answer->>'id'
+    OR (SELECT to_jsonb(e) FROM bot_editor_states e WHERE staff_telegram_id=actor) IS DISTINCT FROM later
+    THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_RECOVERY_CHANGED'; END IF;
+  SELECT to_jsonb(p) INTO saved FROM pending_actions p WHERE id=pending_id;
+  SELECT count(*) INTO audits FROM staff_audit_log WHERE telegram_id=actor;
+  IF bot_pending_operation(actor,pending_id,'read')->>'state' IS DISTINCT FROM 'pending'
+    OR (SELECT to_jsonb(p) FROM pending_actions p WHERE id=pending_id) IS DISTINCT FROM saved
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=actor)<>audits
+    THEN RAISE EXCEPTION 'REHEARSAL_PENDING_READ_MUTATED'; END IF;
+  answer:=bot_pending_operation(actor,pending_id,'apply');
+  IF answer->>'state' IS DISTINCT FROM 'applied' OR answer->>'replayed' IS DISTINCT FROM 'false'
+    OR bot_pending_operation(actor,pending_id,'apply')->>'state' IS DISTINCT FROM 'applied'
+    OR bot_pending_operation(actor,pending_id,'cancel')->>'state' IS DISTINCT FROM 'applied'
+    OR bot_pending_operation(actor,pending_id,'read')->>'state' IS DISTINCT FROM 'applied'
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=actor)<>audits+1
+    OR (SELECT title FROM products WHERE id=fixture)<>'[Учебный] Восстановленный предпросмотр'
+    OR (SELECT to_jsonb(e) FROM bot_editor_states e WHERE staff_telegram_id=actor) IS DISTINCT FROM later
+    THEN RAISE EXCEPTION 'REHEARSAL_PENDING_RECOVERY_CHANGED'; END IF;
+  UPDATE bot_editor_states SET state='edit_brand',product_id=fixture,
+    data=jsonb_build_object('_revision',canceled,'_prompt_message_id',2) WHERE staff_telegram_id=actor;
+  answer:=bot_editor_preview(actor,canceled,'prepare','"Учебный бренд"'::jsonb);
+  canceled_id:=(answer->>'id')::uuid;
+  IF bot_pending_operation(actor,canceled_id,'cancel')->>'state' IS DISTINCT FROM 'canceled'
+    OR bot_pending_operation(actor,canceled_id,'apply')->>'state' IS DISTINCT FROM 'canceled'
+    OR bot_editor_preview(actor,canceled,'read')->>'outcome' IS DISTINCT FROM 'canceled'
+    OR (SELECT brand FROM products WHERE id=fixture) IS NOT NULL
+    THEN RAISE EXCEPTION 'REHEARSAL_PENDING_CANCEL_CHANGED'; END IF;
+END $pending$;
 RESET ROLE;
 DO $receipts$ BEGIN
   IF (SELECT count(*) FROM bot_draft_results WHERE staff_telegram_id=7000000000000001)<>2
     OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='draft_created')<>1
     THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_RECEIPT_COUNT'; END IF;
+  IF (SELECT count(*) FROM bot_editor_previews WHERE staff_telegram_id=7000000000000001)<>2
+    OR (SELECT count(*) FROM pending_actions WHERE staff_telegram_id=7000000000000001)<>2
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_title')<>1
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_cancel')<>1
+    THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_RECEIPT_COUNT'; END IF;
 END $receipts$;
 ROLLBACK;
 SELECT jsonb_build_object(
@@ -162,4 +221,6 @@ SELECT jsonb_build_object(
   'noTechnicalBackfill',true,'privateTablesAndRpc',true,'publicReadOnlyAllowlist',true,
   'syntheticRejectedOutsideDev',true,'editorApplyDuplicateUndo',true,'fixturesRolledBack',true,
   'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true,
-  'draftReceiptPrivate',true,'draftRecoveryPreservesNewInput',true,'draftCancelDurable',true);
+  'draftReceiptPrivate',true,'draftRecoveryPreservesNewInput',true,'draftCancelDurable',true,
+  'previewReceiptPrivate',true,'previewRecoveryPreservesNewInput',true,'pendingReadNeverMutates',true,
+  'pendingApplyCancelDurable',true,'pendingLegacyRpcClosed',true);

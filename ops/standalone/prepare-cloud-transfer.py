@@ -28,7 +28,8 @@ TRANSFERS = ROOT / "ops/.state/production/transfers"
 PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_receipts.sql",
            "0017_technical_catalog.sql", "0018_technical_read_alias.sql",
            "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
-           "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql")
+           "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
+           "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql")
 
 
 def require(value, code):
@@ -271,7 +272,7 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
                 json.loads(sql(technical_sql, "roundtrip")) == technical, "TECHNICAL_RESTORE_CHANGED")
         require(fingerprints("candidate") == after and fingerprints("roundtrip") == after
                 and fingerprints("rollbackcheck") == baseline, "RESTART_TARGET_CHANGED")
-        return {"rehearsed": True, "schema": "0022", "offlineNetwork": "none", "ports": [],
+        return {"rehearsed": True, "schema": "0024", "offlineNetwork": "none", "ports": [],
                 "catalogOriginalFieldsPreserved": True, "allSourceTablesArchivedPrivately": True,
                 "technicalChecks": technical,
                 "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
