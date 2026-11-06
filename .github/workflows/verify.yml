@@ -44,6 +44,8 @@ jobs:
         run: python3 ops/tests/assortment.py
       - name: Catalog import transactions (isolated PostgreSQL)
         run: python3 ops/tests/catalog-import.py
+      - name: Direct preview request recovery (isolated PostgreSQL)
+        run: python3 ops/tests/preview-requests.py
       - name: Pending result recovery (isolated PostgreSQL)
         run: python3 ops/tests/pending-recovery.py
       - name: Catalog preview recovery (isolated PostgreSQL)

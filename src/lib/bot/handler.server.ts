@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isDirectPreview, previewRequestId } from "./preview-request.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
 import { showOrderMessage } from "./order-message.server";
@@ -46,7 +47,6 @@ import {
   isMissingTableError,
   PENDING_PERMISSION,
   PENDING_REASON_MSG,
-  PENDING_TTL_MS,
   type PendingActionKind,
 } from "./pending";
 import {
@@ -114,6 +114,7 @@ export interface TgUpdate {
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
   const rows: Btn[][] = [];
   rows.push([{ text: "🛍 Открыть сайт · DEV / PRO", callback_data: "shop_versions" }]);
+  rows.push([{ text: "📝 Мои правки", callback_data: "acts:0" }]);
   if (m.role === "director" && !m.elevated) {
     rows.push([
       { text: "📊 Сводка", callback_data: "summary" },
@@ -382,7 +383,13 @@ async function sendPhotoDetail(m: StaffMember, chatId: number, productId: string
   });
 }
 
-async function photoMainPreview(m: StaffMember, chatId: number, productId: string, index: number) {
+async function photoMainPreview(
+  m: StaffMember,
+  chatId: number,
+  productId: string,
+  index: number,
+  requestId: string,
+) {
   const photos = await fetchPhotos(productId);
   const ph = photos[index];
   const p = await fetchProductById(productId);
@@ -405,6 +412,7 @@ async function photoMainPreview(m: StaffMember, chatId: number, productId: strin
     },
     { photo_id: ph.id, is_main: true, sort_order: 0 },
     photoMainPreviewText(p, ph, index),
+    requestId,
   );
 }
 
@@ -414,6 +422,7 @@ async function photoReorderPreview(
   productId: string,
   index: number,
   dir: -1 | 1,
+  requestId: string,
 ) {
   const photos = await fetchPhotos(productId);
   const ph = photos[index];
@@ -432,6 +441,7 @@ async function photoReorderPreview(
     { photo_id: ph.id, sort_order: ph.sort_order, is_main: ph.is_main },
     { photo_id: ph.id, sort_order: to },
     photoReorderPreviewText(p, ph, index, to),
+    requestId,
   );
 }
 
@@ -440,6 +450,7 @@ async function photoDeletePreview(
   chatId: number,
   productId: string,
   index: number,
+  requestId: string,
 ) {
   const photos = await fetchPhotos(productId);
   const ph = photos[index];
@@ -457,19 +468,8 @@ async function photoDeletePreview(
     { photo_id: ph.id, is_main: ph.is_main, sort_order: ph.sort_order },
     { photo_id: ph.id, deleted: true },
     photoDeletePreviewText(p, ph, index),
+    requestId,
   );
-}
-
-// Таблица pending_actions (миграция 0005) может отсутствовать — тогда
-// изменяющие операции сообщают «функция ещё не активирована» и никогда
-// ложно не подтверждают изменение.
-let pendingTableState: boolean | null = null;
-async function pendingAvailable(): Promise<boolean> {
-  if (pendingTableState !== null) return pendingTableState;
-  const res = await loose.from("pending_actions").select("id").limit(1);
-  pendingTableState = !res.error;
-  if (res.error) console.error("[bot] pending actions unavailable");
-  return pendingTableState;
 }
 
 // ---------- RPC-слой (миграция 0006): атомарные транзакции ----------
@@ -526,7 +526,84 @@ const CONFIRM_ROWS = (pendingId: string): Btn[][] => [
   [{ text: "⬅️ Отмена", callback_data: `pcx:${pendingId}` }],
 ];
 
-/** Создаёт pending-действие и показывает предпросмотр «было → станет» с подтверждением. */
+// A receipt survives both the database response and the Telegram message.
+async function requestPreview(
+  m: StaffMember,
+  chatId: number,
+  requestId: string,
+  op: "read" | "prepare" | "rollback",
+  args: Record<string, unknown> = {},
+  interactive = false,
+): Promise<boolean> {
+  const uncertain = async () => {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: "⚠️ Предпросмотр мог сохраниться, но ответ не подтверждён. Проверьте результат; не создавайте новую правку. Если сообщение потерялось — /actions.",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔎 Проверить предпросмотр", callback_data: `prr:${requestId}` }],
+        ],
+      },
+    });
+    return true;
+  };
+  let response: Awaited<ReturnType<typeof rpc>>;
+  try {
+    response = await rpc("bot_pending_preview", {
+      p_staff_telegram_id: m.telegram_id,
+      p_request_id: requestId,
+      p_op: op,
+      ...args,
+    });
+  } catch {
+    return uncertain();
+  }
+  const { data, error } = response;
+  if (error) {
+    if (error.message.includes("BOT_PENDING_PERMISSION_DENIED")) {
+      await tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
+      return true;
+    }
+    if (
+      isMissingRpcError(error) ||
+      Object.keys(RPC_ERR_MSG).some((key) => error.message.includes(key))
+    ) {
+      await tg("sendMessage", { chat_id: chatId, text: rpcErrMsg(error) });
+      return true;
+    }
+    return uncertain();
+  }
+  const result = data as {
+    request_id?: string;
+    pending_id?: string;
+    action?: PendingActionKind;
+    state?: string;
+  } | null;
+  if (!result || result.request_id !== requestId) return uncertain();
+  if (op === "read" && result.state === "not_found") {
+    if (!interactive) return false;
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: "Предпросмотр пока не найден. Обновите /actions. Проверка ничего не применяет.",
+    });
+    return true;
+  }
+  if (
+    !result.pending_id ||
+    !/^[0-9a-f-]{36}$/.test(result.pending_id) ||
+    !result.action ||
+    !(result.action in PENDING_PERMISSION)
+  )
+    return uncertain();
+  if (!can(m, PENDING_PERMISSION[result.action])) {
+    await tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
+    return true;
+  }
+  await pendingOperation(m, chatId, result.pending_id, "read");
+  return true;
+}
+
+/** One request produces one stored preview; confirmation is a separate action. */
 async function createPending(
   m: StaffMember,
   chatId: number,
@@ -534,36 +611,113 @@ async function createPending(
   action: PendingActionKind,
   before: Record<string, unknown>,
   after: Record<string, unknown>,
-  text: string,
+  _text: string,
+  requestId: string,
 ): Promise<unknown> {
-  if (!(await pendingAvailable()))
-    return tg("sendMessage", {
-      chat_id: chatId,
-      text: `${text}\n\n${NOT_ACTIVATED_MSG}`,
-      reply_markup: { inline_keyboard: [[{ text: "⬅️ Отмена", callback_data: "cat:0" }]] },
-    });
-  const pendingId = crypto.randomUUID();
-  const { error } = await loose.from("pending_actions").insert({
-    id: pendingId,
-    staff_telegram_id: m.telegram_id,
-    product_id: productId,
-    action,
-    before_value: before,
-    after_value: after,
-    expires_at: new Date(Date.now() + PENDING_TTL_MS).toISOString(),
-  });
-  if (error) {
-    console.error("[bot] pending action write failed");
-    return tg("sendMessage", { chat_id: chatId, text: `${text}\n\n${NOT_ACTIVATED_MSG}` });
-  }
-  return tg("sendMessage", {
-    chat_id: chatId,
-    text,
-    reply_markup: { inline_keyboard: CONFIRM_ROWS(pendingId) },
+  if (!can(m, PENDING_PERMISSION[action]))
+    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
+  return requestPreview(m, chatId, requestId, "prepare", {
+    p_product_id: productId,
+    p_action: action,
+    p_before: before,
+    p_after: after,
   });
 }
 
-async function pricePreview(m: StaffMember, chatId: number, productId: string, newPrice: number) {
+async function pendingHistory(m: StaffMember, chatId: number, offset = 0) {
+  let response: Awaited<ReturnType<typeof rpc>>;
+  try {
+    response = await rpc("bot_pending_history", {
+      p_staff_telegram_id: m.telegram_id,
+      p_offset: offset,
+    });
+  } catch {
+    response = { data: null, error: { message: "HISTORY_UNAVAILABLE" } };
+  }
+  const { data, error } = response;
+  if (error || !Array.isArray(data))
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Не удалось прочитать ваши правки. Повторите /actions; изменения не выполнялись.",
+    });
+  const rows = data as {
+    id: string;
+    action: PendingActionKind;
+    title: string;
+    state: string;
+    created_at: string;
+  }[];
+  if (
+    rows.some(
+      (r) =>
+        !r ||
+        !/^[0-9a-f-]{36}$/.test(r.id) ||
+        !(r.action in PENDING_PERMISSION) ||
+        !can(m, PENDING_PERMISSION[r.action]) ||
+        typeof r.title !== "string" ||
+        !Number.isFinite(Date.parse(r.created_at)),
+    )
+  )
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Ответ списка правок неполный. Повторите /actions.",
+    });
+  const labels: Record<string, string> = {
+    price: "Цена",
+    stock: "Наличие",
+    title: "Название",
+    description: "Описание",
+    specs: "Характеристики",
+    brand: "Бренд",
+    sku: "Артикул",
+    category: "Раздел",
+    status: "Публикация",
+    photo_main: "Основное фото",
+    photo_reorder: "Порядок фото",
+    photo_delete: "Удаление/возврат фото",
+  };
+  const states: Record<string, string> = {
+    pending: "⏳ Ждёт подтверждения",
+    applied: "✅ Сохранено",
+    canceled: "✖️ Отменено",
+    expired: "⌛ Срок истёк",
+    uncertain: "⚠️ Итог не подтверждён",
+  };
+  const shown = rows.slice(0, 10);
+  const buttons: Btn[][] = shown.map((r, i) => [
+    {
+      text: `🔎 ${offset + i + 1}. ${labels[r.action] ?? r.action}`,
+      callback_data: `pcr:${r.id}`,
+    },
+  ]);
+  const nav: Btn[] = [];
+  if (offset > 0) nav.push({ text: "⬅️ Новее", callback_data: `acts:${Math.max(0, offset - 10)}` });
+  if (rows.length > 10 && offset < 10000)
+    nav.push({ text: "Раньше ➡️", callback_data: `acts:${offset + 10}` });
+  if (nav.length) buttons.push(nav);
+  buttons.push([{ text: "🔄 Обновить", callback_data: `acts:${offset}` }]);
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text:
+      "📝 Мои правки\n\n" +
+      (shown
+        .map(
+          (r, i) =>
+            `${offset + i + 1}. ${states[r.state] ?? states["uncertain"]} · ${labels[r.action]}\n${r.title.slice(0, 100)}\n${orderDateMoscow(r.created_at)}`,
+        )
+        .join("\n\n") || "На этой странице нет доступных вам правок.") +
+      "\n\nОткройте запись, чтобы увидеть сохранённые значения и результат. Просмотр ничего не применяет.",
+    reply_markup: { inline_keyboard: buttons },
+  });
+}
+
+async function pricePreview(
+  m: StaffMember,
+  chatId: number,
+  productId: string,
+  newPrice: number,
+  requestId: string,
+) {
   if (!can(m, "edit_prices"))
     return tg("sendMessage", {
       chat_id: chatId,
@@ -574,10 +728,25 @@ async function pricePreview(m: StaffMember, chatId: number, productId: string, n
   if (Math.round(p.price * 100) === Math.round(newPrice * 100))
     return tg("sendMessage", { chat_id: chatId, text: "Цена уже такая — изменять нечего." });
   const text = pricePreviewText(p, newPrice);
-  return createPending(m, chatId, p.id, "price", { price: p.price }, { price: newPrice }, text);
+  return createPending(
+    m,
+    chatId,
+    p.id,
+    "price",
+    { price: p.price },
+    { price: newPrice },
+    text,
+    requestId,
+  );
 }
 
-async function stockPreview(m: StaffMember, chatId: number, productId: string, inStock: boolean) {
+async function stockPreview(
+  m: StaffMember,
+  chatId: number,
+  productId: string,
+  inStock: boolean,
+  requestId: string,
+) {
   if (!can(m, "edit_stock"))
     return tg("sendMessage", {
       chat_id: chatId,
@@ -596,6 +765,7 @@ async function stockPreview(m: StaffMember, chatId: number, productId: string, i
     { in_stock: p.in_stock },
     { in_stock: inStock },
     text,
+    requestId,
   );
 }
 
@@ -1390,6 +1560,7 @@ async function statusPreview(
   chatId: number,
   productId: string,
   status: ProductStatus,
+  requestId: string,
 ) {
   if (!can(m, "publish_products"))
     return tg("sendMessage", {
@@ -1420,6 +1591,7 @@ async function statusPreview(
     { status: p.status },
     { status },
     editStatusPreviewText(p, botStatusLabel(p.status), status, []),
+    requestId,
   );
 }
 
@@ -1437,10 +1609,10 @@ const SET_FIELDS: Record<string, EditorTextField> = {
 const SET_HELP =
   "Формат:\n/set <title|desc|specs|brand|sku> <SKU> <значение>\n/set cat <SKU> <название раздела>\n/set status <SKU> <витрина|черновик|скрыть>";
 
-async function startSetCommand(m: StaffMember, chatId: number, args: string[]) {
+async function startSetCommand(m: StaffMember, chatId: number, args: string[], requestId: string) {
   const sub = (args[0] ?? "").toLowerCase();
-  if (sub === "cat") return setCategoryCommand(m, chatId, args);
-  if (sub === "status") return setStatusCommand(m, chatId, args);
+  if (sub === "cat") return setCategoryCommand(m, chatId, args, requestId);
+  if (sub === "status") return setStatusCommand(m, chatId, args, requestId);
   const field = SET_FIELDS[sub];
   if (!field) return tg("sendMessage", { chat_id: chatId, text: SET_HELP });
   if (!can(m, "edit_products"))
@@ -1477,10 +1649,16 @@ async function startSetCommand(m: StaffMember, chatId: number, args: string[]) {
     { [field]: (p as unknown as Record<string, unknown>)[field] ?? null },
     { [field]: v.value ?? null },
     editFieldPreviewText(field, p, v.value ?? null),
+    requestId,
   );
 }
 
-async function setCategoryCommand(m: StaffMember, chatId: number, args: string[]) {
+async function setCategoryCommand(
+  m: StaffMember,
+  chatId: number,
+  args: string[],
+  requestId: string,
+) {
   if (!can(m, "manage_categories"))
     return tg("sendMessage", {
       chat_id: chatId,
@@ -1532,10 +1710,11 @@ async function setCategoryCommand(m: StaffMember, chatId: number, args: string[]
     { category_id: p.category_id },
     { category_id: cat.id },
     editCategoryPreviewText(p, oldName, cat.name),
+    requestId,
   );
 }
 
-async function setStatusCommand(m: StaffMember, chatId: number, args: string[]) {
+async function setStatusCommand(m: StaffMember, chatId: number, args: string[], requestId: string) {
   const skuQuery = args[1] ?? "";
   const status = parseStatusInput(args.slice(2).join(" "));
   if (!skuQuery || !status)
@@ -1549,47 +1728,18 @@ async function setStatusCommand(m: StaffMember, chatId: number, args: string[]) 
       chat_id: chatId,
       text: `Найдено несколько товаров — уточните точный артикул (SKU).`,
     });
-  return statusPreview(m, chatId, r.product.id, status);
+  return statusPreview(m, chatId, r.product.id, status, requestId);
 }
 
 // ---------- Откат применённого действия (preview → confirm) ----------
 
-async function prepareRollback(m: StaffMember, chatId: number, pendingId: string) {
-  if (!(await pendingAvailable()))
-    return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  // RBAC по типу действия — ДО вызова RPC: без права откат не готовится вовсе
-  // (RPC дополнительно проверяет владельца и outcome='applied').
-  const rowRes = await loose
-    .from("pending_actions")
-    .select("action")
-    .eq("id", pendingId)
-    .maybeSingle();
-  if (rowRes.error) return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  const act = (rowRes.data as { action?: PendingActionKind } | null)?.action;
-  if (!act || !(act in PENDING_PERMISSION))
-    return tg("sendMessage", { chat_id: chatId, text: PENDING_REASON_MSG["not_found"]! });
-  if (!can(m, PENDING_PERMISSION[act]))
-    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
-  const { data, error } = await rpc("bot_prepare_rollback", {
-    p_pending_id: pendingId,
-    p_staff_telegram_id: m.telegram_id,
-  });
-  if (error) return tg("sendMessage", { chat_id: chatId, text: rpcErrMsg(error) });
-  const r = data as {
-    pending_id: string;
-    action: PendingActionKind;
-    title: string;
-    before: unknown;
-    after: unknown;
-  } | null;
-  if (!r) return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  if (!(r.action in PENDING_PERMISSION) || !can(m, PENDING_PERMISSION[r.action]))
-    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
-  return tg("sendMessage", {
-    chat_id: chatId,
-    text: `Откатить изменение?\n\n${r.title}\n${describePendingChange(r.action, r.before, r.after)}\n\nПодтвердите действие:`,
-    reply_markup: { inline_keyboard: CONFIRM_ROWS(r.pending_id) },
-  });
+async function prepareRollback(
+  m: StaffMember,
+  chatId: number,
+  pendingId: string,
+  requestId: string,
+) {
+  return requestPreview(m, chatId, requestId, "rollback", { p_source_pending_id: pendingId });
 }
 
 async function sendCategories(chatId: number) {
@@ -1610,7 +1760,12 @@ async function sendCategories(chatId: number) {
   });
 }
 
-async function startPriceCommand(m: StaffMember, chatId: number, args: string[]) {
+async function startPriceCommand(
+  m: StaffMember,
+  chatId: number,
+  args: string[],
+  requestId: string,
+) {
   const price = parseBotPrice(args[args.length - 1]);
   const skuQuery = args.slice(0, -1).join(" ").trim();
   if (!price || !skuQuery)
@@ -1633,10 +1788,15 @@ async function startPriceCommand(m: StaffMember, chatId: number, args: string[])
     );
     return tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
   }
-  return pricePreview(m, chatId, r.product.id, price);
+  return pricePreview(m, chatId, r.product.id, price, requestId);
 }
 
-async function startStockCommand(m: StaffMember, chatId: number, args: string[]) {
+async function startStockCommand(
+  m: StaffMember,
+  chatId: number,
+  args: string[],
+  requestId: string,
+) {
   const state = parseStockInput(args[args.length - 1]);
   const skuQuery = args.slice(0, -1).join(" ").trim();
   if (state === undefined || !skuQuery)
@@ -1659,10 +1819,16 @@ async function startStockCommand(m: StaffMember, chatId: number, args: string[])
     );
     return tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
   }
-  return stockPreview(m, chatId, r.product.id, state);
+  return stockPreview(m, chatId, r.product.id, state, requestId);
 }
 
-async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { id: number }) {
+async function handleCommand(
+  m: StaffMember,
+  chat: Chat,
+  text: string,
+  from: { id: number },
+  requestId: string,
+) {
   const priv = isPrivateChat(chat, { id: m.telegram_id });
   const [raw, ...args] = text.trim().split(/\s+/);
   const cmd = (raw ?? "").toLowerCase().replace(/@[a-z0-9_]+$/, "");
@@ -1745,13 +1911,15 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return tg("sendMessage", { chat_id: chat.id, text: buildCatalogSummary(products) });
     }
     case "/price":
-      return startPriceCommand(m, chat.id, args);
+      return startPriceCommand(m, chat.id, args, requestId);
     case "/stock":
-      return startStockCommand(m, chat.id, args);
+      return startStockCommand(m, chat.id, args, requestId);
     case "/set":
-      return startSetCommand(m, chat.id, args);
+      return startSetCommand(m, chat.id, args, requestId);
     case "/new":
       return startNewDraft(m, chat.id);
+    case "/actions":
+      return pendingHistory(m, chat.id);
     case "/input":
       return resumeEditorInput(m, chat.id);
     case "/technical":
@@ -1784,8 +1952,9 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return tg("sendMessage", {
         chat_id: chat.id,
         text: [
-          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Продолжить ввод, Отмена ввода.",
+          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Продолжить ввод, Мои правки, Отмена ввода.",
           "/input — текущий вопрос или подтверждение товара. На вопрос отвечайте через «Ответить» в Telegram.",
+          "/actions — мои предпросмотры и результаты правок. Используйте, если ответ потерялся.",
           "/menu — главное меню, /orders — заказы",
           "/shops — открыть сайт DEV или PRO внутри Telegram",
           "Заказы → карточка → В обработке. Для выдачи и отмены нужно подтверждение.",
@@ -2015,12 +2184,23 @@ export async function handleUpdate(update: TgUpdate) {
   )
     return deny();
 
+  const requestId = previewRequestId(update, process.env["TELEGRAM_BOT_ID"]) ?? "";
+  if (isDirectPreview(update)) {
+    if (cb) await tg("answerCallbackQuery", { callback_query_id: cb.id });
+    if (!requestId)
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: "Не удалось определить запрос. Откройте карточку заново или /actions; правка не подготовлена.",
+      });
+    if (await requestPreview(m, chat.id, requestId, "read")) return;
+  }
+
   if (!cb) {
     const text = update.message?.text ?? "";
     // Navigation buttons are reserved controls, never product editor input.
     const command = navigationCommand(text);
-    if (command) return handleCommand(m, chat, command, from);
-    if (text.startsWith("/")) return handleCommand(m, chat, text, from);
+    if (command) return handleCommand(m, chat, command, from, requestId);
+    if (text.startsWith("/")) return handleCommand(m, chat, text, from, requestId);
     // CSV documents are handled only after the private-actor and staff gates.
     if (update.message?.document && can(m, "import_prices"))
       return receiveCatalogDocument(m, chat, update.message.document, update.update_id);
@@ -2057,7 +2237,7 @@ export async function handleUpdate(update: TgUpdate) {
     await tg("answerCallbackQuery", { callback_query_id: cb.id });
     return result;
   }
-  await tg("answerCallbackQuery", { callback_query_id: cb.id });
+  if (!isDirectPreview(update)) await tg("answerCallbackQuery", { callback_query_id: cb.id });
 
   if (cb.data === "shop_versions" || cb.data === "shop_preview")
     return tg("sendMessage", {
@@ -2212,12 +2392,24 @@ export async function handleUpdate(update: TgUpdate) {
   const pxpM = data_str.match(/^pxp:([0-9a-f-]{36}):p(\d+)$/);
   if (pxpM) {
     if (!priv) return catalogGuard();
-    return pricePreview(m, chat.id, pxpM[1]!, Number(pxpM[2]) / 100);
+    return pricePreview(m, chat.id, pxpM[1]!, Number(pxpM[2]) / 100, requestId);
   }
   const pxsM = data_str.match(/^pxs:([0-9a-f-]{36}):s([01])$/);
   if (pxsM) {
     if (!priv) return catalogGuard();
-    return stockPreview(m, chat.id, pxsM[1]!, pxsM[2] === "1");
+    return stockPreview(m, chat.id, pxsM[1]!, pxsM[2] === "1", requestId);
+  }
+  const actsM = data_str.match(/^acts:(\d{1,5})$/);
+  if (actsM) {
+    if (!priv) return catalogGuard();
+    const offset = Number(actsM[1]);
+    if (offset > 10000 || offset % 10 !== 0) return;
+    return pendingHistory(m, chat.id, offset);
+  }
+  const prrM = data_str.match(/^prr:([0-9a-f-]{36})$/);
+  if (prrM) {
+    if (!priv) return catalogGuard();
+    return requestPreview(m, chat.id, prrM[1]!, "read", {}, true);
   }
   const pcrM = data_str.match(/^pcr:([0-9a-f-]{36})$/);
   if (pcrM) {
@@ -2255,17 +2447,24 @@ export async function handleUpdate(update: TgUpdate) {
   const phmM = data_str.match(/^phm:([0-9a-f-]{36}):(\d{1,2})$/);
   if (phmM) {
     if (!priv) return catalogGuard();
-    return photoMainPreview(m, chat.id, phmM[1]!, Number(phmM[2]));
+    return photoMainPreview(m, chat.id, phmM[1]!, Number(phmM[2]), requestId);
   }
   const phrM = data_str.match(/^ph([un]):([0-9a-f-]{36}):(\d{1,2})$/);
   if (phrM) {
     if (!priv) return catalogGuard();
-    return photoReorderPreview(m, chat.id, phrM[2]!, Number(phrM[3]), phrM[1] === "u" ? -1 : 1);
+    return photoReorderPreview(
+      m,
+      chat.id,
+      phrM[2]!,
+      Number(phrM[3]),
+      phrM[1] === "u" ? -1 : 1,
+      requestId,
+    );
   }
   const phxM = data_str.match(/^phx:([0-9a-f-]{36}):(\d{1,2})$/);
   if (phxM) {
     if (!priv) return catalogGuard();
-    return photoDeletePreview(m, chat.id, phxM[1]!, Number(phxM[2]));
+    return photoDeletePreview(m, chat.id, phxM[1]!, Number(phxM[2]), requestId);
   }
 
   // Редактор карточек (C2A): все пути — только личный чат + RBAC внутри обработчиков.
@@ -2295,12 +2494,12 @@ export async function handleUpdate(update: TgUpdate) {
   const stpM = data_str.match(/^stp:([0-9a-f-]{36}):(published|draft|hidden)$/);
   if (stpM) {
     if (!priv) return catalogGuard();
-    return statusPreview(m, chat.id, stpM[1]!, stpM[2] as ProductStatus);
+    return statusPreview(m, chat.id, stpM[1]!, stpM[2] as ProductStatus, requestId);
   }
   const rbM = data_str.match(/^rb:([0-9a-f-]{36})$/);
   if (rbM) {
     if (!priv) return catalogGuard();
-    return prepareRollback(m, chat.id, rbM[1]!);
+    return prepareRollback(m, chat.id, rbM[1]!, requestId);
   }
   const ndM = data_str.match(/^nd:([cx])(?::([0-9a-f-]{36}))?$/);
   if (ndM) {
