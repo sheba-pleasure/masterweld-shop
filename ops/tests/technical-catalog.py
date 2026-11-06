@@ -169,7 +169,15 @@ try:
     assert sql("SELECT to_regprocedure('bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL") == "t"
     # Exercise the production rehearsal checks in this disposable, no-network QA cluster.
     # Never change the identity of an actual DEV/production database.
+    migration22=(ROOT / "docs/migrations/0022_catalog_draft_results.sql").read_text()
+    sql(operator.transaction(migration22,draft_results=True))
     upgrade_checks=(ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+    sql("GRANT EXECUTE ON FUNCTION bot_create_draft(bigint,text,text,numeric) TO service_role;")
+    sql(upgrade_checks,"REHEARSAL_DRAFT_BYPASS_OPEN")
+    sql("REVOKE EXECUTE ON FUNCTION bot_create_draft(bigint,text,text,numeric) FROM service_role;")
+    sql("GRANT SELECT ON bot_draft_results TO service_role;")
+    sql(upgrade_checks,"REHEARSAL_TECH_DIRECT_ACCESS")
+    sql("REVOKE SELECT ON bot_draft_results FROM service_role;")
     sql("ALTER TABLE bot_editor_states DISABLE TRIGGER bot_editor_exclusive_guard;")
     sql(upgrade_checks,"REHEARSAL_EDITOR_TRIGGER_MISSING")
     sql("ALTER TABLE bot_editor_states ENABLE TRIGGER bot_editor_exclusive_guard;")
@@ -184,6 +192,8 @@ try:
     sql("REVOKE SELECT ON technical_editor_sessions FROM anon")
     checked=json.loads(sql(upgrade_checks))
     assert checked["editorApplyDuplicateUndo"] and checked["fixturesRolledBack"]
+    assert checked["draftReceiptPrivate"] and checked["draftRecoveryPreservesNewInput"] and checked["draftCancelDurable"]
+    assert sql("SELECT count(*) FROM bot_draft_results")=="0"
     assert sql("SELECT count(*) FROM technical_editor_sessions")=="0"
     assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
     sql("""CREATE OR REPLACE FUNCTION mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$
