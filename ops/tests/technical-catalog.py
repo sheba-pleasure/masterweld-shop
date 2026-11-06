@@ -95,6 +95,8 @@ try:
         stored = json.loads(sql("SELECT to_jsonb(a) FROM technical_attributes a WHERE code=" + lit(attr["code"])))
         assert stored == attr, (stored, attr)
     assert public() is None
+    empty = rpc("read")
+    assert empty["card"] == {"version":0,"published_revision":None,"revisions":[]}
     for role in ["anon", "authenticated", "service_role"]:
         sql(f"SET ROLE {role}; SELECT * FROM technical_revisions;", "permission denied")
         sql(f"SET ROLE {role}; DELETE FROM technical_changes;", "permission denied")
@@ -110,6 +112,10 @@ try:
     assert sum(x.get("duplicate", False) for x in outcomes) == 7
     assert sql("SELECT count(*) FROM staff_audit_log WHERE action='technical_apply'") == "1"
     published = public()
+    staff_read = rpc("read",actor=103)
+    assert staff_read["card"]["published_revision"] == published["revision_id"]
+    assert len(staff_read["card"]["revisions"]) == 1
+    assert staff_read["card"]["revisions"][0]["document"] == DOC
     assert published["values"][0]["code"]  # explicit values, not raw revision/staff fields
     assert "staff_telegram_id" not in json.dumps(published)
     numbers = {(x["code"],x["process"]):x["value"] for x in published["values"]}
