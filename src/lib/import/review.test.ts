@@ -48,6 +48,99 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: review, error: null });
   mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
 });
+
+it("reads full corrected and original values without opening an edit or changing approval", async () => {
+  const saved = "Сохранено: " + "Я".repeat(1800) + " — МОДЕЛЬ-220";
+  const original = "Распознано: " + "Б".repeat(1800) + " — МОДЕЛЬ-380";
+  const r = {
+    ...review,
+    cells: ["001", saved, "10"],
+    original: ["001", original, "10"],
+    decision: "approved" as const,
+    counts: { total: 1, pending: 0, approved: 1, excluded: 0 },
+  };
+  const before = JSON.stringify(r);
+  mocks.rpc.mockResolvedValue({ data: r, error: null });
+  for (const [op, value] of [
+    ["full", saved],
+    ["orig", original],
+  ] as const) {
+    mocks.tg.mockClear();
+    await showDocumentReview(admin, chat, reviewButton(r, "", op, 0, 1).callback_data);
+    const texts = mocks.tg.mock.calls.map((c) => c[1].text as string);
+    expect(texts.join("")).toContain(value);
+    expect(texts.every((text) => Array.from(text).length <= 3500)).toBe(true);
+    expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply)).toBe(false);
+    expect(texts.join("")).toContain("Проверена человеком");
+  }
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get", "get"]);
+  expect(mocks.catalog).not.toHaveBeenCalled();
+  expect(JSON.stringify(r)).toBe(before);
+  expect(renderReview(r).text).toContain("Длинные значения здесь сокращены");
+});
+
+it("lets readers choose any of thirty fields and return to the matching field page", () => {
+  const r = {
+    ...review,
+    header: Array.from({ length: 30 }, (_, i) => "Поле " + i),
+    cells: Array.from({ length: 30 }, (_, i) => "Значение " + i),
+    row: 4999,
+    revision: 9999999,
+  };
+  const buttons = renderReview(r, "values", 3).rows.flat();
+  const fields = buttons.filter((b) => b.callback_data.includes(":full:"));
+  expect(fields).toHaveLength(6);
+  expect(fields.map((b) => parseReviewCallback(b.callback_data)?.column)).toEqual([
+    24, 25, 26, 27, 28, 29,
+  ]);
+  const value = renderReview(r, "full", 29);
+  expect(value.text).toContain("Значение 29");
+  expect(value.rows.flat().some((b) => b.callback_data.endsWith(":values:4999:3"))).toBe(true);
+  for (const b of [...buttons, ...value.rows.flat()]) {
+    if (b.callback_data.startsWith("dr:"))
+      expect(parseReviewCallback(b.callback_data)).not.toBeNull();
+    expect(Buffer.byteLength(b.callback_data)).toBeLessThanOrEqual(64);
+  }
+  for (const bad of [`dr:${id}:3:full:0`, `dr:${id}:3:orig:0:30`, `dr:${id}:3:values:0:4`])
+    expect(parseReviewCallback(bad)).toBeNull();
+  const missing = renderReview(review, "full", 29);
+  expect(missing.text).toContain("Поле больше недоступно".toLowerCase());
+  expect(missing.rows.flat().some((b) => b.callback_data.endsWith(":values:0:0"))).toBe(true);
+});
+
+it("distinguishes manual/split provenance and keeps handed-off details read-only", () => {
+  expect(
+    renderReview({ ...review, source_origin: "manual", original: [] }, "orig", 1).text,
+  ).toContain("Исходного распознанного значения нет");
+  expect(renderReview({ ...review, source_origin: "split" }, "orig", 1).text).toContain(
+    "Общей строки до разделения".toLowerCase(),
+  );
+  const frozen = renderReview({ ...review, import_id: id }, "full", 1);
+  expect(frozen.text).toContain("Аппарат");
+  expect(frozen.text).toContain("Исправления закрыты".toLowerCase());
+  expect(frozen.rows.flat().some((b) => b.callback_data.includes(":edit:"))).toBe(false);
+});
+
+it("keeps full-value browsing behind the existing private staff gate", async () => {
+  await showDocumentReview(
+    { ...admin, role: "seller" },
+    chat,
+    reviewButton(review, "", "full", 0, 1).callback_data,
+  );
+  await showDocumentReview(
+    admin,
+    { id: 102, type: "private" },
+    reviewButton(review, "", "orig", 0, 1).callback_data,
+  );
+  await showDocumentReview(
+    admin,
+    { id: 101, type: "group" },
+    reviewButton(review, "", "values", 0, 0).callback_data,
+  );
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.tg).not.toHaveBeenCalled();
+});
+
 it("uses Russian field labels without rewriting original headers", () => {
   const r = {
     ...review,
