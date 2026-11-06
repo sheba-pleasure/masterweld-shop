@@ -19,6 +19,7 @@ let stored: EditorStateRow | null;
 let error: string | null;
 let role: string;
 let beforeWrite: (() => void) | null;
+let preview: Record<string, unknown> | null;
 const stateRow = (state: string, data = {}): EditorStateRow => ({
   staff_telegram_id: 101,
   state,
@@ -33,11 +34,45 @@ beforeEach(() => {
   error = null;
   role = "admin";
   beforeWrite = null;
+  preview = null;
   let delivered = 200;
   mocks.tg.mockImplementation(async () =>
     Response.json({ ok: true, result: { message_id: ++delivered } }),
   );
   mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_editor_preview") {
+      if (beforeWrite) {
+        const f = beforeWrite;
+        beforeWrite = null;
+        f();
+      }
+      if (error) return { data: null, error: { message: error } };
+      if (preview) return { data: preview, error: null };
+      if (args.p_mode === "read") return { data: null, error: { message: "PREVIEW_NOT_FOUND" } };
+      if (
+        !stored ||
+        (stored.data as Record<string, unknown>)?.["_revision"] !== args.p_revision ||
+        stored.consumed_at
+      )
+        return { data: null, error: { message: "PREVIEW_STEP_CHANGED" } };
+      const action = stored.state === "pick_cat" ? "category" : stored.state.slice(5);
+      preview = {
+        id: oldRevision,
+        action,
+        title: "[Учебный] Товар",
+        sku: null,
+        before: { [action]: "До" },
+        after: { [action]: args.p_value },
+        old_category: "Первый",
+        new_category: "Второй",
+        consumed_at: null,
+        outcome: null,
+        expired: false,
+      };
+      mocks.pending(preview);
+      stored = { ...stored, consumed_at: new Date().toISOString() };
+      return { data: preview, error: null };
+    }
     if (name === "bot_finish_draft") {
       if (args.p_revision !== revision)
         return { data: null, error: { message: "DRAFT_STEP_CHANGED" } };
@@ -227,7 +262,7 @@ it("does not create a preview when claiming input fails", async () => {
   expect(mocks.pending).not.toHaveBeenCalled();
   expect(stored?.consumed_at).toBeNull();
   expect(messages()[0]).not.toContain("PRIVATE");
-  expect(messages()[0]).toContain("Не удалось проверить шаг");
+  expect(messages()[0]).toContain("Не удалось проверить сохранение предпросмотра");
   expect(messages()[0]).not.toContain("уже изменился");
 });
 it.each(["nd:c", "nd:x", "nd:c:" + oldRevision, "nd:x:" + oldRevision])(
@@ -420,3 +455,63 @@ it("does not advance input after edit permission is revoked", async () => {
   expect(stored).toEqual(before);
   expect(mocks.write).not.toHaveBeenCalled();
 });
+
+it("recovers a consumed input preview through /input without consuming a later step", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  await text("Первое название");
+  const first = structuredClone(preview);
+  mocks.rpc.mockClear();
+  await text("/input");
+  expect(mocks.rpc).toHaveBeenCalledWith("bot_editor_preview", {
+    p_staff_telegram_id: 101,
+    p_revision: revision,
+    p_mode: "read",
+    p_value: null,
+  });
+  expect(preview).toEqual(first);
+  stored = stateRow("new_title", { _revision: oldRevision });
+  const later = structuredClone(stored);
+  await callback("ep:" + revision);
+  expect(stored).toEqual(later);
+  expect(mocks.pending).toHaveBeenCalledTimes(1);
+});
+it.each([
+  [{ outcome: "applied" }, "уже применено"],
+  [{ outcome: "canceled" }, "отменено"],
+  [{ expired: true }, "Срок предпросмотра истёк"],
+])("does not offer confirmation for resolved or expired previews: %s", async (patch, message) => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  await text("Название");
+  preview = { ...preview, ...patch };
+  mocks.tg.mockClear();
+  await text("/input");
+  expect(messages()[0]).toContain(message);
+  expect(
+    mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1].reply_markup,
+  ).toBeUndefined();
+});
+it("offers read-only recovery after an uncertain preview response", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  error = "PRIVATE DATABASE DETAIL";
+  await text("Название");
+  expect(messages()[0]).not.toContain("PRIVATE");
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe("ep:" + revision);
+  mocks.rpc.mockClear();
+  await callback("ep:" + revision);
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "bot_editor_preview",
+    expect.objectContaining({ p_mode: "read" }),
+  );
+});
+it.each(["PREVIEW_NOT_OWNER", "PREVIEW_PERMISSION_DENIED"])(
+  "hides recovery on %s",
+  async (message) => {
+    error = message;
+    await callback("ep:" + revision);
+    expect(messages()[0]).toContain("Недостаточно прав");
+    expect(
+      mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1].reply_markup,
+    ).toBeUndefined();
+  },
+);
