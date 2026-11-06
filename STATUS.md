@@ -28,7 +28,7 @@ main не обновлён; рабочий магазин не развёрну�
 
 ## Проверки
 
-427 Vitest; 10 runtime guard; 7 release gate; 8 import; 53 synthetic ops — прошли.
+436 Vitest; 10 runtime guard; 7 release gate; 8 import; 53 synthetic ops — прошли.
 Docker/Nitro node-server собран; изменённые серверные TS-файлы и корзина проходят ESLint.
 Доказательства, точная версия и границы проверки — docs/VERIFICATION.md.
 Синтетический тест выпуска и DEV restore не заменяют production-испытания.
