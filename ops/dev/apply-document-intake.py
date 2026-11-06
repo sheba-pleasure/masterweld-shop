@@ -11,6 +11,8 @@ import uuid
 
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 PATH="docs/migrations/0026_document_intake.sql"
+BASELINE_SQL="SELECT jsonb_object_agg(proname,encode(sha256(convert_to(pg_get_functiondef(oid),'UTF8')),'hex')) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN('bot_pending_preview','bot_catalog_import','bot_pending_operation')"
+EXPECTED={"bot_catalog_import":"53297fa869d78f216b757fe926f1d3c6ebf5b8f03222e2deab99d0c4b52f0ba0","bot_pending_preview":"afddcac083e875d0d81161907ab64162cc43bce5d43ea42f4f91d3f7790646a1","bot_pending_operation":"e4eb0626b67f4809d654e19130050411abcf82ab5f2da9044489cf02796ca97a"}
 spec=importlib.util.spec_from_file_location("backup",ROOT/"ops/standalone/database-backup.py")
 backup=importlib.util.module_from_spec(spec);spec.loader.exec_module(backup)
 def transaction(migration,expected):
@@ -23,7 +25,7 @@ DO $guard$ BEGIN
  IF mw_environment_identity() IS DISTINCT FROM '{"environment":"dev","instanceId":"3a6a67bc-5ce6-46a4-af72-e6ab78800e49"}'::jsonb
  THEN RAISE EXCEPTION 'DOCUMENT_DEV_REQUIRED'; END IF;
  IF to_regclass('public.document_intakes') IS NOT NULL THEN RAISE EXCEPTION 'DOCUMENT_ALREADY_APPLIED'; END IF;
- IF (SELECT jsonb_object_agg(path,sha256) FROM mw_private.schema_files) IS DISTINCT FROM '"""+json.dumps(expected)+"""'::jsonb
+ IF ("""+BASELINE_SQL+""") IS DISTINCT FROM '"""+json.dumps(expected)+"""'::jsonb
  THEN RAISE EXCEPTION 'DOCUMENT_BASELINE'; END IF;
 END $guard$;
 CREATE TEMP TABLE document_before(name text,fingerprint text) ON COMMIT DROP;
@@ -44,20 +46,21 @@ DO $after$ DECLARE t record; h text; BEGIN
     OR has_function_privilege('anon','bot_document_intake(bigint,text,uuid,jsonb)','EXECUTE')
  THEN RAISE EXCEPTION 'DOCUMENT_PRIVILEGES'; END IF;
 END $after$;
-INSERT INTO mw_private.schema_files(path,sha256) VALUES('"""+PATH+"','"+checksum+"""');
+CREATE TABLE IF NOT EXISTS mw_private.dev_migration_receipts(path text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now());
+INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES('"""+PATH+"','"+checksum+"""');
 COMMIT;
 """
 def main():
     backup.require(not subprocess.check_output(["git","status","--porcelain"],cwd=ROOT).strip(),"COMMIT_SOURCE_REQUIRED")
     sha=subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip()
     migration=(ROOT/PATH).read_text()
-    expected={str(p.relative_to(ROOT)):backup.digest(p) for directory in ("drizzle/migrations","docs/migrations")
-      for p in sorted((ROOT/directory).glob("*.sql")) if p.name[:4]<"0026"}
+    expected=EXPECTED
     with (ROOT/"ops/.state/dev/update.lock").open("a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         backup.validate_source("mw-dev-db","masterweld_dev",backup.DEV_ID)
-        actual=json.loads(backup.sql("mw-dev-db","masterweld_dev","SELECT jsonb_object_agg(path,sha256) FROM mw_private.schema_files"))
+        actual=json.loads(backup.sql("mw-dev-db","masterweld_dev",BASELINE_SQL))
         backup.require(actual==expected,"DOCUMENT_BASELINE")
+        backup.require(backup.sql("mw-dev-db","masterweld_dev","SELECT to_regclass('public.document_intakes') IS NULL")=="t","DOCUMENT_ALREADY_APPLIED")
         state=backup.backup(ROOT,"dev",upload=True)
         folder=ROOT/"ops/.state/database-backups/dev"/state["run"]
         name="mw-intake-rehearsal-"+uuid.uuid4().hex[:12]

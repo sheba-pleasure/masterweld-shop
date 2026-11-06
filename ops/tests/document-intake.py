@@ -2,6 +2,7 @@
 """Real isolated PostgreSQL: private originals, duplicate receipts, worker leases and safe import handoff."""
 import base64
 import hashlib
+import importlib.util
 import json
 import pathlib
 import subprocess
@@ -41,6 +42,9 @@ try:
     paths=[ROOT/"ops/dev/bootstrap.sql",*sorted((ROOT/"drizzle/migrations").glob("*.sql")),
         *sorted((ROOT/"docs/migrations").glob("*.sql"))]
     sql("BEGIN;\n"+"\n".join(p.read_text() for p in paths)+"\nCOMMIT;")
+    spec=importlib.util.spec_from_file_location("migration",ROOT/"ops/dev/apply-document-intake.py")
+    migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
+    assert json.loads(sql(migration.BASELINE_SQL))==migration.EXPECTED,"Baseline must match migrations built from source, not just live state"
     sql("INSERT INTO staff(telegram_id,name,role,elevated) VALUES (101,'Admin','admin',false),(102,'Other','admin',false),(103,'Seller','seller',false);")
     # Enrollment is audited and duplicate requests return the first result.
     enroll="SET ROLE service_role; SELECT bot_enroll_sellers(101,'qa:enroll',ARRAY[201,202]::bigint[]);"
