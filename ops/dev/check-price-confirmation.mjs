@@ -18,11 +18,12 @@ try {
  });
  await page.reload({waitUntil:"networkidle"});
  await page.getByRole("button",{name:/Корзина: 1 шт/}).click();
- await page.getByLabel("Имя покупателя",{exact:true}).fill("DEV QA E2E-20261106-PRICE");
+ await page.getByLabel("Имя покупателя",{exact:true}).fill("DEV QA E2E-20261106-PRICE-FINAL");
  await page.getByLabel("Телефон покупателя",{exact:true}).fill("+79990000002");
  await page.getByRole("button",{name:"Оформить учебный заказ",exact:true}).click();
  await page.getByText("Цены изменились — заказ пока не оформлен.",{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>sessionStorage.getItem("mw.checkout-attempt.v1")),null);
+ assert.match(await page.locator(".checkout-details").innerText(),/Итого\s+900/);
  await page.screenshot({path:"/artifacts/mw-price-confirmation-mobile.png",animations:"disabled"});
  await page.getByRole("button",{name:"Согласиться с новой ценой и оформить",exact:true}).click();
  await page.getByText(/Спасибо! Заказ .* принят/).waitFor();

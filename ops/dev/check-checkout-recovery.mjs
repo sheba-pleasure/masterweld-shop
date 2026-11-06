@@ -7,7 +7,7 @@ const key="mw.checkout-attempt.v1";
 const phase=process.env.MW_QA_PHASE ?? "lost-response";
 assert.ok(["lost-response","after-restart"].includes(phase));
 const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
-const page=await browser.newPage({viewport:{width:390,height:844}});
+const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:"reduce"});
 const errors=[];
 page.on("pageerror",e=>errors.push(e.message));
 try {
@@ -41,7 +41,7 @@ try {
   const raw=await page.evaluate(k=>sessionStorage.getItem(k),key);
   assert.ok(raw);
   writeFileSync("/artifacts/mw-checkout-attempt.json",JSON.stringify({raw})+"\n",{mode:0o600});
-  await page.screenshot({path:"/artifacts/mw-recovery-mobile.png"});
+  await page.screenshot({path:"/artifacts/mw-recovery-mobile.png",animations:"disabled"});
   await page.unrouteAll();
   await page.reload({waitUntil:"networkidle"});
   await page.getByRole("button",{name:/Корзина:/}).click();
@@ -49,6 +49,8 @@ try {
  }else{
   await page.getByRole("button",{name:/Корзина:/}).click();
  }
+ await page.getByRole("button",{name:"Проверить и завершить заказ",exact:true}).waitFor();
+ await page.screenshot({path:"/artifacts/mw-recovery-pending-final.png",animations:"disabled"});
  await page.getByRole("button",{name:"Проверить и завершить заказ",exact:true}).click();
  await page.getByText(/Спасибо! Заказ .* принят/).waitFor({timeout:15000});
  const confirmation=await page.getByText(/Спасибо! Заказ .* принят/).innerText();
@@ -56,9 +58,9 @@ try {
  const resultFile=phase==="lost-response"?"/artifacts/mw-checkout-recovered.json":"/artifacts/mw-checkout-restarted.json";
  if(phase==="after-restart") assert.equal(confirmation,JSON.parse(readFileSync("/artifacts/mw-checkout-recovered.json","utf8")).confirmation);
  writeFileSync(resultFile,JSON.stringify({phase,confirmation,errors})+"\n",{mode:0o600});
- await page.screenshot({path:"/artifacts/mw-recovery-success-mobile.png"});
+ await page.screenshot({path:"/artifacts/mw-recovery-success-mobile.png",animations:"disabled"});
  await page.setViewportSize({width:1440,height:1000});
- await page.screenshot({path:"/artifacts/mw-recovery-success-desktop.png"});
+ await page.screenshot({path:"/artifacts/mw-recovery-success-desktop.png",animations:"disabled"});
  assert.deepEqual(errors,[]);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  console.log(JSON.stringify({phase,confirmation,errors}));

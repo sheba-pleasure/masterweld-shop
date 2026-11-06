@@ -202,7 +202,8 @@ export function SiteActions() {
             <SheetTitle className="menu-label menu-label--title text-brand-yellow">
               Корзина{" "}
               <span className="ml-2 text-xs font-normal text-primary-foreground/60">
-                {items.length} поз. · {count} шт.
+                {attempt?.items.length ?? items.length} поз. ·{" "}
+                {attempt ? attempt.items.reduce((n, i) => n + i.qty, 0) : count} шт.
               </span>
             </SheetTitle>
           </SheetHeader>
@@ -243,7 +244,10 @@ export function SiteActions() {
                 {rub(attempt.expected?.total ?? 0)}.
               </p>
               <p role="status" className="mt-3">
-                {error ?? "Дождитесь подтверждения. Данные этой попытки сохранены."}
+                {error ??
+                  (sending
+                    ? "Проверяем сохранённую попытку. Дождитесь ответа."
+                    : "Нажмите кнопку ниже, чтобы получить результат сохранённой попытки.")}
               </p>
               <Button
                 onClick={send}
