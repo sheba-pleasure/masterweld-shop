@@ -183,6 +183,48 @@ describe("single service gate", () => {
     expect(mocks.tg.mock.calls[0]?.[1].text).toContain("PRIVATE_NAME");
   });
 });
+describe("persistent navigation", () => {
+  function message(text: string, type = "private", chatId = 101): TgUpdate {
+    return { update_id: 2, message: { text, from: { id: 101 }, chat: { id: chatId, type } } };
+  }
+  it("start attaches a persistent keyboard and retains role actions", async () => {
+    await handleUpdate(message("/start"));
+    expect(mocks.tg.mock.calls[0]?.[1].reply_markup).toMatchObject({
+      is_persistent: true,
+      one_time_keyboard: false,
+      resize_keyboard: true,
+    });
+    expect(mocks.tg.mock.calls[1]?.[1].reply_markup.inline_keyboard).toBeDefined();
+  });
+  it.each(["🧾 Заказы", "/orders"])(
+    "orders entry %s opens orders before any editor input",
+    async (text) => {
+      await handleUpdate(message(text));
+      expect(events).toContain("from:shop_orders");
+      expect(events).not.toContain("from:bot_editor_states");
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["🏠 Меню", "❓ Помощь"])("navigation %s never becomes editor text", async (text) => {
+    await handleUpdate(message(text));
+    expect(events).toEqual(["from:staff"]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it.each(["🧾 Заказы", "/orders", "🏠 Меню"])(
+    "group navigation %s cannot reach data",
+    async (text) => {
+      await handleUpdate(message(text, "group", -101));
+      expect(mocks.from).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it("revoked staff cannot use a previously installed keyboard", async () => {
+    member = { ...actor, active: false };
+    await handleUpdate(message("🧾 Заказы"));
+    expect(events).toEqual(["from:staff"]);
+    expect(mocks.tg.mock.calls[0]?.[1].text).toBe("Нет доступа.");
+  });
+});
 describe("audit-before-disclosure", () => {
   it.each(["staff", "audit"])("%s audits before read", async (data) => {
     await handleUpdate(callback(data));

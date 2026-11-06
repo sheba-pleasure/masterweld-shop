@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { navigationCommand, persistentKeyboard } from "./navigation";
 import {
   buildOrderCard,
   buildOrdersList,
@@ -151,7 +152,16 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
 
 async function sendMenu(chatId: number, m: StaffMember) {
   const { text, rows } = menuFor(m);
-  await tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: `${text}\nРазделы доступны на клавиатуре внизу. «Отмена ввода» завершает текущий диалог.`,
+    reply_markup: persistentKeyboard(),
+  });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: "Действия для вашей роли:",
+    reply_markup: { inline_keyboard: rows },
+  });
 }
 
 async function audit(id: number, action: string, details?: unknown) {
@@ -1319,6 +1329,10 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
   )
     return tg("sendMessage", { chat_id: chat.id, text: PRIVATE_ONLY_MSG });
   switch (cmd) {
+    case "/orders":
+      if (!priv || !can(m, "manage_orders"))
+        return tg("sendMessage", { chat_id: chat.id, text: "Нет доступа к заказам." });
+      return sendOrdersList(chat.id, 0);
     case "/catalog":
       return sendCatalogList(chat.id, "all", 0);
     case "/find": {
@@ -1381,6 +1395,11 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return tg("sendMessage", {
         chat_id: chat.id,
         text: [
+          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Отмена ввода.",
+          "/menu — главное меню, /orders — заказы",
+          "Заказы → карточка → В обработке. Для выдачи и отмены нужно подтверждение.",
+          "Переход в раздел сохраняет незавершённый ввод; /cancel его отменяет.",
+          "",
           "Команды панели каталога:",
           "/catalog — каталог, /find <SKU или модель> — поиск",
           "/product <SKU или модель> — карточка товара",
@@ -1583,6 +1602,9 @@ export async function handleUpdate(update: TgUpdate) {
 
   if (!cb) {
     const text = update.message?.text ?? "";
+    // Navigation buttons are reserved controls, never product editor input.
+    const command = navigationCommand(text);
+    if (command) return handleCommand(m, chat, command, from);
     if (text.startsWith("/")) return handleCommand(m, chat, text, from);
     // Медиа в личном чате: загрузка из Telegram заблокирована (fail closed) —
     // честно сообщаем об этом; file_id нигде не логируется и не сохраняется.

@@ -1,6 +1,9 @@
 // Run inside the Playwright container, against the explicitly isolated DEV only.
 import { chromium } from "/node_modules/playwright/index.mjs";
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+const buyer = process.env.MW_QA_BUYER || "DEV QA";
+assert.match(buyer, /^DEV QA[ A-Za-z0-9-]*$/);
 const origin = "https://masterweld-dev.138-124-106-211.sslip.io";
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -16,14 +19,16 @@ try {
   await page.screenshot({ path: "/artifacts/masterweld-dev-desktop.png", fullPage: true });
   await page.getByRole("button", { name: "В корзину", exact: true }).first().click();
   await page.getByRole("button", { name: /Корзина: 1 шт/ }).click();
-  await page.getByLabel("Имя покупателя", { exact: true }).fill("DEV QA");
+  await page.getByLabel("Имя покупателя", { exact: true }).fill(buyer);
   await page.getByLabel("Телефон покупателя", { exact: true }).fill("+79990000000");
   await page.getByLabel("Комментарий к заказу", { exact: true }).fill("Автоматическая проверка DEV. Не звонить.");
   await page.screenshot({ path: "/artifacts/masterweld-dev-cart.png", fullPage: true });
   await page.getByRole("button", { name: /Оформить (учебный )?заказ/, exact: true }).click();
   await page.getByText(/Спасибо! Заказ .* принят/).waitFor({ timeout: 15000 });
   await page.screenshot({ path: "/artifacts/masterweld-dev-order.png", fullPage: true });
-  console.log("Checkout:", await page.getByText(/Спасибо! Заказ .* принят/).innerText());
+  const confirmation = await page.getByText(/Спасибо! Заказ .* принят/).innerText();
+  writeFileSync("/artifacts/masterweld-dev-checkout.json", JSON.stringify({ buyer, confirmation }) + "\n");
+  console.log("Checkout:", confirmation);
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
