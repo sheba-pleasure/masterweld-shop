@@ -33,7 +33,7 @@
 ## Environment rules — 06.11.2026
 - DEV: https://masterweld-dev.138-124-106-211.sslip.io, isolated masterweld_dev in mw-dev-db; no production data or token copies.
 - Intended DEV bot: @testmw639bot. Check getMe and other active integrations before installing a webhook. @psinavsvaobot belongs to another project and must not be used.
-- Migrations 0000–0013 exist in isolated DEV and the new empty standalone production database; no Cloud migration was performed. Historical Cloud observations above remain historical; do not assume production was migrated.
+- DEV has migrations 0000–0015; the new empty standalone production database remains at 0000–0013. Review/apply 0014–0015 separately before production. No Cloud migration was performed. Historical Cloud observations above remain historical; do not assume production was migrated.
 - Runtime must verify APP_ENV, immutable build manifest and database instance identity. Never bypass these guards to make a deployment start.
 - Never update main merely because work is complete. After «обнови main», report tests, blockers, omitted requirements, remaining work and the next priority; stop promotion on unresolved blockers.
 - Before a DEV build, commit source; build.py archives that exact local commit. Documentation and runtime status must identify what is actually deployed.

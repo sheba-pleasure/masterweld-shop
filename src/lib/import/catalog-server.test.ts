@@ -1,4 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { CATALOG_TEMPLATE } from "./catalog-template";
 import type { StaffMember } from "@/lib/bot/permissions";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), tg: vi.fn(), download: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { rpc: mocks.rpc } }));
@@ -18,6 +20,20 @@ const admin: StaffMember = {
 };
 const chat = { id: 101, type: "private" };
 const home = { ok: true, home: true, recent: [] };
+it("sends the same downloadable CSV as an uploaded document without importing it", async () => {
+  await showCatalogImport(admin, chat, { op: "template" });
+  const [method, form] = mocks.tg.mock.calls[0]!;
+  expect(method).toBe("sendDocument");
+  expect(form).toBeInstanceOf(FormData);
+  const content = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsText(form.get("document"));
+  });
+  expect(content).toBe(CATALOG_TEMPLATE);
+  expect(CATALOG_TEMPLATE).toBe(readFileSync("public/import-template.csv", "utf8"));
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rpc.mockResolvedValue({ data: home, error: null });

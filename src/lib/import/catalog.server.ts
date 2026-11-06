@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { CATALOG_TEMPLATE } from "./catalog-template";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "@/lib/bot/permissions";
 import { isPrivateChat } from "@/lib/bot/catalog";
@@ -95,13 +96,14 @@ export async function showCatalogImport(
   if (!request)
     return tg("sendMessage", { chat_id: chat.id, text: importError("IMPORT_BAD_INPUT") });
   if (request.op === "template") {
-    const origin = process.env["PUBLIC_ORIGIN"];
-    if (!origin || !/^https:\/\/[a-z0-9.-]+$/.test(origin)) throw new Error("IMPORT_ORIGIN");
-    return tg("sendDocument", {
-      chat_id: chat.id,
-      document: origin + "/import-template.csv",
-      caption: "Учебный CSV. Все суммы и товары вымышлены. Импорт не начинается автоматически.",
-    });
+    const form = new FormData();
+    form.set("chat_id", String(chat.id));
+    form.set("document", new Blob([CATALOG_TEMPLATE], { type: "text/csv" }), "import-template.csv");
+    form.set(
+      "caption",
+      "Учебный CSV. Все суммы и товары вымышлены. Импорт не начинается автоматически.",
+    );
+    return tg("sendDocument", form);
   }
   let result: ImportView;
   try {

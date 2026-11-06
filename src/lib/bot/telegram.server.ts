@@ -64,15 +64,25 @@ export async function tg(method: string, body: unknown) {
   ) {
     body = { ...body, caption: `ТЕСТОВЫЙ МАГАЗИН · DEV\n${body.caption}` };
   }
+  if (body instanceof FormData && process.env["APP_ENV"] === "dev") {
+    const caption = body.get("caption");
+    if (typeof caption === "string") {
+      const copy = new FormData();
+      body.forEach((value, key) => copy.append(key, value));
+      copy.set("caption", `ТЕСТОВЫЙ МАГАЗИН · DEV\n${caption}`);
+      body = copy;
+    }
+  }
+  const multipart = body instanceof FormData;
   let res: Response;
   try {
     res = await fetch(`${config.baseUrl}/${method}`, {
       method: "POST",
       headers: {
         ...config.headers,
-        "Content-Type": "application/json",
+        ...(multipart ? {} : { "Content-Type": "application/json" }),
       },
-      body: JSON.stringify(body),
+      body: multipart ? (body as FormData) : JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
   } catch {
