@@ -8,12 +8,12 @@ BEGIN
     OR (SELECT count(*) FROM technical_family_attributes)<>69
     OR (SELECT count(*) FROM technical_units)<>14
     THEN RAISE EXCEPTION 'REHEARSAL_TECH_DICTIONARY_MISMATCH'; END IF;
-  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews'] LOOP
+  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews','bot_pending_requests'] LOOP
     EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)',t) INTO strict role_name;
     IF role_name::boolean THEN RAISE EXCEPTION 'REHEARSAL_UNEXPECTED_TECH_BACKFILL'; END IF;
   END LOOP;
   FOREACH t IN ARRAY ARRAY['technical_units','technical_families','technical_attributes','technical_family_attributes',
-      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews'] LOOP
+      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews','bot_pending_requests'] LOOP
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=('public.'||t)::regclass)
       THEN RAISE EXCEPTION 'REHEARSAL_TECH_RLS_DISABLED'; END IF;
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
@@ -54,6 +54,12 @@ BEGIN
     THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_RPC_UNAVAILABLE'; END IF;
   IF NOT has_function_privilege('service_role','public.bot_pending_operation(bigint,uuid,text)','EXECUTE')
     THEN RAISE EXCEPTION 'REHEARSAL_PENDING_RPC_UNAVAILABLE'; END IF;
+  IF has_function_privilege('service_role','public.bot_prepare_rollback(uuid,bigint)','EXECUTE')
+    OR has_table_privilege('service_role','public.pending_actions','INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_BYPASS_OPEN'; END IF;
+  IF NOT has_function_privilege('service_role','public.bot_pending_preview(bigint,uuid,text,uuid,text,jsonb,jsonb,uuid)','EXECUTE')
+    OR NOT has_function_privilege('service_role','public.bot_pending_history(bigint,integer)','EXECUTE')
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_RPC_UNAVAILABLE'; END IF;
   IF EXISTS(SELECT 1 FROM staff WHERE telegram_id=7000000000000001)
     OR EXISTS(SELECT 1 FROM products WHERE id='f0000000-0000-4000-8000-000000000020'
       OR slug='qa-private-upgrade-0020')
@@ -215,6 +221,60 @@ DO $receipts$ BEGIN
     OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_cancel')<>1
     THEN RAISE EXCEPTION 'REHEARSAL_PREVIEW_RECEIPT_COUNT'; END IF;
 END $receipts$;
+SET LOCAL ROLE service_role;
+DO $requests$
+DECLARE actor bigint:=7000000000000001; request uuid:=gen_random_uuid(); reverse_request uuid:=gen_random_uuid();
+  fixture uuid:='f0000000-0000-4000-8000-000000000020'; answer jsonb; repeated jsonb;
+  pending_id uuid; reverse_id uuid; before_history jsonb; audits bigint;
+BEGIN
+  IF bot_pending_preview(actor,request,'read')->>'state' IS DISTINCT FROM 'not_found'
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_READ_CREATED'; END IF;
+  answer:=bot_pending_preview(actor,request,'prepare',fixture,'title',
+    '{"title":"[Учебный] Восстановленный предпросмотр"}','{"title":"[Учебный] Прямой предпросмотр"}');
+  pending_id:=(answer->>'pending_id')::uuid;
+  IF pending_id IS NULL OR answer->>'state' IS DISTINCT FROM 'pending'
+    OR (SELECT title FROM products WHERE id=fixture)<>'[Учебный] Восстановленный предпросмотр'
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_PREMATURE_APPLY'; END IF;
+  repeated:=bot_pending_preview(actor,request,'prepare',fixture,'title',
+    '{"title":"Другое исходное"}','{"title":"Другое новое"}');
+  IF repeated->>'pending_id' IS DISTINCT FROM answer->>'pending_id' OR repeated->'after' IS DISTINCT FROM answer->'after'
+    OR repeated->>'replayed' IS DISTINCT FROM 'true'
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_DUPLICATE'; END IF;
+  IF bot_pending_operation(actor,pending_id,'apply')->>'state' IS DISTINCT FROM 'applied'
+    OR bot_pending_preview(actor,request,'read')->>'state' IS DISTINCT FROM 'applied'
+    OR bot_pending_preview(actor,request,'prepare')->>'pending_id' IS DISTINCT FROM pending_id::text
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_OUTCOME_LOST'; END IF;
+  answer:=bot_pending_preview(actor,reverse_request,'rollback',p_source_pending_id=>pending_id);
+  reverse_id:=(answer->>'pending_id')::uuid;
+  IF reverse_id IS NULL OR reverse_id=pending_id
+    OR bot_pending_preview(actor,reverse_request,'rollback',p_source_pending_id=>pending_id)->>'pending_id'
+      IS DISTINCT FROM reverse_id::text
+    OR (SELECT title FROM products WHERE id=fixture)<>'[Учебный] Прямой предпросмотр'
+    THEN RAISE EXCEPTION 'REHEARSAL_REVERSE_REQUEST_CHANGED'; END IF;
+  IF bot_pending_operation(actor,reverse_id,'cancel')->>'state' IS DISTINCT FROM 'canceled'
+    OR bot_pending_preview(actor,reverse_request,'rollback',p_source_pending_id=>pending_id)->>'state'
+      IS DISTINCT FROM 'canceled'
+    THEN RAISE EXCEPTION 'REHEARSAL_REVERSE_CANCEL_LOST'; END IF;
+  SELECT jsonb_agg(to_jsonb(p) ORDER BY id) INTO before_history FROM pending_actions p WHERE staff_telegram_id=actor;
+  SELECT count(*) INTO audits FROM staff_audit_log WHERE telegram_id=actor;
+  answer:=bot_pending_history(actor,0);
+  IF jsonb_array_length(answer)<>4
+    OR EXISTS(SELECT 1 FROM jsonb_array_elements(answer) x WHERE
+      x-ARRAY['id','action','created_at','title','state']<>'{}'::jsonb)
+    OR (SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM pending_actions p WHERE staff_telegram_id=actor)
+      IS DISTINCT FROM before_history
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=actor)<>audits
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_HISTORY_CHANGED'; END IF;
+END $requests$;
+RESET ROLE;
+DO $request_counts$ BEGIN
+  IF (SELECT count(*) FROM bot_pending_requests WHERE staff_telegram_id=7000000000000001)<>2
+    OR (SELECT count(*) FROM pending_actions WHERE staff_telegram_id=7000000000000001)<>4
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_title')<>2
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_cancel')<>2
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='catalog_rollback_prepared')<>1
+    THEN RAISE EXCEPTION 'REHEARSAL_REQUEST_RECEIPT_COUNT'; END IF;
+END $request_counts$;
 ROLLBACK;
 SELECT jsonb_build_object(
   'families',48,'attributes',40,'bindings',69,'units',14,
@@ -223,4 +283,6 @@ SELECT jsonb_build_object(
   'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true,
   'draftReceiptPrivate',true,'draftRecoveryPreservesNewInput',true,'draftCancelDurable',true,
   'previewReceiptPrivate',true,'previewRecoveryPreservesNewInput',true,'pendingReadNeverMutates',true,
-  'pendingApplyCancelDurable',true,'pendingLegacyRpcClosed',true);
+  'pendingApplyCancelDurable',true,'pendingLegacyRpcClosed',true,
+  'requestReceiptPrivate',true,'directAndReverseRequestsDurable',true,'requestHistoryReadOnly',true,
+  'pendingDirectWritesClosed',true);

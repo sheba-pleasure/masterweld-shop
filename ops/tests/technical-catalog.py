@@ -173,7 +173,18 @@ try:
     sql(operator.transaction(migration22,draft_results=True))
     sql(operator.transaction((ROOT / "docs/migrations/0023_catalog_editor_previews.sql").read_text(),editor_previews=True))
     sql(operator.transaction((ROOT / "docs/migrations/0024_pending_result_recovery.sql").read_text(),pending_recovery=True))
+    sql(operator.transaction((ROOT / "docs/migrations/0025_pending_preview_requests.sql").read_text(),preview_requests=True))
     upgrade_checks=(ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+    sql("GRANT EXECUTE ON FUNCTION bot_prepare_rollback(uuid,bigint) TO service_role")
+    sql(upgrade_checks,"REHEARSAL_REQUEST_BYPASS_OPEN")
+    sql("REVOKE EXECUTE ON FUNCTION bot_prepare_rollback(uuid,bigint) FROM service_role")
+    for privilege in ["INSERT","UPDATE","DELETE","TRUNCATE","REFERENCES","TRIGGER"]:
+        sql("GRANT "+privilege+" ON pending_actions TO service_role")
+        sql(upgrade_checks,"REHEARSAL_REQUEST_BYPASS_OPEN")
+        sql("REVOKE "+privilege+" ON pending_actions FROM service_role")
+    sql("GRANT SELECT ON bot_pending_requests TO service_role")
+    sql(upgrade_checks,"REHEARSAL_TECH_DIRECT_ACCESS")
+    sql("REVOKE SELECT ON bot_pending_requests FROM service_role")
     for fn in ["bot_apply_pending","bot_cancel_pending","bot_set_photo_main","bot_reorder_photo","bot_delete_photo_meta"]:
         sql("GRANT EXECUTE ON FUNCTION "+fn+"(uuid,bigint) TO service_role")
         sql(upgrade_checks,"REHEARSAL_PENDING_BYPASS_OPEN")
@@ -181,6 +192,8 @@ try:
     for signature,code in [
         ("bot_editor_preview(bigint,uuid,text,jsonb)","REHEARSAL_PREVIEW_RPC_UNAVAILABLE"),
         ("bot_pending_operation(bigint,uuid,text)","REHEARSAL_PENDING_RPC_UNAVAILABLE"),
+        ("bot_pending_preview(bigint,uuid,text,uuid,text,jsonb,jsonb,uuid)","REHEARSAL_REQUEST_RPC_UNAVAILABLE"),
+        ("bot_pending_history(bigint,integer)","REHEARSAL_REQUEST_RPC_UNAVAILABLE"),
     ]:
         sql("REVOKE EXECUTE ON FUNCTION "+signature+" FROM service_role")
         sql(upgrade_checks,code)
@@ -211,6 +224,9 @@ try:
     assert checked["draftReceiptPrivate"] and checked["draftRecoveryPreservesNewInput"] and checked["draftCancelDurable"]
     assert checked["previewReceiptPrivate"] and checked["previewRecoveryPreservesNewInput"]
     assert checked["pendingReadNeverMutates"] and checked["pendingApplyCancelDurable"] and checked["pendingLegacyRpcClosed"]
+    assert checked["requestReceiptPrivate"] and checked["directAndReverseRequestsDurable"]
+    assert checked["requestHistoryReadOnly"] and checked["pendingDirectWritesClosed"]
+    assert sql("SELECT count(*) FROM bot_pending_requests")=="0"
     assert sql("SELECT count(*) FROM bot_editor_previews")=="0"
     assert sql("SELECT count(*) FROM bot_draft_results")=="0"
     assert sql("SELECT count(*) FROM technical_editor_sessions")=="0"

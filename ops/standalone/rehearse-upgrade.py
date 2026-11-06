@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0024.
+"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0025.
 Never changes the source database, webhooks, app containers or release approvals.
 """
 import hashlib
@@ -24,7 +24,8 @@ PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_
            "0017_technical_catalog.sql", "0018_technical_read_alias.sql",
            "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
            "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
-           "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql")
+           "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql",
+           "0025_pending_preview_requests.sql")
 
 
 def run(args, **kwargs):
@@ -163,7 +164,7 @@ def main():
             "backupSha256": hashlib.sha256(backup).hexdigest(),
             "rolesSha256": hashlib.sha256(roles).hexdigest(),
             "sourceUnchanged": True, "restoredInSeparateOfflineCluster": True,
-            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0024",
+            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0025",
             "technicalChecks": technical,
             "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
             "migrations": {f: hashes["docs/migrations/" + f] for f in PENDING},
