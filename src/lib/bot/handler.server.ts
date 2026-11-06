@@ -599,50 +599,93 @@ async function stockPreview(m: StaffMember, chatId: number, productId: string, i
   );
 }
 
-// Применение идёт через транзакционную RPC bot_apply_pending (миграция 0006):
-// блокировка строки действия и товара, сверка «было», UPDATE, consumed_at и
-// аудит — одной транзакцией. Пока RPC нет — изменения безопасно заблокированы.
-async function confirmPending(m: StaffMember, chatId: number, pendingId: string) {
-  if (!(await pendingAvailable()))
-    return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  // RBAC по типу действия — до вызова RPC (и повторно внутри RPC через владельца/TTL).
+// 0024 serializes authorization and pending outcomes. Unknown transport results
+// keep the same key; a read never retries the mutation.
+async function pendingOperation(
+  m: StaffMember,
+  chatId: number,
+  pendingId: string,
+  op: "apply" | "cancel" | "read",
+) {
+  const uncertain = () =>
+    tg("sendMessage", {
+      chat_id: chatId,
+      text: "⚠️ Результат пока не подтверждён: связь с базой прервалась или ответ неполный. Изменение могло сохраниться. Нажмите «Проверить результат»; не создавайте новую правку.",
+      reply_markup: {
+        inline_keyboard: [[{ text: "🔎 Проверить результат", callback_data: `pcr:${pendingId}` }]],
+      },
+    });
   const rowRes = await loose
     .from("pending_actions")
     .select("action")
     .eq("id", pendingId)
     .maybeSingle();
-  if (rowRes.error) return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
+  if (rowRes.error) return uncertain();
   const act = (rowRes.data as { action?: PendingActionKind } | null)?.action;
   if (!act || !(act in PENDING_PERMISSION))
     return tg("sendMessage", { chat_id: chatId, text: PENDING_REASON_MSG["not_found"]! });
   if (!can(m, PENDING_PERMISSION[act]))
     return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
-
-  // Фото-действия (C2B) идут в свои RPC миграции 0007; остальные — в bot_apply_pending.
-  const PHOTO_RPC: Record<string, string> = {
-    photo_main: "bot_set_photo_main",
-    photo_reorder: "bot_reorder_photo",
-    photo_delete: "bot_delete_photo_meta",
-  };
-  const fn = PHOTO_RPC[act] ?? "bot_apply_pending";
-  const { data, error } = await rpc(fn, {
+  const { data, error } = await rpc("bot_pending_operation", {
     p_pending_id: pendingId,
     p_staff_telegram_id: m.telegram_id,
+    p_op: op,
   });
-  if (error) return tg("sendMessage", { chat_id: chatId, text: rpcErrMsg(error) });
+  if (error) {
+    if (error.message.includes("BOT_PENDING_PERMISSION_DENIED"))
+      return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для этого действия." });
+    if (isMissingRpcError(error))
+      return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
+    const known = Object.keys(RPC_ERR_MSG).find((key) => error.message.includes(key));
+    if (known) return tg("sendMessage", { chat_id: chatId, text: RPC_ERR_MSG[known]! });
+    return uncertain();
+  }
   const r = data as {
-    action: PendingActionKind;
-    product_id: string;
-    title: string;
-    before: unknown;
-    after: unknown;
+    state?: string;
+    pending_id?: string;
+    action?: PendingActionKind;
+    product_id?: string;
+    title?: string;
+    before?: unknown;
+    after?: unknown;
+    replayed?: boolean;
   } | null;
-  if (!r) return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-
-  const change = describePendingChange(r.action, r.before, r.after);
+  if (
+    !r ||
+    r.pending_id !== pendingId ||
+    r.action !== act ||
+    !r.product_id ||
+    !/^[0-9a-f-]{36}$/.test(r.product_id)
+  )
+    return uncertain();
+  if (r.state === "canceled")
+    return tg("sendMessage", { chat_id: chatId, text: "Отменено: это действие не применялось." });
+  if (r.state === "expired")
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Срок предпросмотра истёк. Откройте карточку и подготовьте новую правку.",
+    });
+  if (r.state === "uncertain")
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "⚠️ У старой операции нет подтверждённого итога. Автоматический повтор запрещён. Проверьте карточку и журнал с администратором.",
+      reply_markup: {
+        inline_keyboard: [[{ text: "📄 Карточка", callback_data: `prd:${r.product_id}` }]],
+      },
+    });
+  if (r.state !== "applied" && r.state !== "pending") return uncertain();
+  if (!r.before || typeof r.before !== "object" || !r.after || typeof r.after !== "object")
+    return uncertain();
+  const change = describePendingChange(act, r.before, r.after);
+  if (r.state === "pending")
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: `📝 Эта операция ожидает подтверждения.\n\n${r.title ?? "Товар"}\n${change}\n\nПроверьте значения и подтвердите или отмените.`,
+      reply_markup: { inline_keyboard: CONFIRM_ROWS(pendingId) },
+    });
   return tg("sendMessage", {
     chat_id: chatId,
-    text: `✅ «${r.title}»: ${change}.`,
+    text: `✅ ${r.replayed ? "Изменение уже сохранено" : "Изменение сохранено"}.\n\nРезультат этой операции: ${change}.\nКарточка покажет текущее состояние товара.`,
     reply_markup: {
       inline_keyboard: [
         [
@@ -654,16 +697,13 @@ async function confirmPending(m: StaffMember, chatId: number, pendingId: string)
   });
 }
 
-// Отмена идёт через транзакционную RPC bot_cancel_pending (миграция 0006).
+async function confirmPending(m: StaffMember, chatId: number, pendingId: string) {
+  return pendingOperation(m, chatId, pendingId, "apply");
+}
+
+// Cancellation returns the durable winner, even if apply committed before it.
 async function cancelPending(m: StaffMember, chatId: number, pendingId: string) {
-  if (!(await pendingAvailable()))
-    return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  const { error } = await rpc("bot_cancel_pending", {
-    p_pending_id: pendingId,
-    p_staff_telegram_id: m.telegram_id,
-  });
-  if (error) return tg("sendMessage", { chat_id: chatId, text: rpcErrMsg(error) });
-  return tg("sendMessage", { chat_id: chatId, text: "Отменено: действие не выполнено." });
+  return pendingOperation(m, chatId, pendingId, "cancel");
 }
 
 // ---------- Редактор карточек (этап C2A) ----------
@@ -2178,6 +2218,11 @@ export async function handleUpdate(update: TgUpdate) {
   if (pxsM) {
     if (!priv) return catalogGuard();
     return stockPreview(m, chat.id, pxsM[1]!, pxsM[2] === "1");
+  }
+  const pcrM = data_str.match(/^pcr:([0-9a-f-]{36})$/);
+  if (pcrM) {
+    if (!priv) return catalogGuard();
+    return pendingOperation(m, chat.id, pcrM[1]!, "read");
   }
   const pcM = data_str.match(/^pc:([0-9a-f-]{36})$/);
   if (pcM) {

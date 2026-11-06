@@ -131,6 +131,8 @@ describe("single service gate", () => {
     "cat:0",
     "edit:" + orderId,
     "pc:" + orderId,
+    "pcx:" + orderId,
+    "pcr:" + orderId,
     "b2b:leads:1",
     "import",
     "photos",
