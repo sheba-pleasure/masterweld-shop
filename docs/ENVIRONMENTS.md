@@ -6,13 +6,15 @@
 |---|---|---|
 | Сайт | masterweld-dev.138-124-106-211.sslip.io | shop.masterweld.ru, пока не выпущен |
 | Бот | @testmw639bot, подключён | Отдельный; getMe перед запуском |
-| База | mw-dev-db / masterweld_dev | Cloud, этой работой не менялась |
-| Volume | mw-dev-pgdata | Отдельный |
-| REST | mw-dev-rest | Supabase |
+| База | mw-dev-db / masterweld_dev | mw-prod-db / masterweld_production, пока пустая |
+| Volume | mw-dev-pgdata | mw-prod-pgdata |
+| REST | mw-dev-rest | mw-prod-rest → mw-prod-api, loopback :18084 |
 | Вход | Caddy → mw-dev-gateway | Требует настройки |
 | Приложение | mw-dev-app | mw-shop-slot-a/b |
-| Секреты | ops/.secrets/dev (700/600) | ops/.secrets/shop.env (600) |
+| Секреты | ops/.secrets/dev (700/600) | ops/.secrets/production (700/600); shop.env ещё не готов |
 | Instance ID | 3a6a67bc-5ce6-46a4-af72-e6ab78800e49 | Должен быть другим |
+
+Исторический Cloud сохранён без изменений. Целевая рабочая база теперь самостоятельная; перенос данных и файлов ещё не выполнен. Подготовка и резервирование: [INDEPENDENT-SHOP.md](INDEPENDENT-SHOP.md).
 
 ## Команды из корня проекта
 

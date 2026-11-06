@@ -42,6 +42,7 @@ cat > "$T/bin/docker" <<'EOF'
 echo "$*" >> "$FAKE_LOG"
 [ -n "${FAKE_DOCKER_SLEEP:-}" ] && [ "$1" = run ] && sleep "$FAKE_DOCKER_SLEEP"
 case "$1" in
+  network) [ -f "$FAKE_MODE/no-prod-network" ] && exit 1; echo production ;;
   image) img="${@: -1}"; sha="${img#masterweld-shop:}"; [ -f "$FAKE_IMAGES/$sha" ] && echo "$sha" || exit 1 ;;
   inspect) name="${@: -1}"; [ "$name" = mw-shop-gateway ] && exit 0; [ -f "$FAKE_CT/$name" ] || exit 1
     if [[ "$*" == *State.Running* ]]; then [ -f "$FAKE_CT/$name.stopped" ] && echo false || echo true; else cat "$FAKE_CT/$name"; fi ;;
@@ -80,6 +81,11 @@ chmod 644 "$SECRETS_ENV"; dlog; check "env не 600 — отказ" "$(run relea
 check "  … без действий docker" "$(nactions)" 0
 dlog; check "GitHub недоступен — выпуск отклонён" "$(GITHUB_API=fake-off run release.sh $S1)" 1
 check "  … без действий docker" "$(nactions)" 0
+
+touch "$FAKE_MODE/no-prod-network"; dlog
+check "нет production-сети — отказ до изменения контейнеров" "$(run release.sh $S1)" 1
+check "  … без действий docker" "$(nactions)" 0
+rm "$FAKE_MODE/no-prod-network"
 
 # --- первый выпуск: сбой после переключения → 503, не успех ---
 mkdir -p "$STATE_DIR"; touch "$FAKE_MODE/gw-18081"

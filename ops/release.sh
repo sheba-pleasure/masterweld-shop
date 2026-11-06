@@ -15,6 +15,8 @@ acquire_lock
 docker inspect "$GATEWAY_NAME" >/dev/null 2>&1 || die "gateway $GATEWAY_NAME не запущен (ops/gateway-up.sh)"
 require_github_approval "$SHA"
 require_image "$SHA"
+[ "$(docker network inspect -f '{{index .Labels "mw.environment"}}' mw-prod-edge 2>/dev/null)" = production ] \
+  || die "нет проверенной production-сети mw-prod-edge (ops/standalone/data-up.py)"
 
 ACTIVE="$(state_get active_slot)"; ACTIVE_SHA="$(state_get active_sha)"
 if [ -n "$ACTIVE" ]; then
@@ -33,6 +35,7 @@ if [ "$(state_get previous_slot)" = "$TARGET" ]; then
 fi
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" --restart unless-stopped \
+  --network mw-prod-edge \
   -p "$BIND_IP:$PORT:3000" --env-file "$SECRETS_ENV" \
   --label "mw-shop.sha=$SHA" --label "mw-shop.slot=$TARGET" \
   "$IMAGE_REPO:$SHA" >/dev/null

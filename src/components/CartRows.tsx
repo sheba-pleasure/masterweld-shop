@@ -22,7 +22,7 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
               {item.title}
             </Link>
             <p className="mt-1 text-xs text-primary-foreground/60">{rub(item.price)} / шт.</p>
-            <div className="mt-2 flex items-center gap-1">
+            <div className="mt-2 flex flex-wrap items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"

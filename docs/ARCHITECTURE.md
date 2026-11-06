@@ -2,7 +2,7 @@
 
 Браузер → HTTPS Caddy → mw-dev-gateway → TanStack Start.
 Каталог: браузер/SSR → REST → PostgreSQL с RLS.
-Заказ: createOrder → валидация/пересчёт → service_role → shop_orders. Триггер атомарно сохраняет order_notifications для активных сотрудников; фоновый обработчик перепроверяет manage_orders и отправляет короткое уведомление с кнопкой карточки.
+Заказ: createOrder → валидация/пересчёт → commit_order_submission RPC → order_submissions и shop_orders одной транзакцией. Триггер атомарно сохраняет order_notifications для активных сотрудников; фоновый обработчик перепроверяет manage_orders и отправляет короткое уведомление с кнопкой карточки.
 Telegram: секрет webhook → дедупликация → реальный отправитель/private chat → staff/права → RPC/аудит → ответ.
 
 ## Ответственность модулей
@@ -13,7 +13,7 @@ Telegram: секрет webhook → дедупликация → реальный
 - lib/orders: проверка заказа, цены и частоты.
 - bot/permissions.ts: единый источник прав.
 - bot/handler.server.ts: сценарии сотрудников.
-- bot/transport-config.ts: direct Telegram с отдельным secret; DEV не использует Cloud fallback.
+- bot/transport-config.ts: только direct Telegram с отдельным secret; Cloud fallback удалён.
 - lib/b2b: прототип; live запись и отправка почты выключены.
 - ops/runtime: проверка среды сборки, origin, public key, идентификатора базы и бота перед запуском.
 
@@ -22,7 +22,7 @@ Telegram: секрет webhook → дедупликация → реальный
 DEV имеет свои контейнеры, сеть, volume, роли, JWT и папку секретов.
 В базе хранится маркер среды, недоступный для изменения service_role. Сервер читает его через закрытую RPC.
 Несовпадение сборки, ключей или маркера останавливает запуск.
-Production требует environment=production и другой instance_id; установка требует ревизии рабочей базы.
+Production требует environment=production и другой instance_id. Собственная пустая база подготовлена; исторические Cloud-данные ещё нужно перенести и сверить. См. INDEPENDENT-SHOP.md.
 В DEV не копируются покупатели, сотрудники, заказы, письма или закупочные цены production.
 Миграции не запускаются автоматически при выпуске.
 

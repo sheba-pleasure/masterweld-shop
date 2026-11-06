@@ -14,6 +14,14 @@ describe("environment-specific Telegram transport", () => {
     );
     expect(telegramConfig(direct).secret).toBe(direct.TELEGRAM_WEBHOOK_SECRET);
   });
+  it("rejects legacy connector credentials even without APP_ENV", () => {
+    expect(() => telegramConfig({ LOVABLE_API_KEY: "x", TELEGRAM_API_KEY: "y" })).toThrow(
+      "TELEGRAM_TRANSPORT_REQUIRED",
+    );
+    expect(() => telegramConfig({ ...direct, TELEGRAM_TRANSPORT: "lovable" })).toThrow(
+      "TELEGRAM_TRANSPORT_REQUIRED",
+    );
+  });
   it("never falls back to Cloud in dev", () =>
     expect(() =>
       telegramConfig({ APP_ENV: "dev", LOVABLE_API_KEY: "x", TELEGRAM_API_KEY: "y" }),

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/product/$slug")({
           { title: `${loaderData.title} — купить | Мастер Сварщик` },
           {
             name: "description",
-            content: `${loaderData.title} по цене ${rub(Number(loaderData.price))}. Доставка и самовывоз.`,
+            content: `${loaderData.title} по цене ${rub(Number(loaderData.price))}. Условия получения уточните в магазине.`,
           },
           { property: "og:title", content: loaderData.title },
           { property: "og:description", content: `Цена ${rub(Number(loaderData.price))}` },
@@ -55,7 +55,7 @@ function ProductPage() {
         )}
       </nav>
       <div className="grid gap-10 md:grid-cols-2">
-        <div>
+        <div className="min-w-0">
           <div className="flex aspect-square items-center justify-center rounded-lg border border-border bg-background p-6">
             {photos[active] ? (
               <img
@@ -68,12 +68,15 @@ function ProductPage() {
             )}
           </div>
           {photos.length > 1 && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex max-w-full snap-x gap-2 overflow-x-auto pb-2 md:flex-wrap">
               {photos.map((ph, i) => (
                 <button
                   key={ph.url}
+                  type="button"
+                  aria-label={`Фото ${i + 1} товара ${p.title}`}
+                  aria-pressed={i === active}
                   onClick={() => setActive(i)}
-                  className={`h-16 w-16 rounded border p-1 ${i === active ? "border-primary" : "border-border"}`}
+                  className={`h-16 w-16 shrink-0 snap-start rounded border-2 p-1 ${i === active ? "border-primary" : "border-border"}`}
                 >
                   <img src={ph.url} alt="" className="h-full w-full object-contain" />
                 </button>
@@ -99,6 +102,11 @@ function ProductPage() {
           </div>
           <p className={`mt-2 text-sm ${p.in_stock ? "text-primary" : "text-muted-foreground"}`}>
             {p.in_stock ? "Отмечено в наличии" : "Под заказ"}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {p.in_stock
+              ? "Наличие подтвердим при обработке заказа."
+              : "Срок поставки уточнит сотрудник магазина после заказа."}
           </p>
           <div className="mt-6">
             <AddToCartButton
