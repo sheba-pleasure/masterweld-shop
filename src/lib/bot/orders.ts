@@ -13,7 +13,7 @@ export const ORDER_STATUSES: OrderStatus[] = [
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   new: "новый",
-  processing: "в работе",
+  processing: "в обработке",
   ready: "готов",
   completed: "выдан",
   canceled: "отменён",

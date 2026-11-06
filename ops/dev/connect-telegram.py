@@ -44,5 +44,6 @@ def main():
     call(token,"setWebhook",{"url":url,"secret_token":env["TELEGRAM_WEBHOOK_SECRET"],"allowed_updates":["message","callback_query"],"drop_pending_updates":False})
     after=call(token,"getWebhookInfo")
     if after.get("url")!=url: raise SystemExit("WEBHOOK_NOT_CONFIRMED")
+    subprocess.run(["python3",str(ROOT/"ops/dev/configure-menu.py")],check=True)
     print("Connected @"+EXPECTED+" to DEV only. Staff permissions still require explicit assignment.")
 if __name__=="__main__": main()
