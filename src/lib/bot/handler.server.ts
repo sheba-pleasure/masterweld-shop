@@ -753,7 +753,7 @@ async function setEditorState(
 }
 
 /** Забирает только прочитанный шаг — конкурент или новый диалог не потребляются. */
-async function consumeEditorState(st: EditorStateRow): Promise<boolean> {
+async function consumeEditorState(st: EditorStateRow): Promise<"claimed" | "changed" | "failed"> {
   const { data, error } = await matchEditorState(
     loose.from("bot_editor_states").update({ consumed_at: new Date().toISOString() }),
     st,
@@ -762,12 +762,19 @@ async function consumeEditorState(st: EditorStateRow): Promise<boolean> {
     .gt("expires_at", new Date().toISOString())
     .select("staff_telegram_id")
     .maybeSingle();
-  return !error && Boolean(data);
+  return error ? "failed" : data ? "claimed" : "changed";
 }
 
+const EDITOR_CLAIM_FAILED =
+  "⚠️ Не удалось проверить шаг из-за сбоя связи с базой. Эта попытка не отправляла правку товара. Откройте карточку и проверьте результат; /cancel — сбросить оставшийся ввод.";
+
 async function claimEditorStep(st: EditorStateRow, chatId: number): Promise<boolean> {
-  if (await consumeEditorState(st)) return true;
-  await tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  const outcome = await consumeEditorState(st);
+  if (outcome === "claimed") return true;
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: outcome === "failed" ? EDITOR_CLAIM_FAILED : EDITOR_CHANGED,
+  });
   return false;
 }
 
@@ -1470,10 +1477,17 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
       const st = await getEditorState(m);
-      const cleared = st && (await consumeEditorState(st));
+      const outcome = st && (await consumeEditorState(st));
       return tg("sendMessage", {
         chat_id: chat.id,
-        text: cleared ? "Диалог отменён." : "Активного диалога нет.",
+        text:
+          outcome === "claimed"
+            ? "Диалог отменён."
+            : outcome === "failed"
+              ? "⚠️ Не удалось подтвердить отмену из-за сбоя связи с базой. Проверьте текущий ввод и повторите /cancel."
+              : outcome === "changed"
+                ? EDITOR_CHANGED
+                : "Активного диалога нет.",
       });
     }
     case "/categories":

@@ -213,6 +213,8 @@ it("does not create a preview when claiming input fails", async () => {
   expect(mocks.pending).not.toHaveBeenCalled();
   expect(stored?.consumed_at).toBeNull();
   expect(messages()[0]).not.toContain("PRIVATE");
+  expect(messages()[0]).toContain("Не удалось проверить шаг");
+  expect(messages()[0]).not.toContain("уже изменился");
 });
 it.each(["nd:c", "nd:x", "nd:c:" + oldRevision, "nd:x:" + oldRevision])(
   "rejects old draft button %s",
@@ -247,6 +249,14 @@ it("creates one category preview from concurrent choices", async () => {
   });
   await Promise.all([callback("ec:0:" + revision), callback("ec:0:" + revision)]);
   expect(mocks.pending).toHaveBeenCalledTimes(1);
+});
+it("does not report successful cancellation when storage fails", async () => {
+  stored = stateRow("new_title");
+  error = "PRIVATE";
+  await text("/cancel");
+  expect(stored?.consumed_at).toBeNull();
+  expect(messages()[0]).toContain("Не удалось подтвердить отмену");
+  expect(messages()[0]).not.toContain("PRIVATE");
 });
 it("does not advance input after edit permission is revoked", async () => {
   stored = stateRow("new_title");
