@@ -8,12 +8,12 @@ BEGIN
     OR (SELECT count(*) FROM technical_family_attributes)<>69
     OR (SELECT count(*) FROM technical_units)<>14
     THEN RAISE EXCEPTION 'REHEARSAL_TECH_DICTIONARY_MISMATCH'; END IF;
-  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions'] LOOP
+  FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results'] LOOP
     EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)',t) INTO strict role_name;
     IF role_name::boolean THEN RAISE EXCEPTION 'REHEARSAL_UNEXPECTED_TECH_BACKFILL'; END IF;
   END LOOP;
   FOREACH t IN ARRAY ARRAY['technical_units','technical_families','technical_attributes','technical_family_attributes',
-      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions'] LOOP
+      'technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results'] LOOP
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid=('public.'||t)::regclass)
       THEN RAISE EXCEPTION 'REHEARSAL_TECH_RLS_DISABLED'; END IF;
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
@@ -42,6 +42,10 @@ BEGIN
     IF has_function_privilege(role_name,'public.bot_editor_exclusive()','EXECUTE')
       THEN RAISE EXCEPTION 'REHEARSAL_EDITOR_GUARD_EXPOSED'; END IF;
   END LOOP;
+  IF has_function_privilege('service_role','public.bot_create_draft(bigint,text,text,numeric)','EXECUTE')
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_BYPASS_OPEN'; END IF;
+  IF NOT has_function_privilege('service_role','public.bot_finish_draft(bigint,uuid,boolean)','EXECUTE')
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_RPC_UNAVAILABLE'; END IF;
   IF EXISTS(SELECT 1 FROM staff WHERE telegram_id=7000000000000001)
     OR EXISTS(SELECT 1 FROM products WHERE id='f0000000-0000-4000-8000-000000000020'
       OR slug='qa-private-upgrade-0020')
@@ -116,9 +120,46 @@ BEGIN
   e:=bot_technical_editor(actor,'undo',(applied->>'id')::uuid,(applied->>'revision')::integer)->'session';
   IF e->>'phase'<>'undone' THEN RAISE EXCEPTION 'REHEARSAL_EDITOR_UNDO'; END IF;
 END $editor$;
+DO $draft$
+DECLARE actor bigint:=7000000000000001; revision uuid:=gen_random_uuid(); canceled uuid:=gen_random_uuid();
+  answer jsonb; repeated jsonb; later jsonb; before_count bigint;
+BEGIN
+  SELECT count(*) INTO before_count FROM products;
+  UPDATE bot_editor_states SET state='new_confirm',consumed_at=NULL,
+    data=jsonb_build_object('_revision',revision,'title','[Учебный] Offline recovery fixture',
+      'sku',NULL,'price',1),expires_at=now()+interval '1 hour' WHERE staff_telegram_id=actor;
+  answer:=bot_finish_draft(actor,revision,true);
+  IF answer->>'outcome'<>'created' OR answer->>'product_id' IS NULL
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_NOT_CREATED'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM bot_editor_states WHERE staff_telegram_id=actor AND consumed_at IS NOT NULL)
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_NOT_CONSUMED'; END IF;
+  UPDATE bot_editor_states SET state='new_title',consumed_at=NULL,
+    data=jsonb_build_object('_revision',gen_random_uuid()) WHERE staff_telegram_id=actor;
+  SELECT to_jsonb(e) INTO later FROM bot_editor_states e WHERE staff_telegram_id=actor;
+  repeated:=bot_finish_draft(actor,revision,true);
+  IF repeated->>'product_id' IS DISTINCT FROM answer->>'product_id' OR repeated->>'replayed'<>'true'
+    OR (bot_finish_draft(actor,revision,false)->>'outcome')<>'created'
+    OR (SELECT to_jsonb(e) FROM bot_editor_states e WHERE staff_telegram_id=actor) IS DISTINCT FROM later
+    OR (SELECT count(*) FROM products)<>before_count+1
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_RECOVERY_CHANGED'; END IF;
+  UPDATE bot_editor_states SET state='new_confirm',
+    data=jsonb_build_object('_revision',canceled,'title','[Учебный] Canceled fixture','sku',NULL,'price',1)
+    WHERE staff_telegram_id=actor;
+  IF bot_finish_draft(actor,canceled,false)->>'outcome'<>'canceled'
+    OR bot_finish_draft(actor,canceled,true)->>'outcome'<>'canceled'
+    OR (SELECT count(*) FROM products)<>before_count+1
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_CANCEL_CHANGED'; END IF;
+END $draft$;
+RESET ROLE;
+DO $receipts$ BEGIN
+  IF (SELECT count(*) FROM bot_draft_results WHERE staff_telegram_id=7000000000000001)<>2
+    OR (SELECT count(*) FROM staff_audit_log WHERE telegram_id=7000000000000001 AND action='draft_created')<>1
+    THEN RAISE EXCEPTION 'REHEARSAL_DRAFT_RECEIPT_COUNT'; END IF;
+END $receipts$;
 ROLLBACK;
 SELECT jsonb_build_object(
   'families',48,'attributes',40,'bindings',69,'units',14,
   'noTechnicalBackfill',true,'privateTablesAndRpc',true,'publicReadOnlyAllowlist',true,
   'syntheticRejectedOutsideDev',true,'editorApplyDuplicateUndo',true,'fixturesRolledBack',true,
-  'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true);
+  'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true,
+  'draftReceiptPrivate',true,'draftRecoveryPreservesNewInput',true,'draftCancelDurable',true);
