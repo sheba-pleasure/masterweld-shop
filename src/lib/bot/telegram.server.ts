@@ -55,6 +55,15 @@ export async function tg(method: string, body: unknown) {
   ) {
     body = { ...body, text: `ТЕСТОВЫЙ МАГАЗИН · DEV\n${body.text}` };
   }
+  if (
+    process.env["APP_ENV"] === "dev" &&
+    body &&
+    typeof body === "object" &&
+    "caption" in body &&
+    typeof body.caption === "string"
+  ) {
+    body = { ...body, caption: `ТЕСТОВЫЙ МАГАЗИН · DEV\n${body.caption}` };
+  }
   let res: Response;
   try {
     res = await fetch(`${config.baseUrl}/${method}`, {
