@@ -20,6 +20,7 @@
 | Разработчику | [Порядок работы](docs/WORKFLOW.md), [Архитектура](docs/ARCHITECTURE.md) |
 | Всем | [Что работает и что осталось](STATUS.md) |
 
+[Документы → товары: распознавание, проверка и границы автоматизации](docs/DOCUMENT-PIPELINE.md).
 [Два Telegram-бота и магазин внутри Telegram](docs/TELEGRAM-SHOP.md).
 [Технические характеристики: основа P0 и границы готовности](docs/TECHNICAL-CATALOG-P0.md).
 [Характеристики на сайте и в Mini App: режимы, условия, источники](docs/TECHNICAL-CARD-UI.md).
