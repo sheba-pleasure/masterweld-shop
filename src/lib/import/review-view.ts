@@ -1,12 +1,7 @@
 import type { StructureDraft } from "./structure-view";
-import { FIELD_LABEL, type Field } from "./catalog-file";
+import { catalogColumnLabel } from "./catalog-file";
 
-export function reviewColumnLabel(header: string | undefined, index: number) {
-  const name = header?.trim() ?? "";
-  return Object.hasOwn(FIELD_LABEL, name.toLowerCase())
-    ? FIELD_LABEL[name.toLowerCase() as Field]
-    : name || `Колонка ${index + 1}`;
-}
+export const reviewColumnLabel = catalogColumnLabel;
 
 export type ReviewButton = { text: string; callback_data: string };
 export interface DocumentReview {

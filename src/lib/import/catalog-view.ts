@@ -1,4 +1,4 @@
-import { FIELDS, FIELD_LABEL, type Field, type Mapping } from "./catalog-file";
+import { FIELDS, FIELD_LABEL, catalogColumnLabel, type Field, type Mapping } from "./catalog-file";
 
 type Button = { text: string; callback_data: string };
 type Product = Partial<Record<Field | "category_id", string | number | boolean | null>>;
@@ -120,7 +120,7 @@ export function renderImport(
       rows: [
         ...r.header.map((h, index) => [
           {
-            text: `${index + 1}. ${short(h, 25)} · ${short(r.sample?.[index], 30)}`,
+            text: `${index + 1}. ${short(catalogColumnLabel(h, index), 25)} · ${short(r.sample?.[index], 30)}`,
             callback_data: `ci:map:${r.id}:${screen}:${index}:${r.revision}`,
           },
         ]),
@@ -141,7 +141,7 @@ export function renderImport(
         "Проверьте каждую колонку. Сопоставление товаров — только по уникальному артикулу.",
         ...FIELDS.map(
           (f) =>
-            `${FIELD_LABEL[f]}: ${r.mapping[f] >= 0 ? short(r.header[r.mapping[f]], 45) : "не импортировать"}`,
+            `${FIELD_LABEL[f]}: ${r.mapping[f] >= 0 ? short(catalogColumnLabel(r.header[r.mapping[f]], r.mapping[f]), 45) : "не импортировать"}`,
         ),
         `Десятичный разделитель: ${r.decimal === "comma" ? "запятая (123,45)" : "точка (123.45)"}.`,
         `Неиспользуемые колонки: ${

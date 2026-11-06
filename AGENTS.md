@@ -36,6 +36,10 @@
 - The shop sets robots noindex in the root route until indexing is deliberately enabled, so it does not compete with the old masterweld.ru for the same search queries.
 - Releases outside Lovable use the Dockerfile (upstream Vite/TanStack/Nitro node-server; no Lovable build wrapper) and ops/ blue/green scripts on loopback slots; scripts require an exact SHA merged to main with green verify, never touch the database, and keep the previous container for rollback; rollback runs offline from the local approved history and container labels, and release/rollback/build share one non-blocking flock so they never interleave. All changes go to DEV first. Only the owner's explicit «обнови main» authorizes promotion after a fresh release review. An unprotected main push is insufficient: deploy-production requires successful verify and a short-lived server approval for the exact main SHA. Automatic deployment is prepared, not yet provisioned. Native Git Sync is off; Git CLI is now authorized. Preserve current remote files and history when publishing. See docs/WORKFLOW.md and STATUS.md.
 
+## Interface wording — owner preference, 07.11.2026
+- Begin chat replies, interface headings, buttons and standalone messages with a capital letter (after any leading icon). Use normal sentence case, not ALL CAPS or a capital for every word.
+- Preserve exact source text, quotations, SKUs, commands, URLs and case-sensitive identifiers. Display labels may be formatted separately; never rewrite imported data just for capitalization.
+
 ## Type safety
 - npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
 
