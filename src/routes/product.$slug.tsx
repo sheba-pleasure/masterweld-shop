@@ -3,8 +3,10 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { productQuery, rub, type Photo } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
+import { validateCatalogSearch } from "@/lib/catalog-search";
 
 export const Route = createFileRoute("/product/$slug")({
+  validateSearch: validateCatalogSearch,
   loader: async ({ context, params }) => {
     const p = await context.queryClient.ensureQueryData(productQuery(params.slug));
     if (!p) throw notFound();
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/product/$slug")({
 
 function ProductPage() {
   const { slug } = Route.useParams();
+  const catalogSearch = Route.useSearch();
   const { data: p } = useSuspenseQuery(productQuery(slug));
   const photos: Photo[] = [...((p?.product_photos as Photo[]) ?? [])].sort(
     (a, b) => Number(b.is_main) - Number(a.is_main) || a.sort_order - b.sort_order,
@@ -40,7 +43,15 @@ function ProductPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
-      <nav className="mb-6 text-sm text-muted-foreground">
+      <Link
+        to="/"
+        search={catalogSearch}
+        hash="catalog"
+        className="mb-4 inline-block text-sm underline"
+      >
+        ← К выбранным товарам
+      </Link>
+      <nav aria-label="Категория товара" className="mb-6 text-sm text-muted-foreground">
         <Link to="/" className="hover:text-foreground">
           Каталог
         </Link>

@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import hero from "@/assets/brand/hero-workshop.jpg";
 import { categoriesQuery, mainPhoto, productsQuery, rub } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
+import { validateCatalogSearch, type CatalogSearch } from "@/lib/catalog-search";
 import {
   CATALOG_SORTS,
   isDiscounted,
@@ -14,30 +15,10 @@ import {
   type CatalogSort,
 } from "@/lib/search";
 
-type Search = {
-  cat?: string | undefined;
-  q?: string | undefined;
-  brand?: string | undefined;
-  min?: string | undefined;
-  max?: string | undefined;
-  instock?: "1" | undefined;
-  sale?: "1" | undefined;
-  sort?: string | undefined;
-};
-
 const SORT_VALUES: CatalogSort[] = ["name", "price-asc", "price-desc"];
 
 export const Route = createFileRoute("/")({
-  validateSearch: (s: Record<string, unknown>): Search => ({
-    cat: typeof s["cat"] === "string" ? s["cat"] : undefined,
-    q: typeof s["q"] === "string" ? s["q"] : undefined,
-    brand: typeof s["brand"] === "string" ? s["brand"] : undefined,
-    min: typeof s["min"] === "string" ? s["min"] : undefined,
-    max: typeof s["max"] === "string" ? s["max"] : undefined,
-    instock: s["instock"] === "1" ? "1" : undefined,
-    sale: s["sale"] === "1" ? "1" : undefined,
-    sort: typeof s["sort"] === "string" ? s["sort"] : undefined,
-  }),
+  validateSearch: validateCatalogSearch,
   loader: ({ context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(categoriesQuery),
@@ -49,7 +30,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Каталог сварочного оборудования «Мастер Сварщик»: инверторы, горелки, электроды, маски, плазменная и газовая резка. Поиск по модели и артикулу, более 1000 товаров.",
+          "Каталог сварочного оборудования «Мастер Сварщик»: инверторы, горелки, электроды, маски, плазменная и газовая резка. Поиск по модели и артикулу.",
       },
       { property: "og:title", content: "«Мастер Сварщик» — каталог сварочного оборудования" },
       {
@@ -75,7 +56,7 @@ const SLIDES = [
   },
   {
     title: "Всё для сварки и резки металла",
-    text: "Более 1000 товаров в каталоге. Принимаем заявки на FoxWeld, VARTEG, «Сварог» и другие марки.",
+    text: "Принимаем заявки на FoxWeld, VARTEG, «Сварог» и другие марки.",
   },
 ];
 
@@ -130,6 +111,7 @@ function Catalog() {
   const { data: products } = useSuspenseQuery(productsQuery);
   const activeCat = cats.find((c) => c.slug === cat);
   const [limit, setLimit] = useState(48);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const tops = cats.filter((c) => !c.parent_id);
   const topOf = useMemo(() => {
     const m = new Map<string, string>();
@@ -147,11 +129,11 @@ function Catalog() {
   const catFiltered = useMemo(
     () =>
       products.filter((p) => {
-        if (!activeCat) return true;
+        if (!activeCat) return !cat;
         if (activeCat.parent_id) return p.category_id === activeCat.id;
         return p.category_id ? topOf.get(p.category_id) === activeCat.id : false;
       }),
-    [products, activeCat, topOf],
+    [products, activeCat, topOf, cat],
   );
 
   const brands = useMemo(() => {
@@ -193,7 +175,7 @@ function Catalog() {
   }, [products, topOf]);
 
   const hasFilters = Boolean(q || brand || min || max || instock || sale);
-  const setParam = (key: keyof Search, value: string | undefined) =>
+  const setParam = (key: keyof CatalogSearch, value: string | undefined) =>
     navigate({ search: (s) => ({ ...s, [key]: value }), replace: true });
 
   return (
@@ -229,16 +211,14 @@ function Catalog() {
         </div>
       </section>
 
-      <section className="workshop-catalog">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-24 md:grid-cols-[220px_1fr] md:pt-32">
-          <nav
-            aria-label="Категории каталога"
-            className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible"
-          >
+      <section id="catalog" className="workshop-catalog scroll-mt-24">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-8 md:grid-cols-[220px_1fr] md:pt-16">
+          <nav aria-label="Категории каталога" className="hidden gap-2 md:flex md:flex-col">
             <Link
               to="/"
               search={(s) => ({ ...s, cat: undefined })}
-              className={`whitespace-nowrap rounded-md px-3 py-2 text-sm md:whitespace-normal ${!activeCat ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
+              aria-current={!cat ? "page" : undefined}
+              className={`whitespace-nowrap rounded-md px-3 py-2 text-sm md:whitespace-normal ${!cat ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
             >
               Все товары <span className="opacity-60">{products.length}</span>
             </Link>
@@ -249,6 +229,7 @@ function Catalog() {
                   key={c.id}
                   to="/"
                   search={(s) => ({ ...s, cat: c.slug })}
+                  aria-current={activeCat?.id === c.id ? "page" : undefined}
                   className={`whitespace-nowrap rounded-md px-3 py-2 text-sm md:whitespace-normal ${activeTop === c.id ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
                 >
                   {c.name} <span className="opacity-60">{counts.get(c.id)}</span>
@@ -256,7 +237,55 @@ function Catalog() {
               ))}
           </nav>
 
-          <div>
+          <div className="min-w-0">
+            <label className="mb-5 flex flex-col gap-2 text-sm md:hidden">
+              Раздел каталога
+              <select
+                aria-label="Раздел каталога"
+                value={cat ?? ""}
+                onChange={(e) => setParam("cat", e.target.value || undefined)}
+                className="filter-field w-full min-w-0"
+              >
+                <option value="">Все товары · {products.length}</option>
+                {cat && !activeCat && <option value={cat}>Раздел не найден</option>}
+                {tops.map((top) => (
+                  <optgroup key={top.id} label={top.name}>
+                    <option value={top.slug}>
+                      {top.name} · {counts.get(top.id) ?? 0}
+                    </option>
+                    {cats
+                      .filter((c) => c.parent_id === top.id)
+                      .map((c) => (
+                        <option key={c.id} value={c.slug}>
+                          {c.name} · {counts.get(c.id) ?? 0}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <nav aria-label="Путь по каталогу" className="mb-3 flex flex-wrap gap-2 text-sm">
+              {activeCat && (
+                <Link to="/" search={(s) => ({ ...s, cat: undefined })} className="underline">
+                  Все товары
+                </Link>
+              )}
+              {activeCat?.parent_id && (
+                <>
+                  <span aria-hidden>/</span>
+                  <Link
+                    to="/"
+                    search={(s) => ({ ...s, cat: cats.find((c) => c.id === activeTop)?.slug })}
+                    className="underline"
+                  >
+                    {cats.find((c) => c.id === activeTop)?.name}
+                  </Link>
+                </>
+              )}
+            </nav>
+            <h2 className="mb-4 font-display text-xl text-foreground">
+              {activeCat?.name ?? (cat ? "Раздел не найден" : "Каталог товаров")}
+            </h2>
             {subs.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {subs
@@ -266,7 +295,8 @@ function Catalog() {
                       key={c.id}
                       to="/"
                       search={(s) => ({ ...s, cat: c.slug })}
-                      className={`rounded-full border px-3 py-1 text-xs ${activeCat?.id === c.id ? "border-primary bg-accent text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                      aria-current={activeCat?.id === c.id ? "page" : undefined}
+                      className={`rounded-full border px-3 py-2 text-xs ${activeCat?.id === c.id ? "border-primary bg-accent text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
                     >
                       {c.name} · {counts.get(c.id)}
                     </Link>
@@ -275,8 +305,53 @@ function Catalog() {
             )}
 
             {/* Фильтры и сортировка: только по реальным полям базы */}
+            {hasFilters && (
+              <div aria-label="Выбранные фильтры" className="mb-4 flex flex-wrap gap-2">
+                {(
+                  [
+                    ["q", q ? `Поиск: ${q}` : undefined],
+                    [
+                      "brand",
+                      brand
+                        ? `Бренд: ${brands.find(([key]) => key === brand)?.[1] ?? brand}`
+                        : undefined,
+                    ],
+                    ["min", min ? `Цена от: ${min} ₽` : undefined],
+                    ["max", max ? `Цена до: ${max} ₽` : undefined],
+                    ["instock", instock ? "В наличии" : undefined],
+                    ["sale", sale ? "Цена снижена" : undefined],
+                  ] as [keyof CatalogSearch, string | undefined][]
+                )
+                  .filter(([, label]) => label)
+                  .map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-label={`Убрать фильтр «${label}»`}
+                      onClick={() => setParam(key, undefined)}
+                      className="filter-chip max-w-full break-words text-left"
+                    >
+                      {label} <span aria-hidden>×</span>
+                    </button>
+                  ))}
+              </div>
+            )}
             <div className="workshop-filters mb-6 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="md:hidden">
+                <button
+                  type="button"
+                  aria-expanded={filtersOpen}
+                  aria-controls="catalog-filters"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  className="filter-chip w-full justify-between"
+                >
+                  Фильтры и сортировка <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
+                </button>
+              </div>
+              <div
+                id="catalog-filters"
+                className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
+              >
                 <select
                   aria-label="Сортировка"
                   value={activeSort}
@@ -304,24 +379,30 @@ function Catalog() {
                     </option>
                   ))}
                 </select>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Цена от, ₽"
-                  aria-label="Минимальная цена, рублей"
-                  value={min ?? ""}
-                  onChange={(e) => setParam("min", e.target.value || undefined)}
-                  className="filter-field w-28"
-                />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="до, ₽"
-                  aria-label="Максимальная цена, рублей"
-                  value={max ?? ""}
-                  onChange={(e) => setParam("max", e.target.value || undefined)}
-                  className="filter-field w-24"
-                />
+                <label className="flex flex-col gap-1 text-xs">
+                  Цена от, ₽
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="От"
+                    aria-label="Минимальная цена, рублей"
+                    value={min ?? ""}
+                    onChange={(e) => setParam("min", e.target.value || undefined)}
+                    className="filter-field w-28"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  Цена до, ₽
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="до, ₽"
+                    aria-label="Максимальная цена, рублей"
+                    value={max ?? ""}
+                    onChange={(e) => setParam("max", e.target.value || undefined)}
+                    className="filter-field w-24"
+                  />
+                </label>
                 <button
                   type="button"
                   aria-pressed={instock === "1"}
@@ -353,7 +434,16 @@ function Catalog() {
               </p>
             </div>
 
-            {list.length === 0 ? (
+            {cat && !activeCat ? (
+              <div className="py-12">
+                <p className="text-muted-foreground">
+                  Ссылка ведёт в раздел, которого сейчас нет в каталоге.
+                </p>
+                <Link to="/" search={{}} hash="catalog" className="mt-3 inline-block underline">
+                  Открыть весь каталог
+                </Link>
+              </div>
+            ) : list.length === 0 ? (
               <div className="py-16 text-center">
                 <p className="text-muted-foreground">
                   {hasFilters
@@ -375,7 +465,7 @@ function Catalog() {
                 )}
               </div>
             ) : (
-              <ul className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              <ul className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {list.slice(0, limit).map((p) => {
                   const img = mainPhoto(p.product_photos);
                   return (
@@ -386,6 +476,7 @@ function Catalog() {
                       <Link
                         to="/product/$slug"
                         params={{ slug: p.slug }}
+                        search={{ cat, q, brand, min, max, instock, sale, sort }}
                         className="flex h-full flex-col"
                       >
                         <div className="relative flex aspect-square items-center justify-center bg-background p-4">
@@ -415,7 +506,7 @@ function Catalog() {
                               Артикул: {p.sku}
                             </span>
                           )}
-                          <div className="mt-auto flex items-baseline gap-2">
+                          <div className="mt-auto flex flex-wrap items-baseline gap-2">
                             <span className="font-display text-lg font-bold text-foreground">
                               {rub(p.price)}
                             </span>
