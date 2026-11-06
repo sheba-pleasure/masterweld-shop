@@ -1,3 +1,4 @@
+import type { StructureDraft } from "./structure-view";
 import { FIELD_LABEL, type Field } from "./catalog-file";
 
 export function reviewColumnLabel(header: string | undefined, index: number) {
@@ -20,6 +21,20 @@ export interface DocumentReview {
   cells: string[];
   original: string[];
   locator?: string;
+  position?: number;
+  prev_row?: number | null;
+  next_row?: number | null;
+  original_header?: string[];
+  source_origin?: "ocr" | "manual" | "split";
+  source_note?: string;
+  structure_draft?: StructureDraft | null;
+  last_structure_change?: {
+    kind: string;
+    target_row: number;
+    revision: number;
+    can_undo: boolean;
+  } | null;
+  notice?: string;
   decision: "pending" | "approved" | "excluded";
   counts: { total: number; pending: number; approved: number; excluded: number };
   import_id?: string | null;
@@ -74,6 +89,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     rows.push([reviewButton(r, text, op, row, column)]);
   const c = r.counts;
   let text = `🔎 Проверка документа\n${short(r.file_name)} · ${short(r.table_label)}\n\n✅ Проверено: ${c.approved} · ⏭ Пропущено: ${c.excluded} · ⏳ Осталось: ${c.pending}\n`;
+  if (r.notice) text += `\n${r.notice}\n`;
   if (r.import_id) {
     text +=
       "\nПроверенные строки уже переданы в предпросмотр импорта. Этот разбор закрыт для изменений. Каталог этим действием не изменён. Откройте импорт, чтобы проверить его текущее состояние.";
@@ -99,7 +115,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     else text += "\n\nВсе строки пропущены. Импорт не создаётся.";
     add("🔎 Продолжить проверку", "next");
   } else if (screen === "cols") {
-    text += `\nСтрока ${r.row + 1}. Выберите поле для исправления. Изменение будет сохранено только в разборе документа. После исправления строку нужно проверить заново.\n`;
+    text += `\nСтрока ${r.position ?? r.row + 1}. Выберите поле для исправления. Изменение будет сохранено только в разборе документа. После исправления строку нужно проверить заново.\n`;
     r.header
       .slice(columnPage * 8, columnPage * 8 + 8)
       .forEach((h, i) =>
@@ -115,14 +131,20 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       add("Следующие поля →", "cols", r.row, columnPage + 1);
     add("↩️ К строке", "get");
   } else if (screen === "raw") {
-    text += `\n📎 Исходная строка ${r.row + 1}\nМесто в файле: ${r.locator ?? "точное место не определено; сверьте с оригиналом"}\n\n`;
+    text += `\n📎 Исходная строка ${r.position ?? r.row + 1}\nМесто в файле: ${r.locator ?? "точное место не определено; сверьте с оригиналом"}\n\n`;
+    if (r.source_origin === "manual")
+      text += "Строка добавлена вручную. Распознанной исходной строки нет.\n\n";
+    if (r.source_note) text += `Пояснение: ${r.source_note}\n\n`;
     text += r.original
-      .map((v, i) => `${i + 1}. ${r.header[i] || "Дополнительная ячейка"}: ${v || "(пусто)"}`)
+      .map(
+        (v, i) =>
+          `${i + 1}. ${(r.original_header ?? r.header)[i] || "Дополнительная ячейка"}: ${v || "(пусто)"}`,
+      )
       .join("\n\n");
     text += "\n\nЭто неизменённый результат распознавания. Для сверки доступен исходный файл.";
     add("↩️ К исправленной строке", "get");
   } else {
-    text += `\nСтрока ${r.row + 1} из ${c.total} · ${status[r.decision]}\n📎 ${short(r.locator ?? "Место в оригинале не определено", 150)}\n\n`;
+    text += `\nСтрока ${r.position ?? r.row + 1} из ${c.total} · ${status[r.decision]}\n📎 ${short(r.locator ?? "Место в оригинале не определено", 150)}\n\n`;
     text += r.header
       .map(
         (h, i) =>
@@ -136,12 +158,17 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       "\n\nСверьте строку с оригиналом. «Строка проверена» означает, что данные верны. «Пропустить» исключает строку только из этого импорта, а не удаляет товар из магазина.";
     add("📎 Посмотреть исходную строку", "raw");
     add("✏️ Исправить поле", "cols", r.row, 0);
+    rows.push([
+      { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },
+    ]);
     if (r.decision !== "approved") add("✅ Строка проверена → следующая", "approve");
     if (r.decision !== "excluded") add("⏭ Пропустить → следующая", "exclude");
     if (r.decision !== "pending") add("❔ Вернуть на проверку", "pending");
     const nav: ReviewButton[] = [];
-    if (r.row > 0) nav.push(reviewButton(r, "← Строка", "get", r.row - 1));
-    if (r.row + 1 < c.total) nav.push(reviewButton(r, "Строка →", "get", r.row + 1));
+    const previous = r.prev_row === undefined ? (r.row > 0 ? r.row - 1 : null) : r.prev_row;
+    const next = r.next_row === undefined ? (r.row + 1 < c.total ? r.row + 1 : null) : r.next_row;
+    if (previous !== null) nav.push(reviewButton(r, "← Строка", "get", previous));
+    if (next !== null) nav.push(reviewButton(r, "Строка →", "get", next));
     if (nav.length) rows.push(nav);
     if (c.pending) add("🔎 Следующая непроверенная", "next");
     add("📋 Итог и передача в импорт", "summary");

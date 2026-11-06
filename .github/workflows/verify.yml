@@ -54,6 +54,8 @@ jobs:
         run: python3 ops/tests/catalog-drafts.py
       - name: Document intake and seller enrollment (isolated PostgreSQL)
         run: python3 ops/tests/document-intake.py
+      - name: Human table structure correction (isolated PostgreSQL)
+        run: python3 ops/tests/document-structure.py
       - name: Offline document extraction and real OCR
         run: |
           docker build --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
