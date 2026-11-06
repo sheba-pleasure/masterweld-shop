@@ -27,25 +27,41 @@ process.env.SUPABASE_URL = process.env.PUBLIC_ORIGIN + "/backend";
 const { supabaseAdmin } = await import("../../src/integrations/supabase/client.server");
 const { handleUpdate } = await import("../../src/lib/bot/handler.server");
 const { processClaimedUpdate } = await import("../../src/lib/bot/webhook-processing");
-const meResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/getMe");
+const meResponse = await fetch(
+  "https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/getMe",
+);
 const me = await meResponse.json();
 assert.equal(me.ok, true);
 assert.equal(me.result.username, "testmw639bot");
 assert.equal(String(me.result.id), process.env.TELEGRAM_BOT_ID);
 const identity = await supabaseAdmin.rpc("mw_environment_identity" as never);
 assert.equal(identity.error, null);
-assert.deepEqual(identity.data, { environment: "dev", instanceId: "3a6a67bc-5ce6-46a4-af72-e6ab78800e49" });
+assert.deepEqual(identity.data, {
+  environment: "dev",
+  instanceId: "3a6a67bc-5ce6-46a4-af72-e6ab78800e49",
+});
 const actor = 7540652678; // Explicitly authorized owner/test chat, never a recipient list.
-const staff = await supabaseAdmin.from("staff").select("role,active").eq("telegram_id", actor).single();
+const staff = await supabaseAdmin
+  .from("staff")
+  .select("role,active")
+  .eq("telegram_id", actor)
+  .single();
 assert.equal(staff.error, null);
 assert.equal(staff.data?.active, true);
 assert.equal(staff.data?.role, "admin");
-const order = await supabaseAdmin.from("shop_orders").select("id,name,status").eq("id", orderId).single();
+const order = await supabaseAdmin
+  .from("shop_orders")
+  .select("id,name,status")
+  .eq("id", orderId)
+  .single();
 assert.equal(order.error, null);
 assert.equal(order.data?.name, buyer);
 assert.equal(order.data?.status, "new", "Only a fresh, browser-created QA order may be changed");
 
-type Delivered = { text?: string; reply_markup?: { inline_keyboard?: { text: string; callback_data: string }[][] } };
+type Delivered = {
+  text?: string;
+  reply_markup?: { inline_keyboard?: { text: string; callback_data: string }[][] };
+};
 const delivered: Delivered[] = [];
 let keyboardAccepted = false;
 let ackStubs = 0;
@@ -54,11 +70,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
   if (url.startsWith("https://api.telegram.org/bot")) {
     const body = JSON.parse(String(init?.body ?? "{}"));
-    if (url.endsWith("/answerCallbackQuery") && String(body.callback_query_id).startsWith("mw-dev-qa-")) {
+    if (
+      url.endsWith("/answerCallbackQuery") &&
+      String(body.callback_query_id).startsWith("mw-dev-qa-")
+    ) {
       ackStubs++;
       return Response.json({ ok: true, result: true });
     }
-    if (url.endsWith("/sendMessage")) assert.equal(body.chat_id, actor, "Never send to another chat");
+    if (url.endsWith("/sendMessage"))
+      assert.equal(body.chat_id, actor, "Never send to another chat");
     const response = await originalFetch(input, init);
     const data = await response.clone().json();
     assert.equal(data.ok, true, "Telegram delivery must succeed");
@@ -79,18 +99,34 @@ const claimStore = {
   },
 };
 async function run(update: TgUpdate) {
-  const result = await processClaimedUpdate(update.update_id, claimStore, () => handleUpdate(update));
+  const result = await processClaimedUpdate(update.update_id, claimStore, () =>
+    handleUpdate(update),
+  );
   assert.equal(result.status, 200);
   assert.equal((await result.json()).ok, true);
 }
 function message(text: string): TgUpdate {
-  return { update_id: ++sequence, message: { text, from: { id: actor }, chat: { id: actor, type: "private" } } };
+  return {
+    update_id: ++sequence,
+    message: { text, from: { id: actor }, chat: { id: actor, type: "private" } },
+  };
 }
 function callback(data: string): TgUpdate {
-  return { update_id: ++sequence, callback_query: { id: "mw-dev-qa-" + sequence, data, from: { id: actor }, message: { chat: { id: actor, type: "private" } } } };
+  return {
+    update_id: ++sequence,
+    callback_query: {
+      id: "mw-dev-qa-" + sequence,
+      data,
+      from: { id: actor },
+      message: { chat: { id: actor, type: "private" } },
+    },
+  };
 }
 function latestButton(value: string) {
-  const button = delivered.at(-1)?.reply_markup?.inline_keyboard?.flat().find((b) => b.callback_data === value);
+  const button = delivered
+    .at(-1)
+    ?.reply_markup?.inline_keyboard?.flat()
+    .find((b) => b.callback_data === value);
   assert.ok(button, "Expected action must be present in the actual Telegram response");
   return button.callback_data;
 }
@@ -101,22 +137,43 @@ try {
   await run(callback(latestButton("order:" + orderId)));
   const transition = callback(latestButton("st:" + orderId + ":processing"));
   await run(transition);
-  const finalOrder = await supabaseAdmin.from("shop_orders").select("status").eq("id", orderId).single();
+  const finalOrder = await supabaseAdmin
+    .from("shop_orders")
+    .select("status")
+    .eq("id", orderId)
+    .single();
   assert.equal(finalOrder.data?.status, "processing");
   assert.match(delivered.at(-1)?.text ?? "", /в обработке/);
   const beforeReplay = delivered.length;
-  const duplicate = await processClaimedUpdate(transition.update_id, claimStore, () => handleUpdate(transition));
+  const duplicate = await processClaimedUpdate(transition.update_id, claimStore, () =>
+    handleUpdate(transition),
+  );
   assert.equal((await duplicate.json()).duplicate, true);
   assert.equal(delivered.length, beforeReplay, "Replay must not repeat delivery");
-  const events = await supabaseAdmin.from("order_events").select("to_status,staff_telegram_id").eq("order_id", orderId);
+  const events = await supabaseAdmin
+    .from("order_events")
+    .select("to_status,staff_telegram_id")
+    .eq("order_id", orderId);
   assert.equal(events.error, null);
   assert.equal(events.data?.length, 1);
   assert.equal(events.data?.[0].to_status, "processing");
-  const report = { checkedAt: new Date().toISOString(), order: "#" + orderId.slice(0, 8), orderId,
-    status: "processing", actualTelegramMessages: delivered.length, persistentKeyboardAccepted: keyboardAccepted,
-    auditEvents: events.data.length, duplicateRejected: true, incomingUpdates: "simulated",
-    syntheticCallbackAcknowledgements: ackStubs, telegramClientUiVerified: false };
-  writeFileSync(new URL("../.state/dev/artifacts/order-flow.json", import.meta.url), JSON.stringify(report, null, 2) + "\n");
+  const report = {
+    checkedAt: new Date().toISOString(),
+    order: "#" + orderId.slice(0, 8),
+    orderId,
+    status: "processing",
+    actualTelegramMessages: delivered.length,
+    persistentKeyboardAccepted: keyboardAccepted,
+    auditEvents: events.data.length,
+    duplicateRejected: true,
+    incomingUpdates: "simulated",
+    syntheticCallbackAcknowledgements: ackStubs,
+    telegramClientUiVerified: false,
+  };
+  writeFileSync(
+    new URL("../.state/dev/artifacts/order-flow.json", import.meta.url),
+    JSON.stringify(report, null, 2) + "\n",
+  );
   console.log(JSON.stringify(report));
 } finally {
   globalThis.fetch = originalFetch;
