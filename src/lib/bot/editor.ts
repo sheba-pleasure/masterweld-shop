@@ -197,8 +197,8 @@ export function setChoiceParse(data: string): { field: EditorTextField; productI
 }
 
 /** Выбор категории из списка (индекс в состоянии диалога pick_cat). */
-export function categoryChoiceCallback(index: number): string {
-  return makeCallback(`ec:${index}`);
+export function categoryChoiceCallback(index: number, revision: string): string {
+  return makeCallback(`ec:${index}:${revision}`);
 }
 
 export function rollbackCallback(pendingId: string): string {
