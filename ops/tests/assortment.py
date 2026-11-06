@@ -52,8 +52,10 @@ try:
          "--tmpfs", "/var/lib/postgresql/data",
          "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:17.6-alpine"])
     created = True
-    for _ in range(80):
-        ready = subprocess.run(["docker", "exec", NAME, "pg_isready", "-U", "postgres"],
+    # The image briefly starts a Unix-socket-only bootstrap server. Wait for final TCP
+    # readiness on container loopback, otherwise CI can race its shutdown.
+    for _ in range(120):
+        ready = subprocess.run(["docker", "exec", NAME, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"],
                                capture_output=True)
         if ready.returncode == 0:
             break
