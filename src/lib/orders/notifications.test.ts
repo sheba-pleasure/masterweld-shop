@@ -157,6 +157,8 @@ describe("durable order notifications", () => {
       ORDER_NOTIFICATIONS_ENABLED: "true",
       APP_ENV: "dev",
       TELEGRAM_ENABLED: "true",
+      TELEGRAM_TRANSPORT: "direct",
+      TELEGRAM_BOT_TOKEN: "8996533708:" + "t".repeat(30),
       TELEGRAM_BOT_USERNAME: "testmw639bot",
       TELEGRAM_BOT_ID: "8996533708",
     };

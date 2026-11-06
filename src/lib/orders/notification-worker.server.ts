@@ -3,18 +3,8 @@ import { tg } from "../bot/telegram.server";
 import { dispatchOne, type NotificationJob, type NotificationStore } from "./notifications.server";
 import type { StaffMember } from "../bot/permissions";
 
-export function notificationsEnabled(env: NodeJS.ProcessEnv): boolean {
-  if (env["ORDER_NOTIFICATIONS_ENABLED"] !== "true") return false;
-  if (
-    env["APP_ENV"] !== "dev" ||
-    env["TELEGRAM_ENABLED"] !== "true" ||
-    env["TELEGRAM_BOT_USERNAME"] !== "testmw639bot" ||
-    env["TELEGRAM_BOT_ID"] !== "8996533708"
-  ) {
-    throw new Error("NOTIFICATION_ENVIRONMENT_MISMATCH");
-  }
-  return true;
-}
+import { notificationsEnabled, notificationWorkerActive } from "./notification-environment.server";
+export { notificationsEnabled } from "./notification-environment.server";
 
 export function createNotificationStore(): NotificationStore {
   // Independent server-only schema: not generated Cloud types. Runtime identity is checked before startup.
@@ -86,6 +76,7 @@ export function startOrderNotifications() {
   const tick = async () => {
     try {
       for (let n = 0; n < 5 && !stopped; n++) {
+        if (!notificationWorkerActive(process.env)) break;
         const found = await dispatchOne(store, async (message) => {
           const result = await (await tg("sendMessage", message)).json();
           return result?.result?.message_id;

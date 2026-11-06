@@ -14,6 +14,7 @@ export function validateEnvironment(manifest, env) {
     fail("SERVICE_KEY_REQUIRED");
   if (!env.SUPABASE_URL) fail("DATABASE_URL_REQUIRED");
   if (!["true", "false"].includes(env.TELEGRAM_ENABLED)) fail("TELEGRAM_MODE_REQUIRED");
+  if (!["true", "false"].includes(env.ORDER_NOTIFICATIONS_ENABLED ?? "false")) fail("NOTIFICATION_MODE_INVALID");
   if (env.APP_ENV === "production" && env.TELEGRAM_ENABLED !== "true")
     fail("PRODUCTION_BOT_REQUIRED");
   if (env.TELEGRAM_ENABLED === "true") {
