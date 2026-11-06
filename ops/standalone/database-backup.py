@@ -138,13 +138,22 @@ def fingerprints(container, db, snapshot=None):
 
 
 def security(container, db, snapshot=None):
-    # OIDs differ after restore; compare stable names, definitions, RLS and ACLs.
+    # pg_dump may replace an explicit owner-only table ACL with NULL (the same
+    # default ACL). Expand defaults and sort grants; never ignore a permission.
     return json.loads(sql(container, db, """SELECT jsonb_build_object(
-      'tables',(SELECT jsonb_agg(jsonb_build_array(n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity,c.relacl::text)
+      'tables',(SELECT jsonb_agg(jsonb_build_array(n.nspname,c.relname,c.relowner::regrole::text,
+        c.relrowsecurity,c.relforcerowsecurity,(SELECT jsonb_agg(jsonb_build_array(
+          a.grantor::regrole::text,a.grantee::regrole::text,a.privilege_type,a.is_grantable)
+          ORDER BY a.grantor::regrole::text,a.grantee::regrole::text,a.privilege_type,a.is_grantable)
+          FROM aclexplode(coalesce(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 's'::"char" ELSE 'r'::"char" END,c.relowner))) a))
         ORDER BY n.nspname,c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
         WHERE c.relkind IN ('r','p','v','S') AND n.nspname IN ('public','mw_private')),
       'functions',(SELECT jsonb_agg(jsonb_build_array(n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),
-        p.proacl::text,pg_get_functiondef(p.oid)) ORDER BY n.nspname,p.proname,pg_get_function_identity_arguments(p.oid))
+        p.proowner::regrole::text,(SELECT jsonb_agg(jsonb_build_array(
+          a.grantor::regrole::text,a.grantee::regrole::text,a.privilege_type,a.is_grantable)
+          ORDER BY a.grantor::regrole::text,a.grantee::regrole::text,a.privilege_type,a.is_grantable)
+          FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a),
+        pg_get_functiondef(p.oid)) ORDER BY n.nspname,p.proname,pg_get_function_identity_arguments(p.oid))
         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','mw_private') AND p.prokind='f'),
       'policies',(SELECT jsonb_agg(to_jsonb(p) ORDER BY schemaname,tablename,policyname)
         FROM pg_policies p WHERE schemaname IN ('public','mw_private')));""", snapshot))

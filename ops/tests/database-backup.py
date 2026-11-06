@@ -38,6 +38,9 @@ try:
       ALTER TABLE products ENABLE ROW LEVEL SECURITY;
       GRANT SELECT ON products TO anon;
       CREATE POLICY public_visible ON products FOR SELECT TO anon USING (NOT excluded);
+      CREATE TABLE owner_only(id int PRIMARY KEY);
+      GRANT SELECT ON owner_only TO service_role;
+      REVOKE ALL ON owner_only FROM service_role;
       CREATE TABLE order_notifications(id int PRIMARY KEY,state text NOT NULL,attempts int NOT NULL);
       INSERT INTO order_notifications VALUES (1,'sent',1),(2,'uncertain',1),(3,'sending',1),(4,'pending',0);
       CREATE TABLE order_submissions(request uuid PRIMARY KEY,result jsonb NOT NULL);
@@ -52,6 +55,8 @@ try:
         with b.snapshot_session(name, "source", expected) as snap:
             tables = b.fingerprints(name, "source", snap["snapshot"])
             acl = b.security(name, "source", snap["snapshot"])
+            sequence_acl = next(row[-1] for row in acl["tables"] if row[1] == "products_id_seq")
+            assert {grant[2] for grant in sequence_acl} == {"SELECT", "UPDATE", "USAGE"}
             # Another connection commits after snapshot export, before pg_dump starts.
             b.sql(name, "source", "INSERT INTO products(title,excluded) VALUES ('[Учебный] Позднее',false);")
             assert b.fingerprints(name, "source")["public.products"]["rows"] == 2
@@ -69,6 +74,12 @@ try:
                     "files": {n: {"bytes": (content / n).stat().st_size, "sha256": b.digest(content / n)}
                               for n in b.FILES - {"manifest.json"}}}
         archive = b.make_archive(folder, manifest)
+        # An extra grant must remain visible after ACL normalization.
+        original_security = b.security(name, "source")
+        b.sql(name, "source", "GRANT SELECT ON owner_only TO anon;")
+        assert b.security(name, "source") != original_security
+        b.sql(name, "source", "REVOKE SELECT ON owner_only FROM anon;")
+        assert b.security(name, "source") == original_security
         baseline = b.fingerprints(name, "source")
         report = b.restore(archive, folder / "restored")
         assert report["restored"] and report["restartVerified"] and report["securityMatches"]

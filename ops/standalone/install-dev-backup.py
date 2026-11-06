@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Install ONLY the DEV backup user units from an exact committed runner. Does not start them."""
+import argparse
 import hashlib
 import json
 import os
@@ -24,13 +25,18 @@ def run(args):
     return result.stdout
 
 
-def identical_file(path, payload):
+def identical_file(path, payload, previous=None):
     if path.exists() or path.is_symlink():
         info = path.lstat()
         require(stat.S_ISREG(info.st_mode) and not path.is_symlink() and info.st_uid == os.getuid()
-                and not info.st_mode & 0o022 and path.read_bytes() == payload,
+                and not info.st_mode & 0o022 and path.read_bytes() in [payload, previous],
                 "BACKUP_INSTALL_EXISTING_FILE_CONFLICT")
-        return False
+        if path.read_bytes() == payload:
+            return False
+        temporary = path.with_name(path.name + ".new-" + str(os.getpid()))
+        identical_file(temporary, payload)
+        os.replace(temporary, path)
+        return True
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "wb") as stream:
         stream.write(payload)
@@ -72,6 +78,9 @@ WantedBy=timers.target
 
 def main():
     os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--replace-runner", help="Exact previous installed commit; both own units must be inactive")
+    args = parser.parse_args()
     require(os.getuid() == 1001 and Path.home() == Path("/home/codex"), "BACKUP_INSTALL_USER_REQUIRED")
     require(not run(["git", "status", "--porcelain"]), "BACKUP_INSTALL_COMMIT_SOURCE_FIRST")
     sha = run(["git", "rev-parse", "HEAD"]).decode().strip()
@@ -88,20 +97,31 @@ def main():
             "BACKUP_INSTALL_PRIVATE_DIRECTORY_REQUIRED")
     runner = pinned / "database-backup.py"
     service, timer = units(runner)
+    previous_service = previous_timer = None
+    if args.replace_runner:
+        require(re.fullmatch(r"[0-9a-f]{40}", args.replace_runner), "BACKUP_PREVIOUS_SHA_INVALID")
+        old_runner = base / args.replace_runner / "database-backup.py"
+        old_source = run(["git", "show", args.replace_runner + ":ops/standalone/database-backup.py"])
+        require(old_runner.is_file() and not old_runner.is_symlink() and old_runner.read_bytes() == old_source,
+                "BACKUP_PREVIOUS_RUNNER_CHANGED")
+        for suffix in ("service", "timer"):
+            state = run(["systemctl", "--user", "show", UNIT + "." + suffix, "-p", "ActiveState", "--value"]).decode().strip()
+            require(state in ("inactive", "failed"), "BACKUP_STOP_OWN_UNITS_BEFORE_UPDATE")
+        previous_service, previous_timer = units(old_runner)
     # Validate both destinations before writing either unit. Never replace an existing different service.
     USER_UNITS.mkdir(parents=True, exist_ok=True)
     require(USER_UNITS.resolve() == USER_UNITS and USER_UNITS.stat().st_uid == os.getuid()
             and not USER_UNITS.stat().st_mode & 0o022, "BACKUP_INSTALL_UNITS_DIRECTORY_UNSAFE")
-    for suffix, data in [("service", service), ("timer", timer)]:
+    for suffix, data, previous in [("service", service, previous_service), ("timer", timer, previous_timer)]:
         path = USER_UNITS / (UNIT + "." + suffix)
         if path.exists() or path.is_symlink():
             info = path.lstat()
             require(stat.S_ISREG(info.st_mode) and not path.is_symlink() and info.st_uid == os.getuid()
-                    and not info.st_mode & 0o022 and path.read_bytes() == data,
+                    and not info.st_mode & 0o022 and path.read_bytes() in [data, previous],
                     "BACKUP_INSTALL_EXISTING_FILE_CONFLICT")
     identical_file(runner, payload)
-    identical_file(USER_UNITS / (UNIT + ".service"), service)
-    identical_file(USER_UNITS / (UNIT + ".timer"), timer)
+    identical_file(USER_UNITS / (UNIT + ".service"), service, previous_service)
+    identical_file(USER_UNITS / (UNIT + ".timer"), timer, previous_timer)
     run(["systemd-analyze", "--user", "verify", str(USER_UNITS / (UNIT + ".service")), str(USER_UNITS / (UNIT + ".timer"))])
     run(["systemctl", "--user", "daemon-reload"])
     print(json.dumps({"installed": True, "started": False, "environment": "dev", "sourceSha": sha,
