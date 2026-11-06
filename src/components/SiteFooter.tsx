@@ -1,5 +1,5 @@
 import { Phone } from "lucide-react";
-import emblem from "@/assets/brand/emblem-3d-256.png.asset.json";
+import emblem from "@/assets/brand/master_svarshchik_3d_256px.png";
 import { CONTACTS } from "@/lib/contacts";
 
 export function SiteFooter() {
@@ -71,7 +71,7 @@ export function SiteFooter() {
 
         <div className="mt-8 flex items-center gap-3 border-t border-primary-foreground/10 pt-4 text-xs text-primary-foreground/50">
           <img
-            src={emblem.url}
+            src={emblem}
             alt="Мастер Сварщик"
             width={256}
             height={142}

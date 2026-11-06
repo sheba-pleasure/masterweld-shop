@@ -23,7 +23,7 @@ other_slot() { [ "$1" = a ] && echo b || echo a; }
 slot_name() { echo "mw-shop-slot-$1"; }
 
 state_get() { [ -f "$STATE_DIR/$1" ] && cat "$STATE_DIR/$1" || true; }
-state_set() { mkdir -p "$STATE_DIR"; printf '%s\n' "$2" > "$STATE_DIR/$1.tmp"; mv "$STATE_DIR/$1.tmp" "$STATE_DIR/$1"; }
+state_set() { mkdir -p "$STATE_DIR"; ( umask 077; printf '%s\n' "$2" > "$STATE_DIR/$1.tmp" ); mv "$STATE_DIR/$1.tmp" "$STATE_DIR/$1"; }
 
 require_sha() {
   [[ "${1:-}" =~ ^[0-9a-f]{40}$ ]] || die "нужен полный 40-символьный SHA, получено '${1:-}'"
@@ -49,7 +49,7 @@ require_github_approval() {
   pulls="$(gh_get "commits/$sha/pulls")" || die "не удалось получить PR для $sha"
   ok="$(printf '%s' "$pulls" | python3 -c 'import json,sys
 print(any(p.get("merged_at") and p.get("base",{}).get("ref")=="main" for p in json.load(sys.stdin)))')"
-  [ "$ok" = True ] || die "для $sha нет смерженного PR в main (нужно «Выпускай» + merge)"
+  [ "$ok" = True ] || die "для $sha нет смерженного PR в main (нужны «обнови main», проверка и merge)"
   checks="$(gh_get "commits/$sha/check-runs" | python3 -c 'import json,sys
 r=json.load(sys.stdin).get("check_runs",[])
 v=[c for c in r if c.get("name","").startswith("verify")]

@@ -1,4 +1,4 @@
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/telegram";
+import { telegramConfig } from "./transport-config";
 
 export class TelegramDeliveryError extends Error {
   constructor(
@@ -18,19 +18,32 @@ function fail(kind: TelegramDeliveryError["kind"], temporary: boolean, status?: 
 }
 
 export async function tg(method: string, body: unknown) {
-  const lk = process.env["LOVABLE_API_KEY"];
-  const tk = process.env["TELEGRAM_API_KEY"];
-  if (!lk || !tk) return fail("configuration", false);
+  let config: ReturnType<typeof telegramConfig>;
+  try {
+    config = telegramConfig(process.env);
+  } catch {
+    return fail("configuration", false);
+  }
+  if (!/^[A-Za-z]+$/.test(method)) return fail("configuration", false);
+  if (
+    process.env["APP_ENV"] === "dev" &&
+    body &&
+    typeof body === "object" &&
+    "text" in body &&
+    typeof body.text === "string"
+  ) {
+    body = { ...body, text: `ТЕСТОВЫЙ МАГАЗИН · DEV\n${body.text}` };
+  }
   let res: Response;
   try {
-    res = await fetch(`${GATEWAY_URL}/${method}`, {
+    res = await fetch(`${config.baseUrl}/${method}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lk}`,
-        "X-Connection-Api-Key": tk,
+        ...config.headers,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
   } catch {
     return fail("network", true);

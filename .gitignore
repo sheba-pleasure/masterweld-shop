@@ -38,3 +38,5 @@ dist-ssr
 .secrets
 ops/.secrets
 ops/.state
+__pycache__/
+*.pyc

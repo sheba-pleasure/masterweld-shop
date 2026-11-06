@@ -4,7 +4,7 @@
 # Источник — `git archive SHA` из локального checkout во временный каталог: ветки,
 # main/dev и рабочие файлы не меняются. В образ передаются только публичные VITE_SUPABASE_*
 # из защищённого файла (600); серверные ключи в образ не попадают.
-# Production не меняет. Выпуск — отдельно ops/release.sh <SHA> после «Выпускай».
+# Production не меняет. Выпуск — после «обнови main», проверки и разрешения на точный SHA.
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
@@ -17,13 +17,13 @@ acquire_lock
 { [ -f "$PUBLIC_BUILD_ENV" ] && [ ! -L "$PUBLIC_BUILD_ENV" ]; } || die "нет $PUBLIC_BUILD_ENV"
 (( (8#$(stat -c %a "$PUBLIC_BUILD_ENV") & 8#077) == 0 )) || die "$PUBLIC_BUILD_ENV должен иметь права 600"
 
-ARGS=(--build-arg "GIT_SHA=$SHA")
+ARGS=(--build-arg "GIT_SHA=$SHA" --build-arg "VITE_APP_ENV=production")
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|'#'*) continue ;; esac
   key="${line%%=*}"
   case "$key" in
-    VITE_SUPABASE_URL|VITE_SUPABASE_PUBLISHABLE_KEY|VITE_SUPABASE_PROJECT_ID) ARGS+=(--build-arg "$line") ;;
-    *) die "в $(basename "$PUBLIC_BUILD_ENV") недопустимый ключ '$key' (разрешены только публичные VITE_SUPABASE_*)" ;;
+    PUBLIC_ORIGIN|VITE_SUPABASE_URL|VITE_SUPABASE_PUBLISHABLE_KEY|VITE_SUPABASE_PROJECT_ID) ARGS+=(--build-arg "$line") ;;
+    *) die "в $(basename "$PUBLIC_BUILD_ENV") недопустимый ключ '$key' (разрешены PUBLIC_ORIGIN и публичные VITE_SUPABASE_*)" ;;
   esac
 done < "$PUBLIC_BUILD_ENV"
 
@@ -39,4 +39,4 @@ fi
 log "сборка $IMAGE_REPO:$SHA из git archive"
 docker build "${ARGS[@]}" -t "$IMAGE_REPO:$SHA" "$TMP" >&2
 require_image "$SHA"
-log "ГОТОВО: образ $IMAGE_REPO:$SHA собран. Выпуск — только ops/release.sh $SHA после «Выпускай»."
+log "ГОТОВО: образ $IMAGE_REPO:$SHA собран. Выпуск требует «обнови main», проверки и разрешения на точный SHA."

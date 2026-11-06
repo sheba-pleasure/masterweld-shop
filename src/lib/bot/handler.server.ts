@@ -1560,6 +1560,18 @@ export async function handleUpdate(update: TgUpdate) {
     .maybeSingle();
   const m = data as StaffMember | null;
   if (
+    !staffError &&
+    !m &&
+    !cb &&
+    process.env["APP_ENV"] === "dev" &&
+    update.message?.text === "/start"
+  ) {
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: `Доступ ещё не выдан. Ваш Telegram ID: ${from.id}. Передайте его владельцу магазина для доступа к тестовой среде. Затем снова отправьте /start.`,
+    });
+  }
+  if (
     staffError ||
     !m ||
     !m.active ||

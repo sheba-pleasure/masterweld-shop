@@ -139,7 +139,9 @@ export function SiteActions() {
                 Спасибо! Заказ {doneInfo.number ?? ""} принят.
               </p>
               <p className="mt-2 text-primary-foreground/70">
-                Позвоним на {phone.trim()} и уточним доставку.
+                {import.meta.env.VITE_APP_ENV === "dev"
+                  ? "Учебный заказ сохранён. Звонка, оплаты и доставки не будет."
+                  : `Позвоним на ${phone.trim()} и уточним доставку.`}
               </p>
               {doneInfo.total !== undefined && (
                 <p className="mt-1 text-primary-foreground/70">
@@ -147,7 +149,7 @@ export function SiteActions() {
                   <span className="font-semibold text-brand-yellow">{rub(doneInfo.total)}</span>
                 </p>
               )}
-              {doneInfo.backorder && (
+              {doneInfo.backorder && import.meta.env.VITE_APP_ENV !== "dev" && (
                 <p className="mt-2 text-xs text-primary-foreground/60">
                   Часть позиций отмечена как отсутствующая на складе — это заказ «под заказ», срок
                   поставки подтвердит менеджер по телефону.
@@ -252,7 +254,9 @@ export function SiteActions() {
                     ? "Отправляем…"
                     : priceChange
                       ? "Согласиться с новой ценой и оформить"
-                      : "Оформить заказ"}
+                      : import.meta.env.VITE_APP_ENV === "dev"
+                        ? "Оформить учебный заказ"
+                        : "Оформить заказ"}
                 </Button>
                 {priceChange && (
                   <div className="rounded-md border border-brand-yellow/50 p-3 text-xs">

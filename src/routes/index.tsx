@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import hero from "@/assets/brand/hero-workshop.jpg.asset.json";
+import hero from "@/assets/brand/hero-workshop.jpg";
 import { categoriesQuery, mainPhoto, productsQuery, rub } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import {
@@ -201,7 +201,7 @@ function Catalog() {
       {/* Компактный hero: поиск виден сразу, слайды — ниже и скромнее */}
       <section className="relative overflow-hidden border-b-2 border-brand-yellow bg-brand-deep">
         <img
-          src={hero.url}
+          src={hero}
           alt=""
           aria-hidden
           className="absolute right-0 top-12 h-[280px] w-full object-cover object-[center_45%] opacity-95 md:inset-y-0 md:h-full md:w-2/3 md:opacity-100"

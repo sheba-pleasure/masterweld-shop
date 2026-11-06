@@ -99,12 +99,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
       { rel: "icon", href: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Russo+One&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -161,6 +155,15 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      {import.meta.env.VITE_APP_ENV === "dev" && (
+        <div
+          role="note"
+          className="bg-amber-300 px-4 py-2 text-center text-sm leading-relaxed text-slate-950"
+        >
+          <strong>Тестовый магазин · DEV.</strong> Здесь можно пробовать. Товары и заказы учебные,
+          покупки не отправляются.
+        </div>
+      )}
       <header className="sticky top-0 z-20 border-b-2 border-brand-yellow bg-brand-deep backdrop-blur">
         <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2">
           <div className="flex min-w-0 items-center gap-3">

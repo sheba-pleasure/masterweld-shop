@@ -80,6 +80,27 @@ beforeEach(() => {
   });
 });
 describe("single service gate", () => {
+  it("dev onboarding returns only the verified sender ID without granting permissions", async () => {
+    member = null;
+    vi.stubEnv("APP_ENV", "dev");
+    try {
+      await handleUpdate({
+        update_id: 1,
+        message: { text: "/start", from: { id: 101 }, chat: { id: 101, type: "private" } },
+      });
+      expect(mocks.tg).toHaveBeenCalledWith(
+        "sendMessage",
+        expect.objectContaining({
+          chat_id: 101,
+          text: expect.stringContaining("Telegram ID: 101"),
+        }),
+      );
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(events).toEqual(["from:staff"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it.each([
     "staff",
     "audit",
