@@ -35,7 +35,7 @@ const session = () => ({
   data: base(),
   base_document: null,
   prompt_message_id: 111,
-  expires_at: "2026-12-01T00:00:00Z",
+  expires_at: new Date(Date.now() + 86400000).toISOString(),
   review_state: null,
 });
 let stored = session();
