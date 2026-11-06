@@ -154,7 +154,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <TelegramShopBridge />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      {import.meta.env.VITE_APP_ENV === "dev" && (
+      {import.meta.env["VITE_APP_ENV"] === "dev" && (
         <div
           role="note"
           className="bg-amber-300 px-4 py-2 text-center text-sm leading-relaxed text-slate-950"

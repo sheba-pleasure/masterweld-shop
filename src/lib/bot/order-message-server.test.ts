@@ -24,8 +24,16 @@ it("replaces an uneditable card once and clearly identifies the current card", a
   mocks.tg.mockRejectedValueOnce(new TelegramDeliveryError("http", false, 400));
   await showOrderMessage(101, view, 41);
   expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual(["editMessageText", "sendMessage"]);
-  expect(mocks.tg.mock.calls[1][1].text).toContain("Используйте эту.");
-  expect(mocks.tg.mock.calls[1][1].text).toContain(view.text);
+  expect(mocks.tg).toHaveBeenNthCalledWith(
+    2,
+    "sendMessage",
+    expect.objectContaining({ text: expect.stringContaining("Используйте эту.") }),
+  );
+  expect(mocks.tg).toHaveBeenNthCalledWith(
+    2,
+    "sendMessage",
+    expect.objectContaining({ text: expect.stringContaining(view.text) }),
+  );
 });
 it.each([
   new TelegramDeliveryError("network", true),

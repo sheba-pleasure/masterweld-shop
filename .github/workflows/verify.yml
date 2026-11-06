@@ -25,6 +25,8 @@ jobs:
           bun-version: 1.2.x
       - name: Install (lockfile)
         run: bun install --frozen-lockfile
+      - name: TypeScript strict check (обязательно)
+        run: npm run typecheck
       - name: Environment and release gates
         run: |
           node --test ops/runtime/environment.test.mjs
