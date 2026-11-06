@@ -59,16 +59,16 @@ const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseAssortmentCallback(data: string): AssortmentRequest | null {
   if (data === "as:home") return { p_op: "home" };
   const start = data.match(/^as:start:(review|sell|excluded|all)$/);
-  if (start) return { p_op: "start", p_value: start[1] };
+  if (start?.[1]) return { p_op: "start", p_value: start[1] };
   const item = data.match(
     new RegExp(`^as:(select|unselect):(${ID}):([1-9][0-9]{0,3}):([0-9]{1,3})$`),
   );
-  if (item)
-    return { p_op: item[1]!, p_batch_id: item[2], p_value: item[3], p_page: Number(item[4]) };
+  if (item?.[1] && item[2] && item[3] && item[4])
+    return { p_op: item[1], p_batch_id: item[2], p_value: item[3], p_page: Number(item[4]) };
   const preview = data.match(
     new RegExp(`^as:preview:(${ID}):(sell|exclude|review|hide):([0-9]{1,7})$`),
   );
-  if (preview)
+  if (preview?.[1] && preview[2] && preview[3])
     return {
       p_op: "preview",
       p_batch_id: preview[1],
@@ -78,7 +78,7 @@ export function parseAssortmentCallback(data: string): AssortmentRequest | null 
   const op = data.match(
     new RegExp(`^as:(get|all|none|apply|cancel|undo_preview|undo):(${ID})(?::([0-9]{1,3}))?$`),
   );
-  if (op) return { p_op: op[1]!, p_batch_id: op[2], p_page: Number(op[3] ?? 0) };
+  if (op?.[1] && op[2]) return { p_op: op[1], p_batch_id: op[2], p_page: Number(op[3] ?? 0) };
   return null;
 }
 const compact = (s: string, n: number) => s.replace(/\s+/g, " ").slice(0, n);
@@ -132,7 +132,7 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
       : []),
     ...(r.selected
       ? [
-          `До изменения: на сайте ${r.counts.published}, скрыто ${r.counts.hidden}, черновиков ${r.counts.draft}.`,
+          `До изменения: на сайте ${r.counts["published"]}, скрыто ${r.counts["hidden"]}, черновиков ${r.counts["draft"]}.`,
         ]
       : []),
     "",

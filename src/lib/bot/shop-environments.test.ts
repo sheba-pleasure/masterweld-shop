@@ -8,7 +8,14 @@ describe("staff Mini App entry points", () => {
     expect(keyboard.is_persistent).toBe(true);
     const inline = staffShopMessage("production").reply_markup.inline_keyboard.flat();
     for (const buttons of [keyboard.keyboard.flat(), inline]) {
-      const urls = buttons.flatMap((button) => ("web_app" in button ? [button.web_app.url] : []));
+      const urls = buttons.flatMap((button) => {
+        if (!("web_app" in button)) return [];
+        const app = button.web_app;
+        expect(app).toEqual({ url: expect.any(String) });
+        if (typeof app !== "object" || app === null || !("url" in app))
+          throw new Error("Invalid web_app button");
+        return [app.url];
+      });
       expect(urls).toEqual([DEV_SHOP_ORIGIN + "/?miniapp=1", PRO_SHOP_ORIGIN + "/?miniapp=1"]);
     }
   });

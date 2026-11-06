@@ -69,15 +69,15 @@ beforeEach(() => {
   mocks.adminRpc.mockResolvedValue({ data: { ok: true }, error: null });
 });
 it("retains false, zero and unknown without coercion", () => {
-  expect(technicalDocument.parse(doc).values[0].value).toBe(false);
+  expect(technicalDocument.parse(doc).values[0]?.value).toBe(false);
   expect(
-    technicalDocument.parse({ ...doc, values: [{ ...doc.values[0], value: 0 }] }).values[0].value,
+    technicalDocument.parse({ ...doc, values: [{ ...doc.values[0], value: 0 }] }).values[0]?.value,
   ).toBe(0);
   expect(
     technicalDocument.parse({
       ...doc,
       values: [{ ...doc.values[0], state: "unknown", value: null, source_key: null }],
-    }).values[0].value,
+    }).values[0]?.value,
   ).toBeNull();
   expect(
     technicalDocument.safeParse({ ...doc, values: [{ ...doc.values[0], state: "unknown" }] })
@@ -94,7 +94,7 @@ it("rejects unexpected fields and credential-bearing source URLs before staff RP
   ).toBe(false);
 });
 it("public read uses only the public RPC and preserves the verified false value", async () => {
-  expect((await readProductTechnical(id))?.values[0].value).toBe(false);
+  expect((await readProductTechnical(id))?.values[0]?.value).toBe(false);
   expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("public_product_technical", {
     p_product_id: id,
   });

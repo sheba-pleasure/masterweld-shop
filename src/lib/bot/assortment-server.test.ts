@@ -58,7 +58,10 @@ it("delivery network failure is propagated without replaying a committed operati
 it("an unknown RPC outcome says to inspect saved state", async () => {
   mocks.rpc.mockRejectedValueOnce(new Error("PRIVATE_DETAIL"));
   await showAssortment(admin, { id: 101, type: "private" }, { p_op: "apply" });
-  expect(mocks.tg.mock.calls[0][1].text).toContain("не подтверждён");
+  expect(mocks.tg).toHaveBeenCalledWith(
+    "sendMessage",
+    expect.objectContaining({ text: expect.stringContaining("не подтверждён") }),
+  );
   expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("PRIVATE_DETAIL");
   expect(mocks.rpc).toHaveBeenCalledTimes(1);
 });
