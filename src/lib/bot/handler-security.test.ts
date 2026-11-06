@@ -107,6 +107,8 @@ describe("single service gate", () => {
     "elevate_on",
     "elevate_off",
     "deliveries",
+    "as:home",
+    `as:apply:${orderId}`,
     "orders",
     `st:${orderId}:processing`,
     "cat:0",
@@ -172,7 +174,14 @@ describe("single service gate", () => {
   );
   it("seller cannot disclose staff/audit or elevate", async () => {
     member = { ...actor, role: "seller" };
-    for (const data of ["staff", "audit", "elevate_on", "deliveries"])
+    for (const data of [
+      "staff",
+      "audit",
+      "elevate_on",
+      "deliveries",
+      "as:home",
+      `as:apply:${orderId}`,
+    ])
       await handleUpdate(callback(data));
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(events).not.toContain("audit");

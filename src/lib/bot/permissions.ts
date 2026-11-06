@@ -16,6 +16,7 @@ export type Permission =
   | "view_costs"
   | "edit_prices"
   | "delete_items"
+  | "manage_assortment"
   | "manage_categories"
   | "publish_products"
   | "import_prices"
@@ -32,6 +33,7 @@ const ADMIN: Permission[] = [
   "view_costs",
   "edit_prices",
   "delete_items",
+  "manage_assortment",
   "manage_categories",
   "publish_products",
   "import_prices",
