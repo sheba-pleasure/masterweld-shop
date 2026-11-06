@@ -165,16 +165,27 @@ export function photoAddCallback(productId: string): string {
   return makeCallback(`pha:${productId}`);
 }
 
-export function photoDetailCallback(productId: string, index: number): string {
-  return makeCallback(`phd:${productId}:${index}`);
+const PHOTO_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+export function photoDetailCallback(photoId: string): string {
+  return makeCallback(`pfd:${photoId}`);
 }
 
-export function parsePhotoDetailCallback(
+export function parsePhotoDetailCallback(data: string): { photoId: string } | null {
+  const m = data.match(new RegExp(`^pfd:(${PHOTO_ID})$`));
+  return m ? { photoId: m[1]! } : null;
+}
+
+export type PhotoAction = "m" | "u" | "n" | "x";
+export function photoActionCallback(action: PhotoAction, photoId: string): string {
+  return makeCallback(`pf${action}:${photoId}`);
+}
+
+export function parsePhotoActionCallback(
   data: string,
-): { productId: string; index: number } | null {
-  const m = data.match(/^phd:([0-9a-f-]{36}):(\d{1,2})$/);
-  if (!m) return null;
-  return { productId: m[1]!, index: Number(m[2]) };
+): { action: PhotoAction; photoId: string } | null {
+  const m = data.match(new RegExp(`^pf([munx]):(${PHOTO_ID})$`));
+  return m ? { action: m[1] as PhotoAction, photoId: m[2]! } : null;
 }
 
 /** Короткий идентификатор фото для показа — полный UUID в сообщениях не нужен. */
@@ -238,7 +249,7 @@ export function photoRows(productId: string, photos: BotPhoto[], canManage: bool
     rows.push(
       listed.slice(i, i + 4).map((ph, j) => ({
         text: `${i + j + 1}${ph.is_main ? "⭐" : "🖼"}`,
-        callback_data: photoDetailCallback(productId, i + j),
+        callback_data: photoDetailCallback(ph.id),
       })),
     );
   }
