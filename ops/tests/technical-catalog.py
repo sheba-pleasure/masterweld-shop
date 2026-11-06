@@ -4,6 +4,7 @@ import concurrent.futures
 import copy
 import datetime
 import json
+import importlib.util
 import pathlib
 import subprocess
 import time
@@ -78,9 +79,9 @@ try:
         time.sleep(.25)
     else: raise RuntimeError("PG_NOT_READY")
     paths = [ROOT / "ops/dev/bootstrap.sql", *sorted((ROOT / "drizzle/migrations").glob("*.sql")),
-             *sorted((ROOT / "docs/migrations").glob("*.sql"))]
+             *[p for p in sorted((ROOT / "docs/migrations").glob("*.sql")) if p.name[:4]<"0017"]]
     sql("BEGIN;\n" + "\n".join(p.read_text() for p in paths) + "\nCOMMIT;")
-    sql("""CREATE FUNCTION public.mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$ SELECT '{"environment":"dev"}'::jsonb $f$;
+    sql("""CREATE FUNCTION public.mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$ SELECT '{"environment":"dev","instanceId":"3a6a67bc-5ce6-46a4-af72-e6ab78800e49"}'::jsonb $f$;
     INSERT INTO staff(telegram_id,name,role,elevated,active) VALUES
       (101,'QA admin','admin',false,true),(102,'QA other admin','admin',false,true),
       (103,'QA seller','seller',false,true),(104,'QA inactive','admin',false,false),
@@ -89,6 +90,19 @@ try:
         sql("INSERT INTO products(id,slug,sku,title,price,specs,status,assortment_decision) VALUES(" +
             ",".join(map(lit,[pid,slug,slug,"[Учебный] "+slug,100,"Old specs preserved",status,decision])) + ");")
     fingerprint = sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
+    spec = importlib.util.spec_from_file_location("technical_dev_migration", ROOT / "ops/dev/apply-technical-catalog.py")
+    operator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(operator)
+    for wrong in [None, {}, {"environment":"dev"}, {"environment":"production","instanceId":operator.IDENTITY["instanceId"]}]:
+        try: operator.validate_identity(wrong)
+        except RuntimeError: pass
+        else: raise AssertionError("INVALID_IDENTITY_ACCEPTED")
+    migration17=(ROOT / "docs/migrations/0017_technical_catalog.sql").read_text()
+    migration18=(ROOT / "docs/migrations/0018_technical_read_alias.sql").read_text()
+    sql(operator.transaction(migration17))
+    sql(operator.transaction(migration18,True))
+    sql(operator.transaction(migration17),"TECH_ALREADY_APPLIED")
+    sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
     dictionary = json.loads((ROOT / "src/lib/technical/pilot-dictionary.json").read_text())
     assert int(sql("SELECT count(*) FROM technical_attributes")) == len(dictionary["attributes"])
     for attr in dictionary["attributes"]:
