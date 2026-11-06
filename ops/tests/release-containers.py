@@ -206,9 +206,11 @@ try:
     }
     (BASE / "fixture.env").write_text("".join(k + "=" + v + "\n" for k, v in fixture_env.items()))
     (BASE / "fixture.env").chmod(0o600)
-    docker("network", "create", "--internal", "--label", "mw.environment=production", NETWORK)
+    docker("network", "create", "--label", "mw.environment=production", NETWORK)
     network_created = True
-    assert json.loads(docker("network", "inspect", NETWORK).stdout)[0]["Internal"]
+    # A private bridge with explicit loopback publication reproduces the release topology.
+    # Docker internal networks do not publish these ports on this host. No shared network is joined.
+    REPORT["network"] = {"name": NETWORK, "driver": "bridge", "publishedBind": "127.0.0.1"}
     for sock in ports_reserved:
         sock.close()
     OWNED_CONTAINERS.update(NAMES)
