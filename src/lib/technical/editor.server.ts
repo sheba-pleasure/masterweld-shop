@@ -37,6 +37,8 @@ type Session = z.infer<typeof sessionSchema>;
 type Chat = { id: number; type?: string };
 type Button = { text: string; callback_data: string };
 const safeErrors: Record<string, string> = {
+  EDITOR_ORDINARY_ACTIVE:
+    "✏️ Сначала завершите текущий ввод товара или отмените его командой /cancel. Затем снова откройте проверенные характеристики. Текущий ввод сохранён.",
   TECH_PRIMARY_SOURCE_REQUIRED:
     "Для подтверждения нужны паспорт, документ изготовителя или протокол испытаний. Поставщик/исследование — только предложение на проверку.",
   TECH_REVERSED_RANGE: "Минимальное значение больше максимального. Проверьте диапазоны.",

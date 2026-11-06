@@ -127,6 +127,14 @@ it("unknown database errors and payloads are never echoed", async () => {
   await technicalEditor(owner, chat, from, { command: "/technical" });
   expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("PRIVATE");
 });
+it("keeps the ordinary dialog and explains how to resolve an editor conflict", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "EDITOR_ORDINARY_ACTIVE" } });
+  await technicalEditor(owner, chat, from, { callback: "te:start:" + id });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["start"]);
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("Текущий ввод сохранён");
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("/cancel");
+  expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("EDITOR_ORDINARY_ACTIVE");
+});
 it("cancel asks confirmation before mutating a preview", async () => {
   stored.phase = "preview";
   await technicalEditor(owner, chat, from, { command: "/cancel" });
