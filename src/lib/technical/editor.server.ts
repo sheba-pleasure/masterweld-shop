@@ -246,7 +246,7 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
     const response = await tg("sendMessage", {
       chat_id: chat.id,
       text: question.slice(0, 3900),
-      reply_markup: { force_reply: true, selective: true },
+      reply_markup: { force_reply: true },
     });
     const result: unknown = await response.json();
     const message = z

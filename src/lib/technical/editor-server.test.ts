@@ -108,7 +108,9 @@ it("resuming a value prompt binds the actual Telegram message ID without applyin
     p_prompt_message_id: 222,
     p_revision: 3,
   });
-  expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply === true)).toBe(true);
+  expect(
+    mocks.tg.mock.calls.find((c) => c[1].reply_markup?.force_reply === true)?.[1].reply_markup,
+  ).toEqual({ force_reply: true });
 });
 it("a lost Telegram response leaves the draft recoverable and does not retry the question", async () => {
   awaitingValue();
