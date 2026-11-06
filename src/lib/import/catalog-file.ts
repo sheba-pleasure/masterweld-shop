@@ -30,6 +30,14 @@ export const FIELD_LABEL: Record<Field, string> = {
   stock_qty: "Количество",
   category_slug: "Код раздела",
 };
+/** Display only: keep source headers and import values unchanged. */
+export function catalogColumnLabel(header: string | undefined, index: number): string {
+  const name = header?.trim() ?? "";
+  if (Object.hasOwn(FIELD_LABEL, name.toLowerCase()))
+    return FIELD_LABEL[name.toLowerCase() as Field];
+  if (!name) return `Колонка ${index + 1}`;
+  return name.replace(/^[а-яё]/u, (letter) => letter.toLocaleUpperCase("ru-RU"));
+}
 export type Mapping = Record<Field, number>;
 const ALIASES: Record<Field, string[]> = {
   sku: ["sku", "артикул", "арт"],
