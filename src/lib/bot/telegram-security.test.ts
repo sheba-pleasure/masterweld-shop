@@ -14,6 +14,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Telegram typed safe failures", () => {
+  it("uploads a document with a multipart boundary and DEV caption without mutating input", async () => {
+    vi.stubEnv("APP_ENV", "dev");
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetcher);
+    const form = new FormData();
+    form.set("caption", "Учебный файл");
+    form.set("document", new Blob(["sku;price\nA;10"]), "example.csv");
+    await tg("sendDocument", form);
+    const sent = fetcher.mock.calls[0]![1];
+    expect(sent.headers["Content-Type"]).toBeUndefined();
+    expect(sent.body.get("caption")).toBe("ТЕСТОВЫЙ МАГАЗИН · DEV\nУчебный файл");
+    const content = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(sent.body.get("document"));
+    });
+    expect(content).toBe("sku;price\nA;10");
+    expect(sent.body.get("document").name).toBe("example.csv");
+    expect(form.get("caption")).toBe("Учебный файл");
+  });
   it.each([200, 429])("retains validated retry_after on HTTP %i", async (status) => {
     vi.stubGlobal(
       "fetch",

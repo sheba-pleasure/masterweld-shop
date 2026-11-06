@@ -107,6 +107,8 @@ describe("single service gate", () => {
     "elevate_on",
     "elevate_off",
     "deliveries",
+    "ci:home",
+    `ci:apply:${orderId}:1`,
     "as:home",
     `as:apply:${orderId}`,
     "orders",
@@ -179,6 +181,8 @@ describe("single service gate", () => {
       "audit",
       "elevate_on",
       "deliveries",
+      "ci:home",
+      `ci:apply:${orderId}:1`,
       "as:home",
       `as:apply:${orderId}`,
     ])

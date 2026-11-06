@@ -3,6 +3,9 @@ import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
 import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
+import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
+import { parseImportCallback } from "@/lib/import/catalog-view";
+import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
 import {
@@ -92,7 +95,7 @@ export interface TgUpdate {
     chat?: Chat;
     text?: string;
     photo?: unknown;
-    document?: { mime_type?: string; file_name?: string };
+    document?: ImportDocument;
   };
   callback_query?: {
     id: string;
@@ -140,7 +143,7 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
     ]);
   if (can(m, "import_prices"))
     rows.push([
-      { text: "📥 Загрузить прайс", callback_data: "import" },
+      { text: "📥 Импорт товаров и цен", callback_data: "import" },
       { text: "🗂 Разделы", callback_data: "categories" },
     ]);
   if (can(m, "manage_assortment"))
@@ -458,44 +461,6 @@ async function pendingAvailable(): Promise<boolean> {
   pendingTableState = !res.error;
   if (res.error) console.error("[bot] pending actions unavailable");
   return pendingTableState;
-}
-
-// Таблицы импорта прайса (миграция 0008) могут отсутствовать — тогда раздел
-// «Импорт прайса» сообщает честный статус и никогда не притворяется рабочим.
-let importTableState: boolean | null = null;
-async function importAvailable(): Promise<boolean> {
-  if (importTableState !== null) return importTableState;
-  const res = await loose.from("import_batches").select("id").limit(1);
-  importTableState = !res.error;
-  if (res.error) console.error("[bot] imports unavailable");
-  return importTableState;
-}
-
-const IMPORT_STEPS = [
-  "Как будет работать импорт прайса (ничего не меняется без подтверждения):",
-  "1. Вы отправляете CSV-файл прайса (UTF-8; разделитель ; , или tab).",
-  "2. Бот показывает предпросмотр: какие товары и поля изменятся, с предупреждениями.",
-  "3. Вы подтверждаете — изменения применяются одной транзакцией.",
-  "4. При конфликте или ошибке — не меняется ничего; откат — отдельной кнопкой.",
-  "5. Закупочные цены обрабатываются отдельно и видны только роли с правом view_costs.",
-];
-
-const IMPORT_UPLOAD_NOT_CONNECTED_MSG =
-  "📥 Импорт прайса пока не активирован: загрузка файла из Telegram не подключена " +
-  "(транспорт документов ещё не проверен). Ничего не изменено.";
-
-async function sendImportStatus(chatId: number, m: StaffMember) {
-  const available = await importAvailable();
-  const statusLine = available
-    ? "Статус: база готова, но загрузка файла из Telegram пока не подключена — импорт не активирован."
-    : "Статус: импорт пока не активирован (требуется обновление базы).";
-  const costLine = can(m, "view_costs")
-    ? "Закупочные цены в предпросмотре — только у роли с правом view_costs."
-    : "Закупочные цены вам не показываются (нет права view_costs).";
-  return tg("sendMessage", {
-    chat_id: chatId,
-    text: [...IMPORT_STEPS, "", statusLine, costLine].join("\n"),
-  });
 }
 
 // ---------- RPC-слой (миграция 0006): атомарные транзакции ----------
@@ -1352,6 +1317,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       if (!priv || !can(m, "manage_orders"))
         return tg("sendMessage", { chat_id: chat.id, text: "Нет доступа к заказам." });
       return sendOrdersList(chat.id, 0);
+    case "/import":
+      return showCatalogImport(m, chat, { op: "home" });
     case "/assort":
       return showAssortment(
         m,
@@ -1430,6 +1397,7 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
           "/product <SKU или модель> — карточка товара",
           "/summary — сводка по статусам и пометкам наличия",
           "/assort — ассортимент и массовые действия (администратор)",
+          "/import — CSV-импорт товаров и цен с предпросмотром и откатом (администратор)",
           "/assort <запрос> — выбрать товары по названию, артикулу, бренду или разделу",
           "/price <SKU> <цена> — изменить цену",
           "/stock <SKU> <есть|под_заказ> — изменить пометку наличия",
@@ -1633,10 +1601,9 @@ export async function handleUpdate(update: TgUpdate) {
     const command = navigationCommand(text);
     if (command) return handleCommand(m, chat, command, from);
     if (text.startsWith("/")) return handleCommand(m, chat, text, from);
-    // Медиа в личном чате: загрузка из Telegram заблокирована (fail closed) —
-    // честно сообщаем об этом; file_id нигде не логируется и не сохраняется.
-    if (isPrivateChat(chat, from) && update.message?.document && can(m, "import_prices"))
-      return tg("sendMessage", { chat_id: chat.id, text: IMPORT_UPLOAD_NOT_CONNECTED_MSG });
+    // CSV documents are handled only after the private-actor and staff gates.
+    if (update.message?.document && can(m, "import_prices"))
+      return receiveCatalogDocument(m, chat, update.message.document, update.update_id);
     if (
       isPrivateChat(chat, from) &&
       (update.message?.photo || update.message?.document) &&
@@ -1733,6 +1700,8 @@ export async function handleUpdate(update: TgUpdate) {
   }
 
   const data_str = typeof cb.data === "string" ? cb.data : "";
+  if (data_str.startsWith("ci:"))
+    return showCatalogImport(m, chat, parseImportCallback(data_str), cb.message?.message_id);
   if (data_str.startsWith("as:"))
     return showAssortment(m, chat, parseAssortmentCallback(data_str), cb.message?.message_id);
 
@@ -1992,7 +1961,7 @@ export async function handleUpdate(update: TgUpdate) {
   if (cb.data === "import") {
     if (!priv) return catalogGuard();
     if (!can(m, "import_prices")) return;
-    return sendImportStatus(chat.id, m);
+    return showCatalogImport(m, chat, { op: "home" });
   }
   return tg("sendMessage", { chat_id: chat.id, text: "Этот раздел скоро появится." });
 }

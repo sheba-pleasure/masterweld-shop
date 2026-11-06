@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rehearse repo schema 0000-0002 -> 0014 on a temporary DB. NOT a Cloud restore."""
+"""Rehearse repo schema 0000-0002 -> 0015 on a temporary DB. NOT a Cloud restore."""
 import pathlib,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 DB="masterweld_dev_schema_rehearsal"
@@ -28,6 +28,6 @@ THEN RAISE EXCEPTION 'UNEXPECTED_BACKFILL'; END IF;
 IF has_table_privilege('anon','shop_orders','INSERT') OR has_table_privilege('service_role','shop_orders','INSERT')
 THEN RAISE EXCEPTION 'DIRECT_INSERT_OPEN'; END IF;
 END $$;""")
-    print("Repo baseline 0000-0002 -> 0014 passed; sentinel preserved; no backfill; direct INSERT closed. This is NOT a Cloud backup/restore.")
+    print("Repo baseline 0000-0002 -> 0015 passed; sentinel preserved; no backfill; direct INSERT closed. This is NOT a Cloud backup/restore.")
 finally:
     run(["docker","exec","mw-dev-db","dropdb","-U","postgres",DB],capture_output=True)
