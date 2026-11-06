@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { parseAssortmentCallback } from "./assortment";
+import { showAssortment } from "./assortment.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
 import {
@@ -92,7 +94,12 @@ export interface TgUpdate {
     photo?: unknown;
     document?: { mime_type?: string; file_name?: string };
   };
-  callback_query?: { id: string; data?: string; from?: { id: number }; message?: { chat?: Chat } };
+  callback_query?: {
+    id: string;
+    data?: string;
+    from?: { id: number };
+    message?: { chat?: Chat; message_id?: number };
+  };
 }
 
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
@@ -136,6 +143,8 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "📥 Загрузить прайс", callback_data: "import" },
       { text: "🗂 Разделы", callback_data: "categories" },
     ]);
+  if (can(m, "manage_assortment"))
+    rows.push([{ text: "📋 Ассортимент · массовые действия", callback_data: "as:home" }]);
   if (can(m, "manage_staff"))
     rows.push([
       { text: "👥 Сотрудники", callback_data: "staff" },
@@ -178,7 +187,7 @@ async function audit(id: number, action: string, details?: unknown) {
 // ---------- Каталог: чтение и безопасные изменения ----------
 
 const PRODUCT_COLS =
-  "id,slug,title,brand,sku,price,old_price,in_stock,stock_qty,status,category_id,description,specs";
+  "id,slug,title,brand,sku,price,old_price,in_stock,stock_qty,status,assortment_decision,category_id,description,specs";
 const PRIVATE_ONLY_MSG = "Служебные данные и изменения доступны только в личном чате с ботом.";
 const NOT_ACTIVATED_MSG =
   "⚠️ Функция ещё не активирована: требуется обновление базы. Изменение НЕ выполнено.";
@@ -195,6 +204,7 @@ function normalizeProduct(p: Record<string, unknown>): BotProduct {
     in_stock: Boolean(p["in_stock"]),
     stock_qty: p["stock_qty"] == null ? null : Number(p["stock_qty"]),
     status: String(p["status"]),
+    assortment_decision: String(p["assortment_decision"] ?? "review"),
     category_id: (p["category_id"] as string | null) ?? null,
     description: (p["description"] as string | null) ?? null,
     specs: (p["specs"] as string | null) ?? null,
@@ -1047,6 +1057,11 @@ async function statusPreview(
     });
   const p = await fetchProductById(productId);
   if (!p) return tg("sendMessage", { chat_id: chatId, text: "Товар не найден." });
+  if (p.assortment_decision === "excluded" && status !== "hidden")
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Товар отмечен «Не продаём». Сначала верните его в ассортимент через /assort. Затем проверьте карточку и публикацию.",
+    });
   if (p.status === status)
     return tg("sendMessage", { chat_id: chatId, text: "Статус уже такой — изменять нечего." });
   const photos = await photoCount(p.id);
@@ -1337,6 +1352,12 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       if (!priv || !can(m, "manage_orders"))
         return tg("sendMessage", { chat_id: chat.id, text: "Нет доступа к заказам." });
       return sendOrdersList(chat.id, 0);
+    case "/assort":
+      return showAssortment(
+        m,
+        chat,
+        args.length ? { p_op: "start", p_value: "all", p_query: args.join(" ") } : { p_op: "home" },
+      );
     case "/catalog":
       return sendCatalogList(chat.id, "all", 0);
     case "/find": {
@@ -1408,6 +1429,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
           "/catalog — каталог, /find <SKU или модель> — поиск",
           "/product <SKU или модель> — карточка товара",
           "/summary — сводка по статусам и пометкам наличия",
+          "/assort — ассортимент и массовые действия (администратор)",
+          "/assort <запрос> — выбрать товары по названию, артикулу, бренду или разделу",
           "/price <SKU> <цена> — изменить цену",
           "/stock <SKU> <есть|под_заказ> — изменить пометку наличия",
           SET_HELP,
@@ -1710,6 +1733,8 @@ export async function handleUpdate(update: TgUpdate) {
   }
 
   const data_str = typeof cb.data === "string" ? cb.data : "";
+  if (data_str.startsWith("as:"))
+    return showAssortment(m, chat, parseAssortmentCallback(data_str), cb.message?.message_id);
 
   // Каталог: служебные данные и операции — только в личном чате сотрудника.
   const priv = isPrivateChat(chat, from);

@@ -31,6 +31,8 @@ jobs:
           python3 -m unittest discover -s ops/production -p 'test_*.py'
       - name: Independent source and dependency graph
         run: node ops/check-independence.mjs
+      - name: Assortment transactions (isolated PostgreSQL)
+        run: python3 ops/tests/assortment.py
       - name: Tests (обязательно)
         run: npm test
       - name: Build default preset (обязательно)

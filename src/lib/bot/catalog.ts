@@ -3,6 +3,7 @@
 // только преобразования данных: поиск, карточки, парсеры, кодирование callback.
 
 import { isDiscounted, normalizeText } from "@/lib/search";
+import { DECISION } from "./assortment";
 
 export interface BotProduct {
   id: string;
@@ -15,6 +16,7 @@ export interface BotProduct {
   in_stock: boolean;
   stock_qty: number | null;
   status: string;
+  assortment_decision?: string;
   category_id: string | null;
   description?: string | null;
   specs?: string | null;
@@ -224,6 +226,7 @@ export function buildProductCardBot(
     `Бренд: ${p.brand ?? "—"}`,
     price,
     `Статус: ${botStatusLabel(p.status)}`,
+    `Ассортимент: ${DECISION[p.assortment_decision as keyof typeof DECISION] ?? "На разбор"}`,
     `Наличие: ${stockLabel(p)}`,
     `Категория: ${opts.categoryName ?? "—"}`,
     `Фото: ${opts.photoCount ?? 0}`,
