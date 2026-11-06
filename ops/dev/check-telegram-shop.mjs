@@ -70,7 +70,7 @@ try {
   await page.getByPlaceholder("Модель, артикул или бренд…", { exact: true }).fill("DEV");
   await page.waitForTimeout(600);
   assert.ok((await catalog(page)).length > 0);
-  await page.locator('a[href="/product/dev-welder"]').first().click();
+  await page.locator('a[href^="/product/dev-welder"]').first().click();
   await page.waitForFunction(() => window.__telegramQA.backVisible);
   await page.evaluate(() => window.__telegramQA.back());
   await page.waitForURL(origin + "/");
