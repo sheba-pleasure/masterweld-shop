@@ -170,6 +170,12 @@ try:
     # Exercise the production rehearsal checks in this disposable, no-network QA cluster.
     # Never change the identity of an actual DEV/production database.
     upgrade_checks=(ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+    sql("ALTER TABLE bot_editor_states DISABLE TRIGGER bot_editor_exclusive_guard;")
+    sql(upgrade_checks,"REHEARSAL_EDITOR_TRIGGER_MISSING")
+    sql("ALTER TABLE bot_editor_states ENABLE TRIGGER bot_editor_exclusive_guard;")
+    sql("GRANT EXECUTE ON FUNCTION bot_editor_exclusive() TO service_role;")
+    sql(upgrade_checks,"REHEARSAL_EDITOR_GUARD_EXPOSED")
+    sql("REVOKE EXECUTE ON FUNCTION bot_editor_exclusive() FROM service_role;")
     sql(upgrade_checks,"REHEARSAL_SYNTHETIC_ACCEPTED_OUTSIDE_DEV")
     sql("""CREATE OR REPLACE FUNCTION mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$
       SELECT '{"environment":"production","instanceId":"00000000-0000-4000-8000-000000000020"}'::jsonb $f$""")
