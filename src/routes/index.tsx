@@ -111,6 +111,7 @@ function Catalog() {
   const { data: products } = useSuspenseQuery(productsQuery);
   const activeCat = cats.find((c) => c.slug === cat);
   const [limit, setLimit] = useState(48);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const tops = cats.filter((c) => !c.parent_id);
   const topOf = useMemo(() => {
     const m = new Map<string, string>();
@@ -211,7 +212,7 @@ function Catalog() {
       </section>
 
       <section id="catalog" className="workshop-catalog scroll-mt-24">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-24 md:grid-cols-[220px_1fr] md:pt-32">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-8 md:grid-cols-[220px_1fr] md:pt-16">
           <nav aria-label="Категории каталога" className="hidden gap-2 md:flex md:flex-col">
             <Link
               to="/"
@@ -336,7 +337,19 @@ function Catalog() {
               </div>
             )}
             <div className="workshop-filters mb-6 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                aria-expanded={filtersOpen}
+                aria-controls="catalog-filters"
+                onClick={() => setFiltersOpen((open) => !open)}
+                className="filter-chip justify-between md:hidden"
+              >
+                Фильтры и сортировка <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
+              </button>
+              <div
+                id="catalog-filters"
+                className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
+              >
                 <select
                   aria-label="Сортировка"
                   value={activeSort}
@@ -364,24 +377,30 @@ function Catalog() {
                     </option>
                   ))}
                 </select>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Цена от, ₽"
-                  aria-label="Минимальная цена, рублей"
-                  value={min ?? ""}
-                  onChange={(e) => setParam("min", e.target.value || undefined)}
-                  className="filter-field w-28"
-                />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="до, ₽"
-                  aria-label="Максимальная цена, рублей"
-                  value={max ?? ""}
-                  onChange={(e) => setParam("max", e.target.value || undefined)}
-                  className="filter-field w-24"
-                />
+                <label className="flex flex-col gap-1 text-xs">
+                  Цена от, ₽
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="От"
+                    aria-label="Минимальная цена, рублей"
+                    value={min ?? ""}
+                    onChange={(e) => setParam("min", e.target.value || undefined)}
+                    className="filter-field w-28"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  Цена до, ₽
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="до, ₽"
+                    aria-label="Максимальная цена, рублей"
+                    value={max ?? ""}
+                    onChange={(e) => setParam("max", e.target.value || undefined)}
+                    className="filter-field w-24"
+                  />
+                </label>
                 <button
                   type="button"
                   aria-pressed={instock === "1"}

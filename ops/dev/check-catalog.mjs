@@ -39,9 +39,21 @@ try {
       min: "800",
       max: "3000",
       sort: "price-desc",
-    }))
-      assert.equal(url.searchParams.get(key), value);
+    })) {
+      const raw = url.searchParams.get(key);
+      assert.equal(raw?.startsWith('"') ? JSON.parse(raw) : raw, value);
+    }
+    await page.getByRole("heading", { name: "Учебные расходники", exact: true }).waitFor();
+    await page.locator('#catalog a[href^="/product/dev-mask"]').waitFor();
     assert.equal(await page.locator('#catalog a[href^="/product/"]').count(), 2);
+    if (width < 768) {
+      const toggle = page.getByRole("button", { name: "Фильтры и сортировка", exact: true });
+      assert.equal(await page.getByLabel("Минимальная цена, рублей").isVisible(), false);
+      await toggle.click();
+      assert.equal(await page.getByLabel("Минимальная цена, рублей").isVisible(), true);
+      assert.equal(await page.getByLabel("Минимальная цена, рублей").inputValue(), "800");
+      await toggle.click();
+    }
     await page.locator("#catalog").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `/artifacts/catalog-${width}.png`, animations: "disabled" });
     assert.ok(
@@ -50,7 +62,7 @@ try {
     );
     await page.getByRole("button", { name: "Убрать фильтр «Цена от: 800 ₽»", exact: true }).click();
     await page.waitForURL((url) => !url.searchParams.has("min"));
-    assert.equal(new URL(page.url()).searchParams.get("max"), "3000");
+    assert.equal(await page.getByLabel("Максимальная цена, рублей").inputValue(), "3000");
     await page.getByRole("button", { name: "В корзину", exact: true }).first().click();
     await page.getByRole("button", { name: /Корзина: 1 шт/ }).click();
     await page.getByLabel("Имя покупателя", { exact: true }).waitFor();
