@@ -6,7 +6,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 import { readProductTechnical } from "./catalog";
 import { technicalDocument } from "./schema";
-import { technicalOperation } from "./staff.server";
+import { technicalOperation, type TechnicalRequest } from "./staff.server";
 import type { StaffMember } from "@/lib/bot/permissions";
 const id = "10000000-0000-4000-8000-000000000001";
 const member: StaffMember = {
@@ -137,7 +137,13 @@ it("seller can submit a pending proposal but cannot verify it", async () => {
     seller,
     chat,
     { id: 101 },
-    { op: "preview", productId: id, document: doc, reviewState: "pending_review" },
+    {
+      op: "preview",
+      productId: id,
+      document: doc,
+      reviewState: "pending_review",
+      expectedVersion: 0,
+    },
   );
   expect(mocks.adminRpc).toHaveBeenCalledTimes(1);
   await expect(
@@ -145,11 +151,69 @@ it("seller can submit a pending proposal but cannot verify it", async () => {
       seller,
       chat,
       { id: 101 },
-      { op: "preview", productId: id, document: doc, reviewState: "verified" },
+      { op: "preview", productId: id, document: doc, reviewState: "verified", expectedVersion: 0 },
     ),
   ).rejects.toThrow("TECH_REVIEW_DENIED");
   expect(mocks.adminRpc).toHaveBeenCalledTimes(1);
 });
+it.each([undefined, null, "1", -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+  "rejects a missing or invalid editor base version: %s",
+  async (expectedVersion) => {
+    await expect(
+      technicalOperation(member, chat, { id: 101 }, {
+        op: "preview",
+        productId: id,
+        document: doc,
+        reviewState: "pending_review",
+        expectedVersion,
+      } as unknown as TechnicalRequest),
+    ).rejects.toThrow("TECH_BAD_INPUT");
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  },
+);
+it("passes the version that the editor actually read instead of looking up a newer one", async () => {
+  await technicalOperation(
+    member,
+    chat,
+    { id: 101 },
+    {
+      op: "preview",
+      productId: id,
+      document: doc,
+      reviewState: "pending_review",
+      expectedVersion: 7,
+    },
+  );
+  expect(mocks.adminRpc).toHaveBeenCalledExactlyOnceWith("bot_technical_catalog", {
+    p_staff_telegram_id: 101,
+    p_op: "preview",
+    p_product_id: id,
+    p_document: doc,
+    p_review_state: "pending_review",
+    p_expected_version: 7,
+  });
+});
+it.each(["TECH_CONFLICT", "TECH_VERSION_REQUIRED"])(
+  "preserves only allowlisted conflict codes: %s",
+  async (message) => {
+    mocks.adminRpc.mockResolvedValue({ data: null, error: { message } });
+    await expect(
+      technicalOperation(
+        member,
+        chat,
+        { id: 101 },
+        {
+          op: "preview",
+          productId: id,
+          document: doc,
+          reviewState: "pending_review",
+          expectedVersion: 7,
+        },
+      ),
+    ).rejects.toThrow(message);
+    expect(mocks.adminRpc).toHaveBeenCalledTimes(1);
+  },
+);
 it("RPC error is not retried and its private text is not disclosed", async () => {
   mocks.adminRpc.mockResolvedValue({ data: null, error: { message: "PRIVATE SQL" } });
   await expect(
