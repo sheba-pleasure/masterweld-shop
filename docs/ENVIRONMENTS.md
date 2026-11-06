@@ -11,7 +11,7 @@
 | REST | mw-dev-rest | mw-prod-rest → mw-prod-api, loopback :18084 |
 | Вход | Caddy → mw-dev-gateway | Требует настройки |
 | Приложение | mw-dev-app | mw-shop-slot-a/b |
-| Секреты | ops/.secrets/dev (700/600) | ops/.secrets/production (700/600); shop.env ещё не готов |
+| Секреты | ops/.secrets/dev (700/600) | ops/.secrets/production (700/600); полный shop.env.candidate подготовлен и проверен, активный shop.env отсутствует |
 | Instance ID | 3a6a67bc-5ce6-46a4-af72-e6ab78800e49 | Должен быть другим |
 
 Исторический Cloud сохранён без изменений. Целевая рабочая база теперь самостоятельная; перенос данных и файлов ещё не выполнен. Подготовка и резервирование: [INDEPENDENT-SHOP.md](INDEPENDENT-SHOP.md).

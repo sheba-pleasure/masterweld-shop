@@ -1,16 +1,159 @@
+import json
+import os
+import pathlib
+import tempfile
 import unittest
-from preflight import configuration_errors, DEV_ID, DEV_BOT
+from unittest.mock import patch
+from urllib.error import URLError
+
+from preflight import (BOT_KEYS, DATABASE_KEYS, DEV_ID, DEV_BOT, configuration_errors,
+                       inspect_bots, read_env, request_json, schema_errors, telegram_read)
+from stage_config import compose, save_candidate
+
+
+def valid():
+    # Synthetic tokens and keys; never accepted by Telegram.
+    return {
+        "APP_ENV": "production", "MW_INSTANCE_ID": "7d71c476-186d-4da5-9d3d-8cc984b33bdf",
+        "PUBLIC_ORIGIN": "https://shop.masterweld.ru", "SUPABASE_URL": "http://mw-prod-api:8080",
+        "SUPABASE_PUBLISHABLE_KEY": "synthetic-anon", "SUPABASE_SERVICE_ROLE_KEY": "synthetic-service",
+        "TELEGRAM_TRANSPORT": "direct", "TELEGRAM_ENABLED": "true",
+        "TELEGRAM_BOT_ID": "8861999166", "TELEGRAM_BOT_USERNAME": "masterweldermanagerbot",
+        "TELEGRAM_BOT_TOKEN": "8861999166:" + "S" * 32, "TELEGRAM_WEBHOOK_SECRET": "s" * 40,
+        "CUSTOMER_TELEGRAM_ENABLED": "true", "CUSTOMER_TELEGRAM_BOT_ID": "9168738475",
+        "CUSTOMER_TELEGRAM_BOT_USERNAME": "msvarbot", "CUSTOMER_TELEGRAM_BOT_TOKEN": "9168738475:" + "C" * 32,
+        "CUSTOMER_TELEGRAM_WEBHOOK_SECRET": "c" * 40, "ORDER_NOTIFICATIONS_ENABLED": "false",
+    }
+
+
 class PreflightTest(unittest.TestCase):
+    def test_complete_candidate_validates(self):
+        self.assertEqual(configuration_errors(valid(), {}), [])
+
     def test_empty_fails(self):
-        self.assertIn("MISSING:SUPABASE_SERVICE_ROLE_KEY",configuration_errors({},{}))
+        errors = configuration_errors({}, {})
+        self.assertIn("MISSING:SUPABASE_SERVICE_ROLE_KEY", errors)
+        self.assertIn("MISSING:CUSTOMER_TELEGRAM_BOT_TOKEN", errors)
+
     def test_dev_identity_cannot_be_reused(self):
-        errors=configuration_errors({"APP_ENV":"production","MW_INSTANCE_ID":DEV_ID,"TELEGRAM_BOT_ID":DEV_BOT,"ORDER_NOTIFICATIONS_ENABLED":"true"},{})
-        self.assertIn("DEV_INSTANCE_FORBIDDEN",errors)
-        self.assertIn("DEV_BOT_FORBIDDEN",errors)
-        self.assertIn("PRODUCTION_ALERTS_NOT_REVIEWED",errors)
+        env = {**valid(), "MW_INSTANCE_ID": DEV_ID, "TELEGRAM_BOT_ID": DEV_BOT,
+               "ORDER_NOTIFICATIONS_ENABLED": "true"}
+        errors = configuration_errors(env, {})
+        self.assertIn("DEV_INSTANCE_FORBIDDEN", errors)
+        self.assertIn("DEV_BOT_FORBIDDEN", errors)
+        self.assertIn("PRODUCTION_ALERTS_NOT_REVIEWED", errors)
+
     def test_hosted_backend_cannot_be_promoted(self):
-        self.assertIn("INDEPENDENT_DATABASE_ENDPOINT_REQUIRED", configuration_errors({"SUPABASE_URL":"https://example.supabase.co"},{}))
-    def test_shared_key_denied(self):
-        errors=configuration_errors({"SUPABASE_SERVICE_ROLE_KEY":"same"},{"SUPABASE_SERVICE_ROLE_KEY":"same"})
-        self.assertIn("SHARED_DEV_SECRET:SUPABASE_SERVICE_ROLE_KEY",errors)
-if __name__=="__main__": unittest.main()
+        self.assertIn("INDEPENDENT_DATABASE_ENDPOINT_REQUIRED",
+                      configuration_errors({**valid(), "SUPABASE_URL": "https://example.supabase.co"}, {}))
+
+    def test_shared_key_denied_across_roles(self):
+        env = valid()
+        self.assertIn("SHARED_DEV_SECRET:CUSTOMER_TELEGRAM_BOT_TOKEN",
+                      configuration_errors(env, {"TELEGRAM_BOT_TOKEN": env["CUSTOMER_TELEGRAM_BOT_TOKEN"]}))
+
+    def test_role_swap_and_shared_webhook_secret_denied(self):
+        env = valid()
+        env["CUSTOMER_TELEGRAM_BOT_ID"] = env["TELEGRAM_BOT_ID"]
+        env["CUSTOMER_TELEGRAM_WEBHOOK_SECRET"] = env["TELEGRAM_WEBHOOK_SECRET"]
+        errors = configuration_errors(env, {})
+        self.assertIn("BOT_IDENTITY_REVIEW_REQUIRED:customer", errors)
+        self.assertIn("BOT_ROLES_MUST_BE_SEPARATE:WEBHOOK_SECRET", errors)
+
+    def test_schema_detects_missing_unexpected_and_modified_migrations(self):
+        errors = schema_errors([{"path": "old", "sha256": "a"}, {"path": "unexpected", "sha256": "x"}],
+                               {"old": "b", "new": "n"})
+        self.assertEqual(errors, ["MIGRATION_CHECKSUM_MISMATCH:old", "MIGRATION_MISSING:new",
+                                  "MIGRATION_UNEXPECTED:unexpected"])
+
+    def test_webhook_inventory_never_exposes_legacy_url_or_errors(self):
+        calls = []
+        def read(token, method):
+            role = "staff" if token.startswith("886") else "customer"
+            calls.append((role, method))
+            if method == "getMe":
+                return {"id": 8861999166 if role == "staff" else 9168738475, "is_bot": True,
+                        "username": "masterweldermanagerbot" if role == "staff" else "msvarbot"}
+            return {"url": "https://old.example/private-secret?token=secret" if role == "staff" else "",
+                    "pending_update_count": 2 if role == "staff" else 0,
+                    "last_error_date": 123 if role == "staff" else 0,
+                    "last_error_message": "provider-secret"}
+        result = inspect_bots(valid(), read)
+        self.assertIn("WEBHOOK_CUTOVER_REQUIRED:staff", result[2])
+        self.assertIn("WEBHOOK_NOT_CONNECTED:customer", result[2])
+        self.assertIn("PENDING_UPDATES_REVIEW_REQUIRED:staff", result[2])
+        self.assertNotIn("secret", json.dumps(result))
+        self.assertEqual(len(calls), 4)
+        self.assertEqual({method for _, method in calls}, {"getMe", "getWebhookInfo"})
+
+    def test_wrong_bot_does_not_trigger_further_read(self):
+        calls = []
+        def read(token, method):
+            calls.append(method)
+            return {"id": 1, "username": "wrong", "is_bot": True}
+        result = inspect_bots(valid(), read)
+        self.assertEqual(calls, ["getMe", "getMe"])
+        self.assertIn("BOT_IDENTITY_MISMATCH:staff", result[2])
+
+    def test_provider_errors_and_mutation_methods_are_blocked(self):
+        with patch("preflight.urllib.request.build_opener") as opener:
+            opener.return_value.open.side_effect = URLError("private-token")
+            with self.assertRaisesRegex(ValueError, "^REMOTE_CHECK_FAILED$"):
+                request_json("request")
+            with self.assertRaisesRegex(ValueError, "^READ_ONLY_METHOD_REQUIRED$"):
+                telegram_read("private-token", "setWebhook")
+
+
+class StagingTest(unittest.TestCase):
+    def test_composition_requires_matching_public_build_key(self):
+        env = valid()
+        database = {k: env[k] for k in DATABASE_KEYS}
+        bots = {k: env[k] for k in BOT_KEYS}
+        build = {"VITE_APP_ENV": "production", "VITE_SUPABASE_PROJECT_ID": "mw-production",
+                 "VITE_SUPABASE_URL": "https://shop.masterweld.ru/backend",
+                 "VITE_SUPABASE_PUBLISHABLE_KEY": env["SUPABASE_PUBLISHABLE_KEY"]}
+        self.assertEqual(compose(database, bots, {}, build), env)
+        with self.assertRaisesRegex(ValueError, "BUILD_CONFIGURATION_MISMATCH"):
+            compose(database, bots, {}, {**build, "VITE_SUPABASE_PUBLISHABLE_KEY": "other"})
+        with self.assertRaisesRegex(ValueError, "SOURCE_KEYS_REQUIRE_REVIEW"):
+            compose({**database, "TELEGRAM_BOT_TOKEN": "unexpected"}, bots, {}, build)
+
+    def test_private_idempotent_candidate_does_not_create_active_config(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "shop.env.candidate"
+            self.assertTrue(save_candidate(path, valid()))
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertFalse(save_candidate(path, valid()))
+            self.assertFalse((path.parent / "shop.env").exists())
+            previous = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "EXISTING_CANDIDATE_CONFLICT"):
+                save_candidate(path, {**valid(), "TELEGRAM_WEBHOOK_SECRET": "different"})
+            self.assertEqual(path.read_bytes(), previous)
+
+    def test_insecure_file_and_symlinks_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "env"
+            path.write_text("KEY=private\n")
+            os.chmod(path, 0o644)
+            with self.assertRaisesRegex(ValueError, "PRIVATE_FILE_REQUIRED"):
+                read_env(path)
+            os.chmod(path, 0o600)
+            alias = pathlib.Path(folder) / "alias"
+            alias.symlink_to(path)
+            with self.assertRaises(OSError):
+                read_env(alias)
+            with self.assertRaises(OSError):
+                save_candidate(alias, valid())
+            self.assertEqual(path.read_text(), "KEY=private\n")
+
+    def test_duplicate_env_entries_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "env"
+            path.write_text("KEY=first\nKEY=second\n")
+            os.chmod(path, 0o600)
+            with self.assertRaisesRegex(ValueError, "ENV_FORMAT_INVALID"):
+                read_env(path)
+
+
+if __name__ == "__main__":
+    unittest.main()

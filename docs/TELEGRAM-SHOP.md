@@ -19,7 +19,7 @@ Mini App использует Telegram SDK только для готовнос�
 ## Фактическое подключение — 06.11.2026
 
 getMe подтвердил @msvarbot / 9168738475 и @masterweldermanagerbot / 8861999166.
-Токены сохранены в ops/.secrets/production/customer-telegram-token и staff-telegram-token; независимая конфигурация — bots.env. Права 0600, в Git и DEV этих секретов нет. Файл подготовлен, но не подключён к работающему приложению.
+Токены сохранены в ops/.secrets/production/customer-telegram-token и staff-telegram-token; независимая конфигурация — bots.env. Права 0600, в Git и DEV этих секретов нет. Файл подготовлен, но не подключён к работающему приложению. Составлен полный неактивный shop.env.candidate; повторяемая проверка обоих ботов и базы — [PRODUCTION-PREFLIGHT.md](PRODUCTION-PREFLIGHT.md).
 
 У покупательского бота webhook отсутствовал. У бота сотрудников обнаружен действующий webhook на project--ab84e929-8a04-4ce0-a95a-8f14b6f9f3fe-dev.lovable.app. Он не переключён: это старый обработчик и старые данные. До согласованного рабочего выпуска не использовать его для управления новым магазином.
 
