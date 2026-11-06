@@ -22,4 +22,9 @@ export const productTechnicalQuery = (productId: string) =>
   queryOptions({
     queryKey: ["product-technical", productId],
     queryFn: () => readProductTechnical(productId),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+    retry: false,
   });
