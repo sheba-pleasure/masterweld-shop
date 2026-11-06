@@ -5,8 +5,12 @@ const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), tg: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: mocks.from, rpc: mocks.rpc },
 }));
-vi.mock("./telegram.server", () => ({ tg: mocks.tg }));
+vi.mock("./telegram.server", async (original) => ({
+  ...(await original<typeof import("./telegram.server")>()),
+  tg: mocks.tg,
+}));
 import { handleUpdate } from "./handler.server";
+import { TelegramDeliveryError } from "./telegram.server";
 const actor: StaffMember = {
   telegram_id: 101,
   name: "PRIVATE_NAME",
@@ -19,10 +23,16 @@ let member: StaffMember | null;
 let auditFails: boolean;
 let readsFail: boolean;
 let events: string[];
+let orderStatus: "new" | "processing" | "canceled";
 function callback(data: string, type: string | undefined = "private", id = 101): TgUpdate {
   return {
     update_id: 1,
-    callback_query: { id: "cb", data, from: { id: 101 }, message: { chat: { id, type } } },
+    callback_query: {
+      id: "cb",
+      data,
+      from: { id: 101 },
+      message: { message_id: 41, chat: { id, type } },
+    },
   };
 }
 beforeEach(() => {
@@ -31,8 +41,10 @@ beforeEach(() => {
   auditFails = false;
   readsFail = false;
   events = [];
-  mocks.tg.mockResolvedValue(undefined);
-  mocks.rpc.mockImplementation(async () => {
+  orderStatus = "new";
+  mocks.tg.mockReset().mockResolvedValue(undefined);
+  mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_change_order_status") orderStatus = args.p_next_status;
     events.push("rpc");
     return { data: { ok: true }, error: null };
   });
@@ -51,7 +63,7 @@ beforeEach(() => {
                 items: [],
                 total: 100,
                 created_at: "2026-10-25",
-                status: "new",
+                status: orderStatus,
               }
             : [],
       error: insert && auditFails ? { message: "SECRET_PHONE" } : null,
@@ -342,6 +354,64 @@ describe("audit-before-disclosure", () => {
   });
 });
 describe("RPC only mutations", () => {
+  it("updates the clicked order card and removes its obsolete action", async () => {
+    await handleUpdate(callback(`st:${orderId}:processing`));
+    expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual([
+      "answerCallbackQuery",
+      "editMessageText",
+    ]);
+    const card = mocks.tg.mock.calls.at(-1)![1];
+    expect(card.message_id).toBe(41);
+    expect(card.text).toContain("Статус: в обработке");
+    expect(JSON.stringify(card.reply_markup)).not.toContain(`st:${orderId}:processing`);
+    expect(JSON.stringify(card.reply_markup)).toContain(`st:${orderId}:ready`);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+  it("refreshes an already processed stale card without another mutation", async () => {
+    orderStatus = "processing";
+    await handleUpdate(callback(`st:${orderId}:processing`));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Заказ уже «в обработке»."),
+      }),
+    ]);
+  });
+  it("replaces confirmation and cancel views in the same message without writes", async () => {
+    await handleUpdate(callback(`stc:${orderId}:canceled`));
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Подтвердите"),
+      }),
+    ]);
+    await handleUpdate(callback(`order:${orderId}`));
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Статус: новый"),
+      }),
+    ]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("a Telegram timeout after commit never repeats the status write or sends another card", async () => {
+    mocks.tg.mockImplementation(async (method) => {
+      if (method === "editMessageText") throw new TelegramDeliveryError("network", true);
+    });
+    await expect(handleUpdate(callback(`st:${orderId}:processing`))).rejects.toThrow(
+      "TELEGRAM_DELIVERY_FAILED",
+    );
+    expect(orderStatus).toBe("processing");
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual([
+      "answerCallbackQuery",
+      "editMessageText",
+    ]);
+  });
   it("status uses expected value and no separate writes", async () => {
     await handleUpdate(callback(`st:${orderId}:processing`));
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_change_order_status", {

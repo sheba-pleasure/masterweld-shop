@@ -6,6 +6,7 @@ export class TelegramDeliveryError extends Error {
     public readonly temporary: boolean,
     public readonly status?: number,
     public readonly retryAfterSeconds?: number,
+    public readonly messageUnchanged = false,
   ) {
     super("TELEGRAM_DELIVERY_FAILED");
     this.name = "TelegramDeliveryError";
@@ -17,10 +18,11 @@ function fail(
   temporary: boolean,
   status?: number,
   retryAfterSeconds?: number,
+  messageUnchanged = false,
 ): never {
   // Fixed categories only: never method, request, response body or provider description.
-  console.error("[telegram] delivery failed", { kind, temporary, status });
-  throw new TelegramDeliveryError(kind, temporary, status, retryAfterSeconds);
+  if (!messageUnchanged) console.error("[telegram] delivery failed", { kind, temporary, status });
+  throw new TelegramDeliveryError(kind, temporary, status, retryAfterSeconds, messageUnchanged);
 }
 
 function retryDelay(payload: unknown): number | undefined {
@@ -36,6 +38,17 @@ function retryDelay(payload: unknown): number | undefined {
   )
     return seconds;
   return undefined;
+}
+
+function isUnchangedEdit(method: string, payload: unknown): boolean {
+  if (method !== "editMessageText" || !payload || typeof payload !== "object") return false;
+  if (!("ok" in payload) || payload.ok !== false) return false;
+  if (!("error_code" in payload) || payload.error_code !== 400) return false;
+  return (
+    "description" in payload &&
+    typeof payload.description === "string" &&
+    /^Bad Request: message is not modified(?:$|:)/.test(payload.description)
+  );
 }
 
 export async function tg(method: string, body: unknown, role: BotRole = "staff") {
@@ -97,7 +110,21 @@ export async function tg(method: string, body: unknown, role: BotRole = "staff")
         /* No safe retry hint. */
       }
     }
-    return fail("http", res.status === 429 || res.status >= 500, res.status, retryAfter);
+    let messageUnchanged = false;
+    if (res.status === 400 && method === "editMessageText") {
+      try {
+        messageUnchanged = isUnchangedEdit(method, await res.clone().json());
+      } catch {
+        /* Unrecognised errors remain failures; never expose provider descriptions. */
+      }
+    }
+    return fail(
+      "http",
+      res.status === 429 || res.status >= 500,
+      res.status,
+      retryAfter,
+      messageUnchanged,
+    );
   }
   let payload: unknown;
   try {
@@ -117,6 +144,7 @@ export async function tg(method: string, body: unknown, role: BotRole = "staff")
       code === 429 || (code !== undefined && code >= 500),
       code,
       retryDelay(payload),
+      isUnchangedEdit(method, payload),
     );
   }
   return res;
