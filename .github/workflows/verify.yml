@@ -29,6 +29,7 @@ jobs:
         run: |
           node --test ops/runtime/environment.test.mjs
           python3 -m unittest discover -s ops/production -p 'test_*.py'
+          python3 -m unittest discover -s ops/standalone -p 'test_*.py'
       - name: Independent source and dependency graph
         run: node ops/check-independence.mjs
       - name: Assortment transactions (isolated PostgreSQL)
