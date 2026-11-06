@@ -60,7 +60,7 @@ export function permissionsFor(m: StaffMember | null | undefined): Set<Permissio
   if (m.role === "admin") return new Set(ADMIN);
   if (m.role === "director")
     return new Set(m.elevated ? [...ADMIN, "toggle_full_access"] : DIRECTOR);
-  return new Set(SELLER);
+  return new Set(m.role === "seller" ? SELLER : []);
 }
 
 export function can(m: StaffMember | null | undefined, p: Permission): boolean {
