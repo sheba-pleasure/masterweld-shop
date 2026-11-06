@@ -681,23 +681,62 @@ async function editorAvailable(): Promise<boolean> {
   return editorTableState;
 }
 
+const EDITOR_CHANGED =
+  "⚠️ Этот шаг уже изменился или завершён. Используйте последнее сообщение бота; /cancel — отменить текущий ввод.";
+
+function editorRevision(st: EditorStateRow): string | null {
+  const revision = (st.data as Record<string, unknown> | null)?.["_revision"];
+  return typeof revision === "string" && /^[0-9a-f-]{36}$/.test(revision) ? revision : null;
+}
+
+// Match the entire observed state. Every new step has a fresh revision in its private data.
+// PostgreSQL rechecks these filters after a concurrent UPDATE obtains the row lock.
+function matchEditorState(query: ReturnType<typeof loose.from>, st: EditorStateRow) {
+  let q = query
+    .eq("staff_telegram_id", st.staff_telegram_id)
+    .eq("state", st.state)
+    .eq("data", JSON.stringify(st.data))
+    .eq("expires_at", st.expires_at);
+  q = st.product_id === null ? q.is("product_id", null) : q.eq("product_id", st.product_id);
+  return st.consumed_at === null ? q.is("consumed_at", null) : q.eq("consumed_at", st.consumed_at);
+}
+
 async function setEditorState(
   staffTelegramId: number,
   state: string,
   data: Record<string, unknown>,
   productId?: string | null,
-): Promise<boolean> {
-  const { error } = await loose.from("bot_editor_states").upsert(
-    {
-      staff_telegram_id: staffTelegramId,
-      state,
-      data,
-      product_id: productId ?? null,
-      expires_at: new Date(Date.now() + EDITOR_STATE_TTL_MS).toISOString(),
-      consumed_at: null,
-    },
-    { onConflict: "staff_telegram_id" },
-  );
+  previous?: EditorStateRow,
+): Promise<EditorStateRow | null> {
+  const observed =
+    previous ??
+    ((
+      await loose
+        .from("bot_editor_states")
+        .select("*")
+        .eq("staff_telegram_id", staffTelegramId)
+        .maybeSingle()
+    ).data as EditorStateRow | null);
+  if (!previous && observed && checkEditorState(observed, staffTelegramId, Date.now()).ok) {
+    await tg("sendMessage", {
+      chat_id: staffTelegramId,
+      text: "✏️ У вас уже есть незавершённый ввод. Ответьте на последний вопрос или отмените его командой /cancel. Текущий ввод сохранён.",
+    });
+    return null;
+  }
+  const next: EditorStateRow = {
+    staff_telegram_id: staffTelegramId,
+    state,
+    data: { ...data, _revision: crypto.randomUUID() },
+    product_id: productId ?? null,
+    expires_at: new Date(Date.now() + EDITOR_STATE_TTL_MS).toISOString(),
+    consumed_at: null,
+  };
+  let query = observed
+    ? matchEditorState(loose.from("bot_editor_states").update({ ...next }), observed)
+    : loose.from("bot_editor_states").insert({ ...next });
+  if (previous) query = query.gt("expires_at", new Date().toISOString()).is("consumed_at", null);
+  const { data: saved, error } = await query.select("*").maybeSingle();
   if (error) {
     console.error("[bot] editor state write failed");
     await tg("sendMessage", {
@@ -708,19 +747,28 @@ async function setEditorState(
           : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Повторите действие или отмените ввод командой /cancel.",
     });
   }
-  return !error;
+  if (error) return null;
+  if (!saved) await tg("sendMessage", { chat_id: staffTelegramId, text: EDITOR_CHANGED });
+  return saved as EditorStateRow | null;
 }
 
-/** Помечает состояние использованным (условно, одноразово) — до внешнего эффекта. */
-async function consumeEditorState(staffTelegramId: number): Promise<boolean> {
-  const { data, error } = await loose
-    .from("bot_editor_states")
-    .update({ consumed_at: new Date().toISOString() })
-    .eq("staff_telegram_id", staffTelegramId)
+/** Забирает только прочитанный шаг — конкурент или новый диалог не потребляются. */
+async function consumeEditorState(st: EditorStateRow): Promise<boolean> {
+  const { data, error } = await matchEditorState(
+    loose.from("bot_editor_states").update({ consumed_at: new Date().toISOString() }),
+    st,
+  )
     .is("consumed_at", null)
+    .gt("expires_at", new Date().toISOString())
     .select("staff_telegram_id")
     .maybeSingle();
   return !error && Boolean(data);
+}
+
+async function claimEditorStep(st: EditorStateRow, chatId: number): Promise<boolean> {
+  if (await consumeEditorState(st)) return true;
+  await tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  return false;
 }
 
 async function getEditorState(m: StaffMember): Promise<EditorStateRow | null> {
@@ -786,12 +834,19 @@ async function handleEditorText(m: StaffMember, chatId: number, text: string): P
   const st = await getEditorState(m);
   const chk = checkEditorState(st, m.telegram_id, Date.now());
   if (!chk.ok || !st) return false;
+  if (!can(m, "edit_products")) {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: "Недостаточно прав: редактирование карточек недоступно для вашей роли.",
+    });
+    return true;
+  }
   if (st.state.startsWith("edit_")) {
     const field = st.state.slice(5) as EditorTextField;
     if (!(field in EDITOR_FIELD_LABEL)) return false;
     const p = await fetchProductById(st.product_id ?? "");
     if (!p) {
-      await consumeEditorState(m.telegram_id);
+      if (!(await claimEditorStep(st, chatId))) return true;
       await tg("sendMessage", { chat_id: chatId, text: "Товар не найден — диалог сброшен." });
       return true;
     }
@@ -800,7 +855,7 @@ async function handleEditorText(m: StaffMember, chatId: number, text: string): P
       await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
       return true; // состояние сохраняем — ждём исправленный ввод
     }
-    await consumeEditorState(m.telegram_id);
+    if (!(await claimEditorStep(st, chatId))) return true;
     await createPending(
       m,
       chatId,
@@ -830,7 +885,8 @@ async function handleDraftStep(
       await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
       return true;
     }
-    if (!(await setEditorState(m.telegram_id, "new_sku", { title: v.value }))) return true;
+    if (!(await setEditorState(m.telegram_id, "new_sku", { title: v.value }, null, st)))
+      return true;
     await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_sku") });
     return true;
   }
@@ -857,7 +913,15 @@ async function handleDraftStep(
         return true;
       }
     }
-    if (!(await setEditorState(m.telegram_id, "new_price", { ...data, title: data.title, sku })))
+    if (
+      !(await setEditorState(
+        m.telegram_id,
+        "new_price",
+        { ...data, title: data.title, sku },
+        null,
+        st,
+      ))
+    )
       return true;
     await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_price") });
     return true;
@@ -872,14 +936,15 @@ async function handleDraftStep(
       return true;
     }
     const d: Required<DraftData> = { title: data.title ?? "", sku: data.sku ?? null, price };
-    if (!(await setEditorState(m.telegram_id, "new_confirm", d))) return true;
+    const saved = await setEditorState(m.telegram_id, "new_confirm", d, null, st);
+    if (!saved) return true;
     await tg("sendMessage", {
       chat_id: chatId,
       text: draftPreviewText(d, slugBase(d.title)),
       reply_markup: {
         inline_keyboard: [
-          [{ text: "✅ Создать черновик", callback_data: "nd:c" }],
-          [{ text: "⬅️ Отмена", callback_data: "nd:x" }],
+          [{ text: "✅ Создать черновик", callback_data: `nd:c:${editorRevision(saved)}` }],
+          [{ text: "⬅️ Отмена", callback_data: `nd:x:${editorRevision(saved)}` }],
         ],
       },
     });
@@ -903,7 +968,7 @@ async function startNewDraft(m: StaffMember, chatId: number) {
 // Создание черновика: stateful-диалог + дополнительное подтверждение (nd:c).
 // RPC bot_create_draft (0006): только draft, дубли SKU запрещены, slug уникален,
 // source_url не приписывается, ID — UUID.
-async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean) {
+async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean, revision?: string) {
   if (!can(m, "edit_products"))
     return tg("sendMessage", {
       chat_id: chatId,
@@ -920,9 +985,10 @@ async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean) 
     });
   if (st.state !== "new_confirm")
     return tg("sendMessage", { chat_id: chatId, text: EDITOR_STATE_REASON_MSG["not_found"]! });
-  // Одноразовость: состояние потребляется условно до создания.
-  if (!(await consumeEditorState(m.telegram_id)))
-    return tg("sendMessage", { chat_id: chatId, text: EDITOR_STATE_REASON_MSG["consumed"]! });
+  if (!revision || editorRevision(st) !== revision)
+    return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  // Одноразовость: забираем ровно тот шаг, который показан этой кнопкой.
+  if (!(await claimEditorStep(st, chatId))) return;
   if (!accept) return tg("sendMessage", { chat_id: chatId, text: "Отменено: черновик не создан." });
   const d = (st.data ?? {}) as DraftData;
   const { data, error } = await rpc("bot_create_draft", {
@@ -957,9 +1023,10 @@ async function startCategoryPicker(m: StaffMember, chatId: number, productId: st
       chat_id: chatId,
       text: `⚠️ ${NOT_ACTIVATED_MSG}\n\nПока доступна команда: /set cat ${p.sku ?? p.title} <название раздела>`,
     });
-  if (!(await setEditorState(m.telegram_id, "pick_cat", { product_id: p.id, cats }, p.id))) return;
+  const saved = await setEditorState(m.telegram_id, "pick_cat", { product_id: p.id, cats }, p.id);
+  if (!saved) return;
   const rows: Btn[][] = cats.map((c, i) => [
-    { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i) },
+    { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i, editorRevision(saved)!) },
   ]);
   rows.push([{ text: "⬅️ К карточке", callback_data: `prd:${p.id}` }]);
   return tg("sendMessage", {
@@ -969,7 +1036,7 @@ async function startCategoryPicker(m: StaffMember, chatId: number, productId: st
   });
 }
 
-async function pickCategory(m: StaffMember, chatId: number, index: number) {
+async function pickCategory(m: StaffMember, chatId: number, index: number, revision?: string) {
   if (!can(m, "manage_categories"))
     return tg("sendMessage", {
       chat_id: chatId,
@@ -982,16 +1049,18 @@ async function pickCategory(m: StaffMember, chatId: number, index: number) {
       chat_id: chatId,
       text: EDITOR_STATE_REASON_MSG[chk.ok ? "not_found" : chk.reason]!,
     });
+  if (!revision || editorRevision(st) !== revision)
+    return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
   const data = (st.data ?? {}) as { product_id?: string; cats?: { id: string; name: string }[] };
   const cat = data.cats?.[index];
   if (!cat)
     return tg("sendMessage", { chat_id: chatId, text: "Некорректный выбор — начните заново." });
   const p = await fetchProductById(data.product_id ?? "");
   if (!p) {
-    await consumeEditorState(m.telegram_id);
+    if (!(await claimEditorStep(st, chatId))) return;
     return tg("sendMessage", { chat_id: chatId, text: "Товар не найден — диалог сброшен." });
   }
-  await consumeEditorState(m.telegram_id);
+  if (!(await claimEditorStep(st, chatId))) return;
   if (p.category_id === cat.id)
     return tg("sendMessage", {
       chat_id: chatId,
@@ -1400,7 +1469,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
     case "/cancel": {
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
-      const cleared = await consumeEditorState(m.telegram_id);
+      const st = await getEditorState(m);
+      const cleared = st && (await consumeEditorState(st));
       return tg("sendMessage", {
         chat_id: chat.id,
         text: cleared ? "Диалог отменён." : "Активного диалога нет.",
@@ -1451,7 +1521,7 @@ const ORDERS_FALLBACK_MSG = "Обработка заказов доступна 
 // типах только после применения миграции 0003, поэтому обращения к ним идут
 // через структурный «свободный» тип. После применения миграции и перегенерации
 // типов этот слой можно убрать.
-interface LooseChain {
+interface LooseChain extends PromiseLike<{ data: unknown; error: { message: string } | null }> {
   select(cols: string): LooseChain;
   order(col: string, opts: { ascending: boolean }): LooseChain;
   limit(
@@ -1459,8 +1529,9 @@ interface LooseChain {
   ): Promise<{ data: unknown[] | null; error: { message: string; code?: string | null } | null }>;
   eq(col: string, v: unknown): LooseChain;
   is(col: string, v: unknown): LooseChain;
+  gt(col: string, v: unknown): LooseChain;
   update(patch: Record<string, unknown>): LooseChain;
-  insert(row: Record<string, unknown>): Promise<{ error: { message: string } | null }>;
+  insert(row: Record<string, unknown>): LooseChain;
   upsert(
     row: Record<string, unknown>,
     opts: { onConflict: string },
@@ -1894,10 +1965,10 @@ export async function handleUpdate(update: TgUpdate) {
     if (f === "st") return startStatusMenu(m, chat.id, etM[2]!);
     return startEditorField(m, chat.id, f as EditorTextField, etM[2]!);
   }
-  const ecM = data_str.match(/^ec:(\d{1,3})$/);
+  const ecM = data_str.match(/^ec:(\d{1,3})(?::([0-9a-f-]{36}))?$/);
   if (ecM) {
     if (!priv) return catalogGuard();
-    return pickCategory(m, chat.id, Number(ecM[1]));
+    return pickCategory(m, chat.id, Number(ecM[1]), ecM[2]);
   }
   const stpM = data_str.match(/^stp:([0-9a-f-]{36}):(published|draft|hidden)$/);
   if (stpM) {
@@ -1909,10 +1980,10 @@ export async function handleUpdate(update: TgUpdate) {
     if (!priv) return catalogGuard();
     return prepareRollback(m, chat.id, rbM[1]!);
   }
-  const ndM = data_str.match(/^nd:([cx])$/);
+  const ndM = data_str.match(/^nd:([cx])(?::([0-9a-f-]{36}))?$/);
   if (ndM) {
     if (!priv) return catalogGuard();
-    return confirmNewDraft(m, chat.id, ndM[1] === "c");
+    return confirmNewDraft(m, chat.id, ndM[1] === "c", ndM[2]);
   }
 
   // Заказы: только сотрудники с manage_orders и только в личном чате (ПДн).

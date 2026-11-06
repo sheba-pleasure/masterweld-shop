@@ -131,7 +131,7 @@ describe("callback редактора: лимит 64 байта", () => {
       editStatusCallback(UUID_A),
       statusChoiceCallback(UUID_A, "published"),
       setChoiceCallback("description", UUID_A),
-      categoryChoiceCallback(39),
+      categoryChoiceCallback(39, "10000000-0000-4000-8000-000000000001"),
       rollbackCallback(UUID_A),
     ];
     for (const cb of cbs) expect(callbackBytes(cb)).toBeLessThanOrEqual(64);
