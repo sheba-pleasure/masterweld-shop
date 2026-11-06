@@ -7,6 +7,7 @@ import {
   parseReviewCallback,
   renderReview,
   reviewButton,
+  reviewColumnLabel,
   type DocumentReview,
   type ReviewButton,
 } from "./review-view";
@@ -123,12 +124,12 @@ export async function showDocumentReview(m: StaffMember, chat: Chat, data: strin
       );
     await send(
       chat,
-      `✏️ Строка ${row + 1} · ${r.header[column!]}\nСейчас: ${r.cells[column!] || "(пусто)"}\n\nИсправление сохранится только в этом разборе. Затем строку нужно проверить заново. Чтобы оставить поле пустым, ответьте одним знаком «—».`,
+      `✏️ Строка ${row + 1} · ${reviewColumnLabel(r.header[column!], column!)}\nСейчас: ${r.cells[column!] || "(пусто)"}\n\nИсправление сохранится только в этом разборе. Затем строку нужно проверить заново. Чтобы оставить поле пустым, ответьте одним знаком «—».`,
       [[reviewButton(r, "↩️ Отмена ввода — оставить прежнее", "cancel")]],
     );
     const response = await tg("sendMessage", {
       chat_id: chat.id,
-      text: `Введите значение поля «${r.header[column!]}» для строки ${row + 1}. Ответьте именно на это сообщение.`,
+      text: `Введите значение поля «${reviewColumnLabel(r.header[column!], column!)}» для строки ${row + 1}. Ответьте именно на это сообщение.`,
       reply_markup: { force_reply: true, input_field_placeholder: "Исправленное значение" },
     });
     const body = (await response.json()) as { ok?: boolean; result?: { message_id?: number } };

@@ -48,6 +48,14 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: review, error: null });
   mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
 });
+it("uses Russian field labels without rewriting original headers", () => {
+  const r = { ...review, header: ["sku", "title", "price", "cost_price"], cells: ["001", "Аппарат", "100", "80"] };
+  const view = renderReview(r);
+  expect(view.text).toContain("Артикул: 001");
+  expect(view.text).toContain("Розничная цена: 100");
+  expect(view.text).toContain("Закупочная цена: 80");
+  expect(r.header).toEqual(["sku", "title", "price", "cost_price"]);
+});
 it("guards owner identity, private chat and import rights before access", async () => {
   for (const m of [
     { ...admin, role: "seller" as const },

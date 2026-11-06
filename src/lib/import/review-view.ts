@@ -1,3 +1,12 @@
+import { FIELD_LABEL, type Field } from "./catalog-file";
+
+export function reviewColumnLabel(header: string | undefined, index: number) {
+  const name = header?.trim() ?? "";
+  return Object.hasOwn(FIELD_LABEL, name.toLowerCase())
+    ? FIELD_LABEL[name.toLowerCase() as Field]
+    : name || `Колонка ${index + 1}`;
+}
+
 export type ReviewButton = { text: string; callback_data: string };
 export interface DocumentReview {
   ok: true;
@@ -95,7 +104,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       .slice(columnPage * 8, columnPage * 8 + 8)
       .forEach((h, i) =>
         add(
-          "✏️ " + short(h || "Колонка " + (columnPage * 8 + i + 1), 45),
+          "✏️ " + short(reviewColumnLabel(h, columnPage * 8 + i), 45),
           "edit",
           r.row,
           columnPage * 8 + i,
@@ -117,7 +126,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     text += r.header
       .map(
         (h, i) =>
-          `${short(h || "Колонка " + (i + 1), 60)}: ${short(r.cells[i] || "(пусто)")}${r.cells[i] !== r.original[i] ? " ✏️" : ""}`,
+          `${short(reviewColumnLabel(h, i), 60)}: ${short(r.cells[i] || "(пусто)")}${r.cells[i] !== r.original[i] ? " ✏️" : ""}`,
       )
       .join("\n");
     if (r.cells.length !== r.header.length)
