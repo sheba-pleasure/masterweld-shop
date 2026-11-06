@@ -96,10 +96,10 @@ describe("durable order notifications", () => {
     const f = fixture();
     vi.mocked(f.store.staff).mockRejectedValue(new Error("offline"));
     const send = vi.fn(async () => 12);
-    await dispatchOne(f.store, send, 0);
+    await dispatchOne(f.store, send, () => 0);
     expect(f.state()).toBe("pending");
     f.job.attempts = 3;
-    await dispatchOne(f.store, send, 0);
+    await dispatchOne(f.store, send, () => 0);
     expect(f.state()).toBe("failed");
     expect(send).not.toHaveBeenCalled();
   });
@@ -127,14 +127,14 @@ describe("durable order notifications", () => {
   it("429 honors retry_after, then stops at the third rejected attempt", async () => {
     const f = fixture();
     const send = vi.fn().mockRejectedValue(new TelegramDeliveryError("http", true, 429, 300));
-    await dispatchOne(f.store, send, 0);
+    await dispatchOne(f.store, send, () => 0);
     expect(f.store.finish).toHaveBeenCalledWith(f.job, {
       state: "pending",
       reason: "rate_limit",
       available_at: "1970-01-01T00:05:00.000Z",
     });
     f.job.attempts = 3;
-    await dispatchOne(f.store, send, 300000);
+    await dispatchOne(f.store, send, () => 300000);
     expect(f.state()).toBe("failed");
   });
   it("permanent rejection and 429 without valid delay are not retried", async () => {

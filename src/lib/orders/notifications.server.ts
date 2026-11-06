@@ -45,7 +45,7 @@ export function notificationMessage(order: NotificationOrder, recipient: number)
 export async function dispatchOne(
   store: NotificationStore,
   send: (message: ReturnType<typeof notificationMessage>) => Promise<number>,
-  now = Date.now(),
+  now: () => number = Date.now,
 ): Promise<boolean> {
   const job = await store.claim();
   if (!job) return false;
@@ -59,7 +59,7 @@ export async function dispatchOne(
     await store.finish(job, {
       state: job.attempts < 3 ? "pending" : "failed",
       reason: "read_failed",
-      available_at: new Date(now + 60_000).toISOString(),
+      available_at: new Date(now() + 60_000).toISOString(),
     });
     return true;
   }
@@ -98,7 +98,7 @@ export async function dispatchOne(
         state: "pending",
         reason: "rate_limit",
         available_at: new Date(
-          now + Math.max(60, error.retryAfterSeconds ?? 60) * 1000,
+          now() + Math.max(60, error.retryAfterSeconds ?? 60) * 1000,
         ).toISOString(),
       });
     } else {
