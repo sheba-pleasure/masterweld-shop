@@ -33,7 +33,7 @@ export interface NotificationStore {
 export function notificationMessage(order: NotificationOrder, recipient: number) {
   return {
     chat_id: recipient,
-    text: `Новый заказ #${order.id.slice(0, 8)}\nСумма: ${Math.round(Number(order.total)).toLocaleString("ru-RU")} ₽\nОткройте заказ и возьмите его в обработку.`,
+    text: `🆕 Новый заказ #${order.id.slice(0, 8)}\n\n💰 Сумма: ${Math.round(Number(order.total)).toLocaleString("ru-RU")} ₽\n\n👇 Откройте заказ и возьмите его в обработку.`,
     reply_markup: {
       inline_keyboard: [[{ text: "📄 Открыть заказ", callback_data: `order:${order.id}` }]],
     },

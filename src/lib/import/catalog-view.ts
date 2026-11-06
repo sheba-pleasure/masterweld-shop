@@ -100,9 +100,9 @@ export function renderImport(
   const rows: Button[][] = [];
   if (r.home)
     return {
-      text: "Импорт товаров и цен\n\nПришлите CSV-файл (UTF-8, до 2 МБ и 5000 строк). Можно сохранить из Excel как CSV UTF-8. Первая строка — заголовки. XLSX/PDF пока не принимаются.\n\nПосле выбора колонок бот покажет все изменения. Новые товары — только черновики «На разбор». Публикация и отметка «Не продаём» сохраняются. Товары, которых нет в файле, не меняются.\n\nДеньги — рубли, цена продажи и закупка выбираются отдельно. Сначала проверьте на учебном файле.",
+      text: "📥 Импорт товаров и цен\n\n1️⃣ Файл\nПришлите CSV UTF-8: до 2 МБ и 5000 строк. Первая строка — заголовки. Из Excel сохраните как CSV UTF-8. XLSX/PDF пока не принимаются.\n\n2️⃣ Колонки\nУкажите артикул, название и нужные поля. Цена продажи и закупка выбираются отдельно; суммы — в рублях.\n\n3️⃣ Предпросмотр\nПроверьте изменения и только затем подтвердите импорт.\n\n🛡 Новые товары — черновики «На разбор». Публикация и отметка «Не продаём» сохраняются. Товары вне файла не меняются.\n\n👇 Начните с учебного CSV.",
       rows: [
-        [{ text: "Получить учебный CSV", callback_data: "ci:template" }],
+        [{ text: "📄 Получить учебный CSV", callback_data: "ci:template" }],
         ...(r.recent ?? []).map((b) => [
           {
             text: `${state[b.state]} · ${short(b.file_name, 35)} · ${b.id.slice(0, 8)}`,
@@ -115,7 +115,7 @@ export function renderImport(
   if (typeof screen === "number" && ["config", "preview"].includes(r.state)) {
     const field = FIELDS[screen]!;
     return {
-      text: `Выберите колонку: ${FIELD_LABEL[field]}\nФайл: ${short(r.file)}\nПример — первая строка данных. «Не импортировать» оставляет прежнее поле без изменения.`,
+      text: `🗂 Выберите колонку: ${FIELD_LABEL[field]}\nФайл: ${short(r.file)}\nПример — первая строка данных. «Не импортировать» оставляет прежнее поле без изменения.`,
       rows: [
         ...r.header.map((h, index) => [
           {
@@ -136,7 +136,7 @@ export function renderImport(
   if (r.state === "config" || (screen === "config" && r.state === "preview")) {
     return {
       text: [
-        `Настройка импорта · ${r.id.slice(0, 8)}\nФайл: ${short(r.file)}\nСтрок в файле: ${r.fileRows}.`,
+        `⚙️ Настройка импорта · ${r.id.slice(0, 8)}\nФайл: ${short(r.file)}\nСтрок в файле: ${r.fileRows}.`,
         "Проверьте каждую колонку. Сопоставление товаров — только по уникальному артикулу.",
         ...FIELDS.map(
           (f) =>
@@ -160,16 +160,16 @@ export function renderImport(
           { text: "Цены: 123,45", callback_data: `ci:decimal:${r.id}:comma:${r.revision}` },
           { text: "Цены: 123.45", callback_data: `ci:decimal:${r.id}:dot:${r.revision}` },
         ],
-        [{ text: "Построить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` }],
+        [{ text: "👁 Построить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` }],
         [{ text: "Отменить импорт", callback_data: `ci:cancel:${r.id}` }],
         [{ text: "К импортам", callback_data: "ci:home" }],
       ],
     };
   }
   const lines = [
-    `Импорт · ${r.id.slice(0, 8)} · ${state[r.state]}\nФайл: ${short(r.file)}`,
-    `Новых: ${r.counts.new}; изменятся: ${r.counts.update}; без изменений: ${r.counts.unchanged}; ошибок: ${r.counts.error}.`,
-    `Исключённых товаров в файле: ${r.counts.excluded}. Они останутся скрытыми. Новые товары не появятся на сайте.`,
+    `📥 Импорт · ${r.id.slice(0, 8)} · ${state[r.state]}\nФайл: ${short(r.file)}`,
+    `\n➕ Новых: ${r.counts.new}\n✏️ Изменятся: ${r.counts.update}\n➖ Без изменений: ${r.counts.unchanged}\n⚠️ Ошибок: ${r.counts.error}\n`,
+    `🛡 Исключённых товаров в файле: ${r.counts.excluded}. Они останутся скрытыми. Новые товары не появятся на сайте.`,
   ];
   if (r.state === "undo_preview")
     lines.push(
@@ -180,7 +180,7 @@ export function renderImport(
       "Прежние импортированные значения восстановлены. Созданные этим импортом карточки оставлены в «Не продаём».",
     );
   else if (r.state === "applied")
-    lines.push("Импорт сохранён. Откат доступен 7 дней с проверкой последующих изменений.");
+    lines.push("✅ Импорт сохранён.\n↩️ Откат доступен 7 дней с проверкой последующих изменений.");
   else if (r.state === "canceled") lines.push("Импорт отменён, товары не изменены.");
   else
     lines.push(
@@ -197,10 +197,10 @@ export function renderImport(
       newPrice = Number(i.after_product?.price ?? 0);
     if (oldPrice > 0 && Math.abs(newPrice - oldPrice) / oldPrice >= 0.3)
       lines.push(
-        `Внимание: цена меняется на ${Math.round(((newPrice - oldPrice) / oldPrice) * 100)}%. Проверьте сумму.`,
+        `⚠️ Внимание: цена меняется на ${Math.round(((newPrice - oldPrice) / oldPrice) * 100)}%. Проверьте сумму.`,
       );
     if (i.after_cost && newPrice < Number(i.after_cost.cost_price))
-      lines.push("Внимание: розничная цена ниже закупочной.");
+      lines.push("⚠️ Внимание: розничная цена ниже закупочной.");
     if (i.errors.length)
       lines.push([...new Set(i.errors)].map((e) => reason[e] ?? "Ошибка строки").join("; "));
     else
@@ -230,7 +230,7 @@ export function renderImport(
     if (!r.counts.error && r.counts.new + r.counts.update > 0)
       rows.push([
         {
-          text: `Подтвердить: ${r.counts.new + r.counts.update} товаров`,
+          text: `✅ Подтвердить: ${r.counts.new + r.counts.update} товаров`,
           callback_data: `ci:apply:${r.id}:${r.revision}`,
         },
       ]);

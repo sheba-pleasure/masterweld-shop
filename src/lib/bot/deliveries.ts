@@ -15,7 +15,7 @@ export function deliveryReport(rows: DeliveryRow[]) {
   };
   return {
     text: rows.length
-      ? "Уведомления — последние 10 записей:\n" +
+      ? "🔔 Уведомления · последние 10 записей\n\n" +
         rows
           .map(
             (r) =>
@@ -26,9 +26,9 @@ export function deliveryReport(rows: DeliveryRow[]) {
               " · " +
               (labels[r.state] ?? "нужна проверка"),
           )
-          .join("\n") +
+          .join("\n\n") +
         "\n\nЗаказы доступны через «Заказы». При неизвестном результате проверьте чат вручную. Повторная отправка здесь не выполняется."
-      : "Очередь уведомлений пуста. Заказы проверяйте через «Заказы».",
+      : "📭 Очередь уведомлений пуста.\n\nЗаказы проверяйте через «Заказы».",
     rows: [...new Set(rows.map((r) => r.order_id))].map((id) => [
       { text: "📄 Заказ #" + id.slice(0, 8), callback_data: "order:" + id },
     ]),

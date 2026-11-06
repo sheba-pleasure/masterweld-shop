@@ -11,7 +11,7 @@ afterEach(() => {
 it("customer controls open the same HTTPS shop and never include staff actions", () => {
   const result = customerMessage("/start", "https://shop.example.test");
   expect(result.reply_markup.keyboard[0]![0]).toEqual({
-    text: "Открыть магазин",
+    text: "🛍 Открыть магазин",
     web_app: { url: "https://shop.example.test/?miniapp=1" },
   });
   expect(JSON.stringify(result)).not.toContain("callback_data");

@@ -7,10 +7,10 @@ export const DECISION = {
 } as const;
 const STATUS = { published: "на сайте", draft: "черновик", hidden: "скрыт" } as const;
 export const ACTION = {
-  sell: "В ассортимент",
-  exclude: "Не продаём — скрыть",
-  review: "На разбор — в черновики",
-  hide: "Скрыть с сайта",
+  sell: "✅ В ассортимент",
+  exclude: "🚫 Не продаём — скрыть",
+  review: "📝 На разбор — в черновики",
+  hide: "🙈 Скрыть с сайта",
 } as const;
 export const EFFECT = {
   sell: "Отметить, что будем продавать. Публикация на сайте не меняется. Скрытые товары останутся скрытыми.",
@@ -94,12 +94,12 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
   if (r.home) {
     return {
       text: [
-        "Ассортимент",
-        "Сначала решаем, что продавать. Публикация на сайте — отдельное действие.",
-        "Выберите группу, отметьте товары и проверьте изменения перед подтверждением.",
-        "Для поиска по названию, артикулу, бренду или разделу: /assort маска",
+        "📋 Ассортимент",
+        "🧭 Сначала решаем, что продавать.\nПубликация на сайте — отдельное действие.",
+        "1️⃣ Выберите группу\n2️⃣ Отметьте товары\n3️⃣ Проверьте и подтвердите действие",
+        "🔎 Поиск по названию, артикулу, бренду или разделу:\n/assort маска",
         "Новый список отменяет ваш предыдущий неподтверждённый выбор.",
-        "Заказы сохраняются. Безвозвратного удаления здесь нет.",
+        "🛡 Заказы сохраняются. Безвозвратного удаления здесь нет.",
       ].join("\n\n"),
       rows: [
         ...Object.entries(DECISION).map(([key, label]) => [
@@ -118,9 +118,9 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
   }
   const selecting = r.state === "selecting";
   const text = [
-    `Ассортимент · ${r.id.slice(0, 8)} · ${stateLabel[r.state] ?? r.state}`,
+    `📋 Ассортимент · ${r.id.slice(0, 8)} · ${stateLabel[r.state] ?? r.state}`,
     `Группа: ${r.filter === "all" ? "Все товары" : DECISION[r.filter]}${r.query ? " · Поиск: " + compact(r.query, 120) : ""}`,
-    `В списке: ${r.total}. Выбрано: ${r.selected}.`,
+    `\n📦 В списке: ${r.total}\n☑️ Выбрано: ${r.selected}\n`,
     selecting
       ? "Нажмите на товары для выбора. «Выбрать все» охватывает весь этот список, включая другие страницы."
       : "Ниже только выбранные товары. Состав зафиксирован; новые совпадения сюда не добавляются.",
@@ -191,10 +191,10 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
     ]);
   if (r.state === "preview")
     rows.push([
-      { text: `Подтвердить для ${r.selected} товаров`, callback_data: `as:apply:${r.id}` },
+      { text: `✅ Подтвердить для ${r.selected} товаров`, callback_data: `as:apply:${r.id}` },
     ]);
   if (r.state === "applied")
-    rows.push([{ text: "Отменить эти изменения…", callback_data: `as:undo_preview:${r.id}` }]);
+    rows.push([{ text: "↩️ Отменить эти изменения…", callback_data: `as:undo_preview:${r.id}` }]);
   if (r.state === "undo_preview") {
     rows.push([
       { text: `Подтвердить отмену для ${r.selected} товаров`, callback_data: `as:undo:${r.id}` },

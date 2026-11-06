@@ -67,7 +67,7 @@ try {
   assert.equal(await normal.locator("script[data-mw-telegram]").count(), 0);
   await normal.screenshot({ path: "/artifacts/telegram-shop-desktop.png", fullPage: true });
   await normalContext.close();
-  await page.getByLabel("Поиск по каталогу: модель, артикул или бренд").fill("DEV");
+  await page.getByPlaceholder("Модель, артикул или бренд…", { exact: true }).fill("DEV");
   await page.waitForTimeout(600);
   assert.ok((await catalog(page)).length > 0);
   await page.locator('a[href="/product/dev-welder"]').first().click();
@@ -81,27 +81,33 @@ try {
   await page
     .getByLabel("Комментарий к заказу", { exact: true })
     .fill("Учебная проверка зеркала Telegram. Не звонить.");
+  await page.screenshot({ path: "/artifacts/telegram-shop-cart.png", animations: "disabled" });
   const dialog = await page.getByRole("dialog").boundingBox();
   assert.ok(
-    dialog && dialog.y >= 44 && dialog.y + dialog.height <= 820,
+    dialog &&
+      dialog.x >= 0 &&
+      dialog.x + dialog.width <= 390 &&
+      dialog.y >= 44 &&
+      dialog.y + dialog.height <= 820,
     "Telegram chrome does not cover checkout",
   );
-  await page.screenshot({ path: "/artifacts/telegram-shop-cart.png" });
-  await page.getByRole("button", { name: /Оформить учебный заказ/, exact: true }).click();
-  await page.getByText(/Спасибо! Заказ .* принят/).waitFor({ timeout: 15000 });
-  const confirmation = await page.getByText(/Спасибо! Заказ .* принят/).innerText();
-  await page.screenshot({ path: "/artifacts/telegram-shop-order.png" });
-  assert.deepEqual(errors, []);
-  const result = {
-    confirmation,
-    sameCatalog: true,
-    mobileSafeAreas: true,
-    backButton: true,
-    jsErrors: errors,
-    telegramClient: false,
-  };
-  writeFileSync("/artifacts/telegram-shop-flow.json", JSON.stringify(result));
-  console.log(JSON.stringify(result));
+  if (process.env.MW_QA_CHECKOUT !== "false") {
+    await page.getByRole("button", { name: /Оформить учебный заказ/, exact: true }).click();
+    await page.getByText(/Спасибо! Заказ .* принят/).waitFor({ timeout: 15000 });
+    const confirmation = await page.getByText(/Спасибо! Заказ .* принят/).innerText();
+    await page.screenshot({ path: "/artifacts/telegram-shop-order.png" });
+    assert.deepEqual(errors, []);
+    const result = {
+      confirmation,
+      sameCatalog: true,
+      mobileSafeAreas: true,
+      backButton: true,
+      jsErrors: errors,
+      telegramClient: false,
+    };
+    writeFileSync("/artifacts/telegram-shop-flow.json", JSON.stringify(result));
+    console.log(JSON.stringify(result));
+  }
   // SDK unavailable: regular storefront and cart must remain usable.
   const fallback = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await fallback.route("https://telegram.org/js/telegram-web-app.js", (r) => r.abort());

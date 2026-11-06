@@ -109,7 +109,7 @@ export interface TgUpdate {
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
   const rows: Btn[][] = [];
   if (process.env["APP_ENV"] === "dev")
-    rows.push([{ text: "Магазин глазами покупателя", callback_data: "shop_preview" }]);
+    rows.push([{ text: "🛍 Магазин глазами покупателя", callback_data: "shop_preview" }]);
   if (m.role === "director" && !m.elevated) {
     rows.push([
       { text: "📊 Сводка", callback_data: "summary" },
@@ -124,7 +124,7 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "🔍 Найти товар", callback_data: "fndh" },
     ]);
     rows.push([{ text: "🔓 Включить полный доступ", callback_data: "elevate_on" }]);
-    return { text: `Здравствуйте, ${m.name}! Простой режим директора.`, rows };
+    return { text: `👋 Здравствуйте, ${m.name}!\n\n👤 Директор · простой режим`, rows };
   }
   if (can(m, "edit_products") || can(m, "upload_photos"))
     rows.push([
@@ -166,19 +166,19 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       : m.role === "director"
         ? "директор (полный доступ)"
         : "продавец";
-  return { text: `Здравствуйте, ${m.name}! Роль: ${label}.`, rows };
+  return { text: `👋 Здравствуйте, ${m.name}!\n\n👤 Роль: ${label}.`, rows };
 }
 
 async function sendMenu(chatId: number, m: StaffMember) {
   const { text, rows } = menuFor(m);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `${text}\nРазделы доступны на клавиатуре внизу. «Отмена ввода» завершает текущий диалог.`,
+    text: `${text}\n\n👇 Основные разделы — на клавиатуре внизу.\n↩️ «Отмена ввода» завершает текущий диалог.`,
     reply_markup: persistentKeyboard(),
   });
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "Действия для вашей роли:",
+    text: "🧭 Управление магазином\n\nВыберите нужное действие:",
     reply_markup: { inline_keyboard: rows },
   });
 }
@@ -1639,7 +1639,7 @@ export async function handleUpdate(update: TgUpdate) {
   if (cb.data === "shop_preview" && process.env["APP_ENV"] === "dev")
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "Учебный магазин внутри Telegram. Все товары и заказы — DEV.",
+      text: "🛍 Магазин глазами покупателя\n\n🧪 Все товары и заказы — учебные.\n👇 Откройте магазин внутри Telegram.",
       reply_markup: {
         inline_keyboard: [
           [

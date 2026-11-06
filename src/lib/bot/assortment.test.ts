@@ -68,7 +68,14 @@ describe("assortment interface", () => {
     expect(view.rows.flat().some((b) => b.callback_data.startsWith("as:preview"))).toBe(false);
     const preview = assortmentView({ ...sample, state: "preview", action: "exclude" });
     expect(preview.text).toContain("сохранятся");
-    expect(preview.rows.flat().some((b) => b.text === "Подтвердить для 5000 товаров")).toBe(true);
+    expect(
+      preview.rows
+        .flat()
+        .some(
+          (b) =>
+            b.text.includes("Подтвердить для 5000 товаров") && b.callback_data === `as:apply:${id}`,
+        ),
+    ).toBe(true);
   });
   it("requires a separate undo preview, and distinguishes assortment from publication", () => {
     const view = assortmentView({ ...sample, state: "applied", action: "sell" });
