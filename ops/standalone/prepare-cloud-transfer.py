@@ -27,7 +27,8 @@ REHEARSALS = ROOT / "ops/.state/production/rehearsals"
 TRANSFERS = ROOT / "ops/.state/production/transfers"
 PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_receipts.sql",
            "0017_technical_catalog.sql", "0018_technical_read_alias.sql",
-           "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql")
+           "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
+           "0021_editor_exclusivity.sql")
 
 
 def require(value, code):
@@ -244,6 +245,9 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
         sql(load)
         verify_import("candidate")
         after = fingerprints("candidate")
+        technical_sql = (ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+        technical = json.loads(sql(technical_sql))
+        require(fingerprints("candidate") == after, "TECHNICAL_FIXTURES_NOT_ROLLED_BACK")
         # Initial import must refuse a second pass; it cannot resurrect later exclusions.
         duplicate = command(["docker", "exec", "-i", name, "psql", "-U", "postgres", "-d", "candidate",
                              "-X", "-Atq", "-v", "ON_ERROR_STOP=1"], input=load.encode(), check=False)
@@ -263,10 +267,14 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
         require(fingerprints("rollbackcheck") == baseline, "RESTORED_BASELINE_CHANGED")
         command(["docker", "restart", name]); ready()
         verify_import("candidate"); verify_import("roundtrip")
-        require(fingerprints("candidate") == after and fingerprints("rollbackcheck") == baseline,
-                "RESTART_TARGET_CHANGED")
-        return {"rehearsed": True, "schema": "0020", "offlineNetwork": "none", "ports": [],
+        require(json.loads(sql(technical_sql, "candidate")) == technical and
+                json.loads(sql(technical_sql, "roundtrip")) == technical, "TECHNICAL_RESTORE_CHANGED")
+        require(fingerprints("candidate") == after and fingerprints("roundtrip") == after
+                and fingerprints("rollbackcheck") == baseline, "RESTART_TARGET_CHANGED")
+        return {"rehearsed": True, "schema": "0021", "offlineNetwork": "none", "ports": [],
                 "catalogOriginalFieldsPreserved": True, "allSourceTablesArchivedPrivately": True,
+                "technicalChecks": technical,
+                "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
                 "activeStaffAndOrdersImported": False, "historicalNotifications": 0,
                 "repeatImportRejected": True, "dumpRestoreRestartVerified": True,
                 "rollbackCopyMatchesOriginalBackup": True, "liveProductionContacted": False,

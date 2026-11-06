@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0020.
+"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0021.
 Never changes the source database, webhooks, app containers or release approvals.
 """
 import hashlib
@@ -22,7 +22,8 @@ SOURCE = "mw-prod-db"
 DB = "masterweld_production"
 PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_receipts.sql",
            "0017_technical_catalog.sql", "0018_technical_read_alias.sql",
-           "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql")
+           "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql",
+           "0021_editor_exclusivity.sql")
 
 
 def run(args, **kwargs):
@@ -161,7 +162,7 @@ def main():
             "backupSha256": hashlib.sha256(backup).hexdigest(),
             "rolesSha256": hashlib.sha256(roles).hexdigest(),
             "sourceUnchanged": True, "restoredInSeparateOfflineCluster": True,
-            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0020",
+            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0021",
             "technicalChecks": technical,
             "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
             "migrations": {f: hashes["docs/migrations/" + f] for f in PENDING},

@@ -31,6 +31,17 @@ BEGIN
     THEN RAISE EXCEPTION 'REHEARSAL_PUBLIC_TECH_READ_MISSING'; END IF;
   IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NOT NULL
     THEN RAISE EXCEPTION 'REHEARSAL_OBSOLETE_PREVIEW_SIGNATURE'; END IF;
+  IF to_regprocedure('public.bot_editor_exclusive()') IS NULL
+    THEN RAISE EXCEPTION 'REHEARSAL_EDITOR_GUARD_MISSING'; END IF;
+  IF (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgenabled='O'
+    AND tgfoid='public.bot_editor_exclusive()'::regprocedure
+    AND ((tgrelid='public.bot_editor_states'::regclass AND tgname='bot_editor_exclusive_guard')
+      OR (tgrelid='public.technical_editor_sessions'::regclass AND tgname='technical_editor_exclusive_guard')))<>2
+    THEN RAISE EXCEPTION 'REHEARSAL_EDITOR_TRIGGER_MISSING'; END IF;
+  FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+    IF has_function_privilege(role_name,'public.bot_editor_exclusive()','EXECUTE')
+      THEN RAISE EXCEPTION 'REHEARSAL_EDITOR_GUARD_EXPOSED'; END IF;
+  END LOOP;
   IF EXISTS(SELECT 1 FROM staff WHERE telegram_id=7000000000000001)
     OR EXISTS(SELECT 1 FROM products WHERE id='f0000000-0000-4000-8000-000000000020'
       OR slug='qa-private-upgrade-0020')
@@ -50,6 +61,31 @@ SET LOCAL ROLE service_role;
 DO $editor$
 DECLARE actor bigint:=7000000000000001; e jsonb; applied jsonb; doc jsonb; state jsonb; denied boolean:=false;
 BEGIN
+  INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at)
+    VALUES(actor,'new_title',now()+interval '1 hour');
+  BEGIN
+    PERFORM bot_technical_editor(actor,'start',p_product_id=>'f0000000-0000-4000-8000-000000000020');
+    RAISE EXCEPTION 'REHEARSAL_ORDINARY_DIALOG_OVERWRITTEN';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM<>'EDITOR_ORDINARY_ACTIVE' THEN RAISE; END IF;
+  END;
+  IF NOT EXISTS(SELECT 1 FROM bot_editor_states b WHERE b.staff_telegram_id=actor
+    AND b.state='new_title' AND b.consumed_at IS NULL)
+    THEN RAISE EXCEPTION 'REHEARSAL_ORDINARY_DIALOG_LOST'; END IF;
+  UPDATE bot_editor_states SET consumed_at=now() WHERE staff_telegram_id=actor;
+  e:=bot_technical_editor(actor,'start',p_product_id=>'f0000000-0000-4000-8000-000000000020')->'session';
+  BEGIN
+    UPDATE bot_editor_states SET consumed_at=NULL WHERE staff_telegram_id=actor;
+    RAISE EXCEPTION 'REHEARSAL_TECHNICAL_DIALOG_OVERWRITTEN';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM<>'EDITOR_TECHNICAL_ACTIVE' THEN RAISE; END IF;
+  END;
+  IF (bot_technical_editor(actor,'current')->'session'->>'id') IS DISTINCT FROM e->>'id'
+    OR EXISTS(SELECT 1 FROM bot_editor_states WHERE staff_telegram_id=actor AND consumed_at IS NULL)
+    THEN RAISE EXCEPTION 'REHEARSAL_TECHNICAL_DIALOG_LOST'; END IF;
+  e:=bot_technical_editor(actor,'cancel',(e->>'id')::uuid,(e->>'revision')::integer)->'session';
+  UPDATE bot_editor_states SET consumed_at=NULL WHERE staff_telegram_id=actor;
+  UPDATE bot_editor_states SET consumed_at=now() WHERE staff_telegram_id=actor;
   e:=bot_technical_editor(actor,'start',p_product_id=>'f0000000-0000-4000-8000-000000000020')->'session';
   IF (e->>'base_version')::bigint<>0 THEN RAISE EXCEPTION 'REHEARSAL_BASE_VERSION'; END IF;
   doc:=jsonb_build_object('family_code','power_mma','sources',jsonb_build_array(jsonb_build_object(
@@ -84,4 +120,5 @@ ROLLBACK;
 SELECT jsonb_build_object(
   'families',48,'attributes',40,'bindings',69,'units',14,
   'noTechnicalBackfill',true,'privateTablesAndRpc',true,'publicReadOnlyAllowlist',true,
-  'syntheticRejectedOutsideDev',true,'editorApplyDuplicateUndo',true,'fixturesRolledBack',true);
+  'syntheticRejectedOutsideDev',true,'editorApplyDuplicateUndo',true,'fixturesRolledBack',true,
+  'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true);
