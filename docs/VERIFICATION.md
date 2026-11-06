@@ -1,6 +1,12 @@
 # Проверка изолированного DEV — 06.11.2026
 
-## Пошаговый редактор — текущий DEV
+## Точная версия выпуска — текущий DEV
+
+Приложение **67b5c91f105c035187e6b59bf6bca808dc56c337**, схема **0020**. 699 Vitest / 40 файлов, typecheck, ESLint изменённых TS, 19 runtime-тестов, 27 production Python-тестов и 85 синтетических сценариев выпуска/отката прошли. Настоящий loopback HTTP отвергает старый SHA/DEV/неправильный JSON/503 и ждёт правильного SHA после смены upstream. Docker-сборка из чистого коммита; подмена RELEASE_SHA отвергнута в отдельном контейнере без сети.
+
+После обновления DEV настоящий HTTPS readiness вернул точный SHA, environment=dev и no-store; ложный query expected не изменил ответ, POST получил 405. Главная страница 200 с DEV/noindex, контейнер healthy. Отпечатки всех 34 public-таблиц до/после совпали. Доказательства: ops/.state/dev/artifacts/release-health-result.json и release-health-before.json. Миграций, новых заказов и сообщений нет. Main/production/Cloud не менялись. Полная реальная blue/green-репетиция остаётся открытой; подробнее [RELEASE-HEALTH.md](RELEASE-HEALTH.md).
+
+## Пошаговый редактор — предыдущий этап
 
 Приложение **0c91f3e58ecdbe447ee67bbf27b45546e1dce00a**, схема **0020**. 691 Vitest / 39 файлов, строгий typecheck, ESLint изменённых TS, Docker/independence и HTTPS 200. SQL-тест в отдельном PostgreSQL без сети проверил запрет прямого доступа, роль/владельца, один выигравший CAS из двух, отозванные права, устаревшую основу, атомарный откат при сбое аудита предпросмотра, повтор apply/undo, копирование предложения, expiry, restart/dump/restore.
 
