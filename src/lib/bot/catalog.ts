@@ -174,15 +174,17 @@ export function buildBotList(
     const prev = p > 0 ? navCb(p - 1) : null;
     const next = p < pages - 1 ? navCb(p + 1) : null;
     const self = navCb(p);
-    if (prev) nav.push({ text: "◀️", callback_data: makeCallback(prev) });
+    if (prev) nav.push({ text: "◀️ Назад", callback_data: makeCallback(prev) });
     if (self) nav.push({ text: `${p + 1}/${pages}`, callback_data: makeCallback(self) });
-    if (next) nav.push({ text: "▶️", callback_data: makeCallback(next) });
+    if (next) nav.push({ text: "Далее ▶️", callback_data: makeCallback(next) });
     if (nav.length > 0) rows.push(nav);
   }
   const text =
     matches.length === 0
-      ? "Ничего не найдено."
-      : `${title} (${matches.length}):\n${slice.map(productLine).join("\n")}`;
+      ? "Ничего не найдено. Попробуйте часть названия или артикул.\nНапример: маска или горелка."
+      : `${title} (${matches.length}):\n\n${slice.map(productLine).join("\n\n")}\n\n👇 Нажмите название товара ниже — откроется его карточка.`;
+  rows.push([{ text: "🔍 Найти другой товар", callback_data: "fndh" }]);
+  rows.push([{ text: "🏠 Главное меню", callback_data: "home" }]);
   return { text, rows };
 }
 
@@ -204,6 +206,7 @@ export function buildMutationChoice(
 export interface ProductCardOpts {
   categoryName?: string | null;
   photoCount?: number | null;
+  canViewCosts?: boolean;
   canEditPrice?: boolean;
   canEditStock?: boolean;
   canEditCard?: boolean;
@@ -222,7 +225,7 @@ export function buildProductCardBot(
   const text = [
     `📦 ${p.title}`,
     "",
-    `🏷 SKU: ${p.sku ?? "—"} · Бренд: ${p.brand ?? "—"}`,
+    `🏷 Артикул: ${p.sku ?? "не указан"} · Бренд: ${p.brand ?? "не указан"}`,
     `💰 ${price}`,
     `📊 Наличие: ${stockLabel(p)}`,
     "",
@@ -231,18 +234,21 @@ export function buildProductCardBot(
     `🗂 Категория: ${opts.categoryName ?? "—"}`,
     `🖼 Фото: ${opts.photoCount ?? 0}`,
     "",
-    `UUID: ${p.id}`,
-    "👇 Выберите действие с товаром.",
+    "👇 Нажмите нужную кнопку. Просмотр карточки ничего не меняет.",
   ].join("\n");
   const rows: BtnRows = [];
+  if (opts.canViewCosts)
+    rows.push([
+      { text: "💰 Закупочная и розничная цена", callback_data: makeCallback(`cost:${p.id}`) },
+    ]);
   if (opts.canEditPrice)
     rows.push([{ text: "💰 Изменить цену", callback_data: makeCallback(`pp:${p.id}`) }]);
   if (opts.canEditStock)
-    rows.push([{ text: "📦 Наличие", callback_data: makeCallback(`ps:${p.id}`) }]);
+    rows.push([{ text: "📦 Изменить наличие", callback_data: makeCallback(`ps:${p.id}`) }]);
   if (opts.canEditCard)
-    rows.push([{ text: "✏️ Редактировать", callback_data: makeCallback(`edit:${p.id}`) }]);
+    rows.push([{ text: "✏️ Изменить карточку", callback_data: makeCallback(`edit:${p.id}`) }]);
   if (opts.canManagePhotos)
-    rows.push([{ text: "🖼 Фото", callback_data: makeCallback(`ph:${p.id}`) }]);
+    rows.push([{ text: "🖼 Посмотреть фотографии", callback_data: makeCallback(`ph:${p.id}`) }]);
   rows.push([{ text: "⬅️ К каталогу", callback_data: makeCallback(opts.backCallback ?? "cat:0") }]);
   return { text, rows };
 }

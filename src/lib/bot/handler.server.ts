@@ -13,6 +13,8 @@ import { parseImportCallback } from "@/lib/import/catalog-view";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
+import { showProductCosts } from "./costs.server";
+import { sellerMenu, staffHelp, SEARCH_HELP, SEARCH_ROWS } from "./staff-guide";
 import {
   buildOrderCard,
   orderDateMoscow,
@@ -116,6 +118,7 @@ export interface TgUpdate {
 }
 
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
+  if (m.role === "seller") return sellerMenu(m.name);
   const rows: Btn[][] = [];
   rows.push([{ text: "🛍 Открыть сайт · DEV / PRO", callback_data: "shop_versions" }]);
   rows.push([{ text: "📝 Мои правки", callback_data: "acts:0" }]);
@@ -186,12 +189,12 @@ async function sendMenu(chatId: number, m: StaffMember) {
   const { text, rows } = menuFor(m);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `${text}\n\n👇 Основные разделы — на клавиатуре внизу.\n↩️ «Отмена ввода» завершает текущий диалог.`,
+    text: `${text}\n\n👇 Основные разделы — на клавиатуре внизу.\nЕсли кнопки скрыты, нажмите значок клавиатуры рядом с полем сообщения.`,
     reply_markup: persistentKeyboard(process.env["APP_ENV"]),
   });
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "🧭 Управление магазином\n\nВыберите нужное действие:",
+    text: "🧭 Что вы хотите сделать?\n\nНажмите кнопку ниже. Открытие раздела само по себе не меняет товары и заказы.",
     reply_markup: { inline_keyboard: rows },
   });
 }
@@ -302,6 +305,7 @@ async function sendProductCard(chatId: number, productId: string, m: StaffMember
   const { text, rows } = buildProductCardBot(p, {
     categoryName: cat,
     photoCount: photos,
+    canViewCosts: can(m, "view_costs"),
     canEditPrice: can(m, "edit_prices"),
     canEditStock: can(m, "edit_stock"),
     canEditCard:
@@ -1923,7 +1927,8 @@ async function handleCommand(
       if (!q)
         return tg("sendMessage", {
           chat_id: chat.id,
-          text: "Укажите запрос: /find <артикул или модель>",
+          text: SEARCH_HELP,
+          reply_markup: { inline_keyboard: SEARCH_ROWS },
         });
       return sendFindResults(chat.id, q, 0);
     }
@@ -1995,35 +2000,14 @@ async function handleCommand(
     }
     case "/categories":
       return sendCategories(chat.id);
-    case "/help":
+    case "/help": {
+      const guide = staffHelp(m);
       return tg("sendMessage", {
         chat_id: chat.id,
-        text: [
-          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Продолжить ввод, Мои правки, Отмена ввода.",
-          "/input — текущий вопрос или подтверждение товара. На вопрос отвечайте через «Ответить» в Telegram.",
-          "/actions — мои предпросмотры и результаты правок. Используйте, если ответ потерялся.",
-          "/menu — главное меню, /orders — заказы",
-          "/shops — открыть сайт DEV или PRO внутри Telegram",
-          "Заказы → карточка → В обработке. Для выдачи и отмены нужно подтверждение.",
-          "Переход в раздел сохраняет незавершённый ввод; /cancel его отменяет.",
-          "",
-          "Команды панели каталога:",
-          "/catalog — каталог, /find <SKU или модель> — поиск",
-          "/product <SKU или модель> — карточка товара",
-          "/summary — сводка по статусам и пометкам наличия",
-          "/assort — ассортимент и массовые действия (администратор)",
-          "/import — CSV-импорт товаров и цен с предпросмотром и откатом (администратор)",
-          "/assort <запрос> — выбрать товары по названию, артикулу, бренду или разделу",
-          "/price <SKU> <цена> — изменить цену",
-          "/stock <SKU> <есть|под_заказ> — изменить пометку наличия",
-          SET_HELP,
-          "/new — создать черновик товара",
-          "/categories — список разделов",
-          "/cancel — отменить текущий диалог",
-          "",
-          "Все операции — только в личном чате; каждое изменение — с подтверждением.",
-        ].join("\n"),
+        text: guide.text,
+        reply_markup: { inline_keyboard: guide.rows },
       });
+    }
     default:
       return tg("sendMessage", {
         chat_id: chat.id,
@@ -2279,6 +2263,10 @@ export async function handleUpdate(update: TgUpdate) {
       ))
     )
       return;
+    // Only free text outside an editor is a search. Replies to old prompts are never repurposed.
+    const query = text.trim();
+    if (!update.message?.reply_to_message && query.length >= 2 && query.length <= 160)
+      return sendFindResults(chat.id, query, 0);
     return sendMenu(chat.id, m);
   }
   if (cb.data?.startsWith("b2b:")) {
@@ -2288,6 +2276,11 @@ export async function handleUpdate(update: TgUpdate) {
     return result;
   }
   if (!isDirectPreview(update)) await tg("answerCallbackQuery", { callback_query_id: cb.id });
+
+  if (cb.data === "home") return sendMenu(chat.id, m);
+  if (cb.data === "guide:home") return handleCommand(m, chat, "/help", from, requestId);
+  if (cb.data === "guide:input") return handleCommand(m, chat, "/input", from, requestId);
+  if (cb.data === "guide:cancel") return handleCommand(m, chat, "/cancel", from, requestId);
 
   if (cb.data === "shop_versions" || cb.data === "shop_preview")
     return tg("sendMessage", {
@@ -2390,7 +2383,8 @@ export async function handleUpdate(update: TgUpdate) {
     if (!priv) return catalogGuard();
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "Отправьте команду: /find <артикул или модель>",
+      text: SEARCH_HELP,
+      reply_markup: { inline_keyboard: SEARCH_ROWS },
     });
   }
   if (data_str === "summary") {
@@ -2417,6 +2411,8 @@ export async function handleUpdate(update: TgUpdate) {
     if (!priv) return catalogGuard();
     return sendFindResults(chat.id, findM.query, findM.page);
   }
+  const costsM = data_str.match(/^cost:([0-9a-f-]{36})$/);
+  if (costsM) return showProductCosts(m, chat, costsM[1]!);
   const prdM = data_str.match(/^prd:([0-9a-f-]{36})$/);
   if (prdM) {
     if (!priv) return catalogGuard();
@@ -2434,10 +2430,24 @@ export async function handleUpdate(update: TgUpdate) {
   const psM = data_str.match(/^ps:([0-9a-f-]{36})$/);
   if (psM) {
     if (!priv) return catalogGuard();
+    if (!can(m, "edit_stock"))
+      return tg("sendMessage", { chat_id: chat.id, text: "Нет права менять наличие." });
     const p = await fetchProductById(psM[1]!);
+    if (!p)
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: "Товар не найден. Откройте каталог заново.",
+      });
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: p ? `Введите: /stock ${p.sku ?? p.title} <есть|под_заказ>` : "Товар не найден.",
+      text: `📦 Наличие товара\n\n${p.title}\nСейчас: ${p.in_stock ? "в наличии" : "под заказ"}.\n\n«В наличии» — товар можно предложить со склада.\n«Под заказ» — срок нужно уточнить у поставщика.\nЭто пометка на сайте, не подсчёт складского остатка.\n\nВыберите вариант. Затем бот покажет изменение для подтверждения.`,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "✅ В наличии", callback_data: stockChoiceCallback(p, true) }],
+          [{ text: "📦 Под заказ", callback_data: stockChoiceCallback(p, false) }],
+          [{ text: "⬅️ Назад без изменений", callback_data: `prd:${p.id}` }],
+        ],
+      },
     });
   }
   const pxpM = data_str.match(/^pxp:([0-9a-f-]{36}):p(\d+)$/);
@@ -2637,13 +2647,15 @@ export async function handleUpdate(update: TgUpdate) {
     ]);
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: `Каталог:\n• на витрине: ${pub ?? 0}\n• черновики: ${draft ?? 0}\n• под заказ: ${out ?? 0}\n\nИзменить пометку: /stock <SKU> <есть|под_заказ>`,
+      text: `📦 Наличие товаров\n\nНа витрине: ${pub ?? 0}\nЧерновики: ${draft ?? 0}\nПод заказ: ${out ?? 0}\n\nНайдите товар и нажмите «Изменить наличие» в его карточке. Затем выберите вариант и проверьте изменение перед подтверждением.`,
       reply_markup: {
         inline_keyboard: [
           [
             { text: "📝 Черновики", callback_data: "drf:0" },
             { text: "🚚 Под заказ", callback_data: "bko:0" },
           ],
+          [{ text: "🔍 Найти нужный товар", callback_data: "fndh" }],
+          [{ text: "🏠 Главное меню", callback_data: "home" }],
         ],
       },
     });
@@ -2673,7 +2685,13 @@ export async function handleUpdate(update: TgUpdate) {
     if (!can(m, "upload_photos")) return;
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "Откройте карточку товара (/product <SKU> или через каталог) и нажмите «🖼 Фото» — там просмотр и управление галереей.",
+      text: "🖼 Фотографии товара\n\nНажмите «Найти товар», выберите его и откройте «Посмотреть фотографии». Там можно выбрать фото и увидеть доступные действия.",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔍 Найти товар", callback_data: "fndh" }],
+          [{ text: "🏠 Главное меню", callback_data: "home" }],
+        ],
+      },
     });
   }
   if (cb.data === "import") {
@@ -2681,5 +2699,9 @@ export async function handleUpdate(update: TgUpdate) {
     if (!can(m, "import_prices")) return;
     return showCatalogImport(m, chat, { op: "home" });
   }
-  return tg("sendMessage", { chat_id: chat.id, text: "Этот раздел скоро появится." });
+  return tg("sendMessage", {
+    chat_id: chat.id,
+    text: "Эта кнопка больше не действует. Откройте главное меню и выберите нужный раздел.",
+    reply_markup: { inline_keyboard: [[{ text: "🏠 Главное меню", callback_data: "home" }]] },
+  });
 }

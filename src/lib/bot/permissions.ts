@@ -48,7 +48,13 @@ const DIRECTOR: Permission[] = [
   "edit_stock",
   "toggle_full_access",
 ];
-const SELLER: Permission[] = ["edit_products", "upload_photos", "edit_stock", "manage_orders"];
+const SELLER: Permission[] = [
+  "edit_products",
+  "upload_photos",
+  "edit_stock",
+  "manage_orders",
+  "view_costs",
+];
 
 /** Типы действий с фото: все требуют upload_photos; права продавца не расширяются. */
 export const PENDING_PERMISSION_PHOTO_KINDS = {
