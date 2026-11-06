@@ -19,6 +19,14 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   canceled: "отменён",
 };
 
+export const STATUS_ICON: Record<OrderStatus, string> = {
+  new: "🆕",
+  processing: "🛠",
+  ready: "📦",
+  completed: "✅",
+  canceled: "🚫",
+};
+
 /** Переходы статусов: из текущего — в какие можно. */
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   new: ["processing", "canceled"],
@@ -81,7 +89,7 @@ export function buildOrdersList(
   const lines = slice.map((o) => {
     const st = o.status ? STATUS_LABEL[o.status] : "?";
     const sum = Math.round(Number(o.total) || 0);
-    return `#${o.id.slice(0, 8)} · ${o.name} · ${sum.toLocaleString("ru-RU")} ₽ · ${st}`;
+    return `${o.status ? STATUS_ICON[o.status] : "📋"} #${o.id.slice(0, 8)} · ${st}\n👤 ${o.name} · ${sum.toLocaleString("ru-RU")} ₽`;
   });
 
   const rows: { text: string; callback_data: string }[][] = slice.map((o) => [
@@ -97,7 +105,9 @@ export function buildOrdersList(
   rows.push(nav);
 
   const text =
-    orders.length === 0 ? "Заказов пока нет." : `Заказы (${orders.length}):\n${lines.join("\n")}`;
+    orders.length === 0
+      ? "📭 Заказов пока нет."
+      : `📋 Заказы (${orders.length})\n\n${lines.join("\n\n")}\n\n👇 Выберите заказ, чтобы открыть состав и действия.`;
   return { text, rows };
 }
 
@@ -132,16 +142,19 @@ export function buildOrderCard(
   const status = order.status ?? null;
   const st = status ? STATUS_LABEL[status] : "статус не подключён";
   const text = [
-    `Заказ #${order.id.slice(0, 8)} · ${st}`,
-    `Дата: ${orderDateMoscow(order.created_at)}`,
-    `Имя: ${order.name}`,
-    `Телефон: ${order.phone}`,
-    order.comment ? `Комментарий: ${order.comment}` : null,
-    `Состав:\n${lines.join("\n") || "—"}`,
-    `Итого: ${Math.round(Number(order.total) || 0).toLocaleString("ru-RU")} ₽`,
+    `📋 Заказ #${order.id.slice(0, 8)}\n${status ? STATUS_ICON[status] : "ℹ️"} Статус: ${st}\n🕒 ${orderDateMoscow(order.created_at)}`,
+    `👤 Покупатель: ${order.name}\n📞 Телефон: ${order.phone}`,
+    order.comment ? `💬 Комментарий: ${order.comment}` : null,
+    `🛒 Состав:\n${lines.join("\n") || "—"}`,
+    `💰 Итого: ${Math.round(Number(order.total) || 0).toLocaleString("ru-RU")} ₽`,
+    status
+      ? ALLOWED_TRANSITIONS[status].length
+        ? "👇 Выберите следующий шаг кнопкой ниже."
+        : "🏁 Заказ закрыт. Данные сохранены в истории."
+      : "ℹ️ Статус пока не подключён. Доступен только просмотр.",
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
   const rows: { text: string; callback_data: string }[][] = [];
   if (status) {
@@ -149,7 +162,7 @@ export function buildOrderCard(
       const confirm = CONFIRM_REQUIRED.includes(next);
       rows.push([
         {
-          text: `→ ${STATUS_LABEL[next]}${confirm ? " (подтвердить)" : ""}`,
+          text: `${STATUS_ICON[next]} ${STATUS_LABEL[next]}${confirm ? " (подтвердить)" : ""}`,
           callback_data: confirm ? `stc:${order.id}:${next}` : `st:${order.id}:${next}`,
         },
       ]);

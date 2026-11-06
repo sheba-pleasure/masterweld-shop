@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { customerMessage, shopUrl } from "./customer";
 import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
 import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
@@ -107,6 +108,8 @@ export interface TgUpdate {
 
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
   const rows: Btn[][] = [];
+  if (process.env["APP_ENV"] === "dev")
+    rows.push([{ text: "🛍 Магазин глазами покупателя", callback_data: "shop_preview" }]);
   if (m.role === "director" && !m.elevated) {
     rows.push([
       { text: "📊 Сводка", callback_data: "summary" },
@@ -121,7 +124,7 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "🔍 Найти товар", callback_data: "fndh" },
     ]);
     rows.push([{ text: "🔓 Включить полный доступ", callback_data: "elevate_on" }]);
-    return { text: `Здравствуйте, ${m.name}! Простой режим директора.`, rows };
+    return { text: `👋 Здравствуйте, ${m.name}!\n\n👤 Директор · простой режим`, rows };
   }
   if (can(m, "edit_products") || can(m, "upload_photos"))
     rows.push([
@@ -163,19 +166,19 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       : m.role === "director"
         ? "директор (полный доступ)"
         : "продавец";
-  return { text: `Здравствуйте, ${m.name}! Роль: ${label}.`, rows };
+  return { text: `👋 Здравствуйте, ${m.name}!\n\n👤 Роль: ${label}.`, rows };
 }
 
 async function sendMenu(chatId: number, m: StaffMember) {
   const { text, rows } = menuFor(m);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `${text}\nРазделы доступны на клавиатуре внизу. «Отмена ввода» завершает текущий диалог.`,
+    text: `${text}\n\n👇 Основные разделы — на клавиатуре внизу.\n↩️ «Отмена ввода» завершает текущий диалог.`,
     reply_markup: persistentKeyboard(),
   });
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "Действия для вашей роли:",
+    text: "🧭 Управление магазином\n\nВыберите нужное действие:",
     reply_markup: { inline_keyboard: rows },
   });
 }
@@ -1567,22 +1570,33 @@ export async function handleUpdate(update: TgUpdate) {
   )
     return deny();
 
+  // DEV preview uses the existing test bot; production staff access stays separate.
+  if (!cb && process.env["APP_ENV"] === "dev" && update.message?.text === "/shop")
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: customerMessage("/shop", process.env["PUBLIC_ORIGIN"]).text,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Открыть учебный магазин",
+              web_app: { url: shopUrl(process.env["PUBLIC_ORIGIN"]) },
+            },
+          ],
+        ],
+      },
+    });
+
   const { data, error: staffError } = await supabaseAdmin
     .from("staff")
     .select("*")
     .eq("telegram_id", from.id)
     .maybeSingle();
   const m = data as StaffMember | null;
-  if (
-    !staffError &&
-    !m &&
-    !cb &&
-    process.env["APP_ENV"] === "dev" &&
-    update.message?.text === "/start"
-  ) {
+  if (!staffError && !m && !cb && update.message?.text === "/start") {
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: `Доступ ещё не выдан. Ваш Telegram ID: ${from.id}. Передайте его владельцу магазина для доступа к тестовой среде. Затем снова отправьте /start.`,
+      text: `Доступ ещё не выдан. Ваш Telegram ID: ${from.id}. Передайте его владельцу магазина для доступа к ${process.env["APP_ENV"] === "dev" ? "тестовому" : "рабочему"} магазину. Затем снова отправьте /start.`,
     });
   }
   if (
@@ -1621,6 +1635,22 @@ export async function handleUpdate(update: TgUpdate) {
     return result;
   }
   await tg("answerCallbackQuery", { callback_query_id: cb.id });
+
+  if (cb.data === "shop_preview" && process.env["APP_ENV"] === "dev")
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: "🛍 Магазин глазами покупателя\n\n🧪 Все товары и заказы — учебные.\n👇 Откройте магазин внутри Telegram.",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Открыть учебный магазин",
+              web_app: { url: shopUrl(process.env["PUBLIC_ORIGIN"]) },
+            },
+          ],
+        ],
+      },
+    });
 
   if (cb.data === "elevate_on" || cb.data === "elevate_off") {
     if (!can(m, "toggle_full_access")) return;

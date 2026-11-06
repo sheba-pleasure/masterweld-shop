@@ -20,6 +20,8 @@
 | Разработчику | [Порядок работы](docs/WORKFLOW.md), [Архитектура](docs/ARCHITECTURE.md) |
 | Всем | [Что работает и что осталось](STATUS.md) |
 
+[Два Telegram-бота и магазин внутри Telegram](docs/TELEGRAM-SHOP.md).
+
 [Следующие шаги](roadmap.md). [GitHub](https://github.com/sheba-pleasure/masterweld-shop).
 
 Документация пересобрана 06.11.2026. Старые тексты сохранены в [архиве](docs/archive/2026-11-06/). Архив не подтверждает текущее состояние сервера.

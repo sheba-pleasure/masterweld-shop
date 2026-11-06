@@ -220,16 +220,19 @@ export function buildProductCardBot(
     ? `Цена: ${formatRub(p.price)} (снижена с ${formatRub(p.old_price ?? 0)})`
     : `Цена: ${formatRub(p.price)}`;
   const text = [
-    p.title,
+    `📦 ${p.title}`,
+    "",
+    `🏷 SKU: ${p.sku ?? "—"} · Бренд: ${p.brand ?? "—"}`,
+    `💰 ${price}`,
+    `📊 Наличие: ${stockLabel(p)}`,
+    "",
+    `🌐 Статус: ${botStatusLabel(p.status)}`,
+    `📋 Ассортимент: ${DECISION[p.assortment_decision as keyof typeof DECISION] ?? "На разбор"}`,
+    `🗂 Категория: ${opts.categoryName ?? "—"}`,
+    `🖼 Фото: ${opts.photoCount ?? 0}`,
+    "",
     `UUID: ${p.id}`,
-    `SKU: ${p.sku ?? "—"}`,
-    `Бренд: ${p.brand ?? "—"}`,
-    price,
-    `Статус: ${botStatusLabel(p.status)}`,
-    `Ассортимент: ${DECISION[p.assortment_decision as keyof typeof DECISION] ?? "На разбор"}`,
-    `Наличие: ${stockLabel(p)}`,
-    `Категория: ${opts.categoryName ?? "—"}`,
-    `Фото: ${opts.photoCount ?? 0}`,
+    "👇 Выберите действие с товаром.",
   ].join("\n");
   const rows: BtnRows = [];
   if (opts.canEditPrice)
@@ -248,7 +251,7 @@ export function buildProductCardBot(
 export function buildCatalogSummary(products: BotProduct[]): string {
   const count = (fn: (p: BotProduct) => boolean) => products.filter(fn).length;
   return [
-    "Каталог интернет-магазина «Мастер Сварщик»:",
+    "📊 Каталог интернет-магазина «Мастер Сварщик»:\n",
     `• на витрине: ${count((p) => p.status === "published")}`,
     `• черновики: ${count((p) => p.status === "draft")}`,
     `• скрытые: ${count((p) => p.status === "hidden")}`,
@@ -261,7 +264,7 @@ export function buildCatalogSummary(products: BotProduct[]): string {
 
 export function pricePreviewText(p: BotProduct, newPrice: number): string {
   return [
-    "Изменить цену товара?",
+    "💰 Изменить цену товара?",
     "",
     `${p.title}${p.sku ? ` (SKU ${p.sku})` : ""}`,
     `Было: ${formatRub(p.price)}`,
@@ -273,7 +276,7 @@ export function pricePreviewText(p: BotProduct, newPrice: number): string {
 
 export function stockPreviewText(p: BotProduct, inStock: boolean): string {
   return [
-    "Изменить пометку наличия?",
+    "📦 Изменить пометку наличия?",
     "",
     `${p.title}${p.sku ? ` (SKU ${p.sku})` : ""}`,
     `Было: ${stockLabel(p)}`,
