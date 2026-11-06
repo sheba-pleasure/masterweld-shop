@@ -101,8 +101,8 @@ def configuration_errors(env, dev):
         value = env.get("TELEGRAM_" + suffix)
         if value and value == env.get("CUSTOMER_TELEGRAM_" + suffix):
             errors.append("BOT_ROLES_MUST_BE_SEPARATE:" + suffix)
-    if env.get("ORDER_NOTIFICATIONS_ENABLED") != "false":
-        errors.append("PRODUCTION_ALERTS_NOT_REVIEWED")
+    if env.get("ORDER_NOTIFICATIONS_ENABLED") not in ("true", "false"):
+        errors.append("NOTIFICATION_MODE_INVALID")
     return sorted(set(errors))
 
 

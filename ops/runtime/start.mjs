@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
-import { validateEnvironment, validateIdentity } from "./environment.mjs";
+import {
+  validateEnvironment,
+  validateIdentity,
+  validateNotificationWebhook,
+} from "./environment.mjs";
 let notifications;
 try {
   const env = process.env;
@@ -51,13 +55,16 @@ try {
     notifications = await import("../../.output/order-notifications.mjs");
     notifications.notificationsEnabled(env);
     if (env.APP_ENV === "production") {
-      const response = await fetch("https://api.telegram.org/bot" + env.TELEGRAM_BOT_TOKEN + "/getWebhookInfo", {
-        signal: AbortSignal.timeout(10000), redirect: "error",
-      });
+      const response = await fetch(
+        "https://api.telegram.org/bot" + env.TELEGRAM_BOT_TOKEN + "/getWebhookInfo",
+        {
+          signal: AbortSignal.timeout(10000),
+          redirect: "error",
+        },
+      );
       const data = await response.json();
-      if (!response.ok || data.ok !== true || data.result?.url !== env.PUBLIC_ORIGIN + "/api/public/telegram/webhook") {
-        throw new Error("NOTIFICATION_WEBHOOK_CUTOVER_REQUIRED");
-      }
+      if (!response.ok) throw new Error("NOTIFICATION_WEBHOOK_UNAVAILABLE");
+      validateNotificationWebhook(data, env);
     }
   }
   console.info("[startup] environment and database identity verified:", env.APP_ENV);

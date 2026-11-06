@@ -30,6 +30,11 @@ class PreflightTest(unittest.TestCase):
     def test_complete_candidate_validates(self):
         self.assertEqual(configuration_errors(valid(), {}), [])
 
+    def test_explicit_alert_mode_still_requires_manual_release_review(self):
+        self.assertEqual(configuration_errors({**valid(), "ORDER_NOTIFICATIONS_ENABLED": "true"}, {}), [])
+        from preflight import MANUAL_BLOCKERS
+        self.assertIn("PRODUCTION_ALERTS_REVIEW_REQUIRED", MANUAL_BLOCKERS)
+
     def test_empty_fails(self):
         errors = configuration_errors({}, {})
         self.assertIn("MISSING:SUPABASE_SERVICE_ROLE_KEY", errors)
@@ -37,11 +42,11 @@ class PreflightTest(unittest.TestCase):
 
     def test_dev_identity_cannot_be_reused(self):
         env = {**valid(), "MW_INSTANCE_ID": DEV_ID, "TELEGRAM_BOT_ID": DEV_BOT,
-               "ORDER_NOTIFICATIONS_ENABLED": "true"}
+               "ORDER_NOTIFICATIONS_ENABLED": "yes"}
         errors = configuration_errors(env, {})
         self.assertIn("DEV_INSTANCE_FORBIDDEN", errors)
         self.assertIn("DEV_BOT_FORBIDDEN", errors)
-        self.assertIn("PRODUCTION_ALERTS_NOT_REVIEWED", errors)
+        self.assertIn("NOTIFICATION_MODE_INVALID", errors)
 
     def test_hosted_backend_cannot_be_promoted(self):
         self.assertIn("INDEPENDENT_DATABASE_ENDPOINT_REQUIRED",

@@ -17,22 +17,26 @@ export function notificationsEnabled(env: NodeJS.ProcessEnv): boolean {
     env["TELEGRAM_BOT_USERNAME"] !== username ||
     env["TELEGRAM_BOT_ID"] !== id ||
     env["TELEGRAM_BOT_TOKEN"]?.split(":")[0] !== id
-  ) throw new Error("NOTIFICATION_ENVIRONMENT_MISMATCH");
-  if (production && (
-    env["PUBLIC_ORIGIN"] !== "https://shop.masterweld.ru" ||
-    env["SUPABASE_URL"] !== "http://mw-prod-api:8080" ||
-    !env["MW_INSTANCE_ID"] || env["MW_INSTANCE_ID"] === DEV_INSTANCE ||
-    !/^[0-9a-f]{40}$/.test(env["RELEASE_SHA"] ?? "") ||
-    !["a", "b"].includes(env["MW_RELEASE_SLOT"] ?? "")
-  )) throw new Error("NOTIFICATION_PRODUCTION_RELEASE_REQUIRED");
+  )
+    throw new Error("NOTIFICATION_ENVIRONMENT_MISMATCH");
+  if (
+    production &&
+    (env["PUBLIC_ORIGIN"] !== "https://shop.masterweld.ru" ||
+      env["SUPABASE_URL"] !== "http://mw-prod-api:8080" ||
+      !env["MW_INSTANCE_ID"] ||
+      env["MW_INSTANCE_ID"] === DEV_INSTANCE ||
+      !/^[0-9a-f]{40}$/.test(env["RELEASE_SHA"] ?? "") ||
+      !["a", "b"].includes(env["MW_RELEASE_SLOT"] ?? ""))
+  )
+    throw new Error("NOTIFICATION_PRODUCTION_RELEASE_REQUIRED");
   return true;
 }
 
-export function readWorkerControl(): unknown {
-  const fd = openSync(CONTROL, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+export function readWorkerControl(path = CONTROL): unknown {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size > 256 || (stat.mode & 0o022)) throw new Error("UNSAFE_CONTROL");
+    if (!stat.isFile() || stat.size > 256 || stat.mode & 0o022) throw new Error("UNSAFE_CONTROL");
     return JSON.parse(readFileSync(fd, "utf8"));
   } finally {
     closeSync(fd);
@@ -49,9 +53,14 @@ export function notificationWorkerActive(
   if (env["APP_ENV"] === "dev") return true;
   try {
     const control = read();
-    return !!control && typeof control === "object" &&
-      "sha" in control && control.sha === env["RELEASE_SHA"] &&
-      "slot" in control && control.slot === env["MW_RELEASE_SLOT"];
+    return (
+      !!control &&
+      typeof control === "object" &&
+      "sha" in control &&
+      control.sha === env["RELEASE_SHA"] &&
+      "slot" in control &&
+      control.slot === env["MW_RELEASE_SLOT"]
+    );
   } catch {
     return false;
   }

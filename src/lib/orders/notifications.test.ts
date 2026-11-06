@@ -151,7 +151,7 @@ describe("durable order notifications", () => {
     expect(message.text).toContain("900");
     expect(Object.keys(message)).toEqual(["chat_id", "text", "reply_markup"]);
   });
-  it("worker is opt-in and refuses production or another bot", () => {
+  it("DEV worker is opt-in and refuses a production environment with the DEV bot", () => {
     expect(notificationsEnabled({ APP_ENV: "dev" })).toBe(false);
     const env = {
       ORDER_NOTIFICATIONS_ENABLED: "true",

@@ -14,7 +14,8 @@ export function validateEnvironment(manifest, env) {
     fail("SERVICE_KEY_REQUIRED");
   if (!env.SUPABASE_URL) fail("DATABASE_URL_REQUIRED");
   if (!["true", "false"].includes(env.TELEGRAM_ENABLED)) fail("TELEGRAM_MODE_REQUIRED");
-  if (!["true", "false"].includes(env.ORDER_NOTIFICATIONS_ENABLED ?? "false")) fail("NOTIFICATION_MODE_INVALID");
+  if (!["true", "false"].includes(env.ORDER_NOTIFICATIONS_ENABLED ?? "false"))
+    fail("NOTIFICATION_MODE_INVALID");
   if (env.APP_ENV === "production" && env.TELEGRAM_ENABLED !== "true")
     fail("PRODUCTION_BOT_REQUIRED");
   if (env.TELEGRAM_ENABLED === "true") {
@@ -52,6 +53,16 @@ export function validateEnvironment(manifest, env) {
       fail("PRODUCTION_CUSTOMER_BOT_REQUIRED");
   }
   return true;
+}
+
+// Production alerts must not send order buttons into a bot still handled by the old backend.
+export function validateNotificationWebhook(payload, env) {
+  if (env.APP_ENV !== "production" || env.ORDER_NOTIFICATIONS_ENABLED !== "true") return;
+  if (
+    payload?.ok !== true ||
+    payload.result?.url !== env.PUBLIC_ORIGIN + "/api/public/telegram/webhook"
+  )
+    throw new Error("NOTIFICATION_WEBHOOK_CUTOVER_REQUIRED");
 }
 
 export function validateIdentity(identity, env) {

@@ -37,6 +37,8 @@ jobs:
         run: python3 ops/tests/catalog-import.py
       - name: Telegram bot receipts (isolated PostgreSQL)
         run: python3 ops/tests/telegram-bots.py
+      - name: Order notification claims and restart (isolated PostgreSQL)
+        run: python3 ops/tests/order-notifications.py
       - name: Tests (обязательно)
         run: npm test
       - name: Build default preset (обязательно)
