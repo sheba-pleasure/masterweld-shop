@@ -12,6 +12,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Telegram typed safe failures", () => {
+  it.each([200, 429])("retains validated retry_after on HTTP %i", async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { ok: false, error_code: 429, parameters: { retry_after: 300 } },
+            { status },
+          ),
+        ),
+    );
+    await expect(tg("sendMessage", {})).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 300,
+    });
+  });
   it.each([
     [400, false],
     [401, false],
