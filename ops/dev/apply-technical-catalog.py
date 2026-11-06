@@ -32,8 +32,8 @@ def require_clean_source():
         raise RuntimeError("COMMIT_SOURCE_BEFORE_MIGRATION")
     return run(["git","rev-parse","HEAD"],cwd=ROOT).stdout.decode().strip()
 
-def transaction(migration, read_fix=False, version_guard=False, editor_sessions=False):
-    if sum([read_fix, version_guard, editor_sessions]) > 1: raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
+def transaction(migration, read_fix=False, version_guard=False, editor_sessions=False, editor_exclusive=False):
+    if sum([read_fix, version_guard, editor_sessions, editor_exclusive]) > 1: raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
     guard = """
 IF to_regclass('public.technical_cards') IS NULL THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
 IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)') IS NOT NULL
@@ -57,6 +57,11 @@ IF strpos(pg_get_functiondef('public.bot_technical_catalog(bigint,text,uuid,uuid
 IF to_regclass('public.technical_editor_sessions') IS NOT NULL THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
 IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)') IS NULL
   THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
+"""
+    if editor_exclusive:
+        guard = """
+IF to_regclass('public.technical_editor_sessions') IS NULL THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
+IF to_regprocedure('public.bot_editor_exclusive()') IS NOT NULL THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
 """
     # Fingerprint each existing application table inside the transaction. No SQL
     # seed changes a product, old specs, price, order, staff row or delivery receipt.
@@ -95,16 +100,18 @@ DO $after$ DECLARE t record; h text; BEGIN
     THEN RAISE EXCEPTION 'TECH_PRIVILEGE_OPEN'; END IF;
 END $after$;
 COMMIT;
-""".replace("TECH_REQUIRE_EMPTY", "false" if read_fix or version_guard or editor_sessions else "true").replace(
-    "TECH_RPC_SIGNATURE", "bot_technical_editor(bigint,text,uuid,integer,uuid,uuid,jsonb,text,bigint)" if editor_sessions else "bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)" if version_guard
+""".replace("TECH_REQUIRE_EMPTY", "false" if read_fix or version_guard or editor_sessions or editor_exclusive else "true").replace(
+    "TECH_RPC_SIGNATURE", "bot_technical_editor(bigint,text,uuid,integer,uuid,uuid,jsonb,text,bigint)" if editor_sessions or editor_exclusive else "bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)" if version_guard
     else "bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)")
 
 def main():
-    if sys.argv[1:] not in ([], ["--read-fix"], ["--editor-version"], ["--editor-sessions"]): raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
+    if sys.argv[1:] not in ([], ["--read-fix"], ["--editor-version"], ["--editor-sessions"], ["--editor-exclusive"]): raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
     read_fix = sys.argv[1:] == ["--read-fix"]
     version_guard = sys.argv[1:] == ["--editor-version"]
     editor_sessions = sys.argv[1:] == ["--editor-sessions"]
-    migration_path = (ROOT / "docs/migrations/0020_technical_editor_sessions.sql" if editor_sessions else
+    editor_exclusive = sys.argv[1:] == ["--editor-exclusive"]
+    migration_path = (ROOT / "docs/migrations/0021_editor_exclusivity.sql" if editor_exclusive else
+                      ROOT / "docs/migrations/0020_technical_editor_sessions.sql" if editor_sessions else
                       ROOT / "docs/migrations/0019_technical_editor_version.sql" if version_guard else
                       ROOT / "docs/migrations/0018_technical_read_alias.sql" if read_fix else MIGRATION)
     sha = require_clean_source()
@@ -113,7 +120,7 @@ def main():
         raise RuntimeError("TECH_FOREIGN_CONTAINER")
     validate_identity(json.loads(sql("SELECT public.mw_environment_identity()")))
     missing = sql("SELECT to_regclass('public.technical_cards') IS NULL") == "t"
-    if missing == (read_fix or version_guard or editor_sessions):
+    if missing == (read_fix or version_guard or editor_sessions or editor_exclusive):
         raise RuntimeError("TECH_WRONG_MIGRATION_BASELINE")
     state = ROOT / "ops/.state/dev"
     with (state / "update.lock").open("a") as lock:
@@ -121,7 +128,7 @@ def main():
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         folder = state / "backups"
         folder.mkdir(parents=True,exist_ok=True,mode=0o700)
-        prefix = "before-technical-editor-sessions-" if editor_sessions else "before-technical-editor-version-" if version_guard else "before-technical-read-fix-" if read_fix else "before-technical-"
+        prefix = "before-editor-exclusive-" if editor_exclusive else "before-technical-editor-sessions-" if editor_sessions else "before-technical-editor-version-" if version_guard else "before-technical-read-fix-" if read_fix else "before-technical-"
         dump = folder / (prefix + stamp + "-" + uuid.uuid4().hex[:8] + ".dump")
         fd = os.open(dump,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         with os.fdopen(fd,"wb") as target:
@@ -135,13 +142,13 @@ def main():
                 run(["docker","exec","-i",CONTAINER,"pg_restore","-U","postgres","-d",rehearsal,
                      "--single-transaction","--exit-on-error"],stdin=stream)
             validate_identity(json.loads(sql("SELECT public.mw_environment_identity()",rehearsal)))
-            sql(transaction(migration,read_fix,version_guard,editor_sessions),rehearsal)
+            sql(transaction(migration,read_fix,version_guard,editor_sessions,editor_exclusive),rehearsal)
         finally:
             run(["docker","exec",CONTAINER,"dropdb","-U","postgres",rehearsal])
         # Recheck the target, then apply exactly the already rehearsed bytes.
         validate_identity(json.loads(sql("SELECT public.mw_environment_identity()")))
-        sql(transaction(migration,read_fix,version_guard,editor_sessions))
-        report = {"environment":"dev","sourceSha":sha,"migration":"0020" if editor_sessions else "0019" if version_guard else "0018" if read_fix else "0017",
+        sql(transaction(migration,read_fix,version_guard,editor_sessions,editor_exclusive))
+        report = {"environment":"dev","sourceSha":sha,"migration":"0021" if editor_exclusive else "0020" if editor_sessions else "0019" if version_guard else "0018" if read_fix else "0017",
                   "migrationSha256":hashlib.sha256(migration.encode()).hexdigest(),
                   "backup":dump.name,"backupSha256":hashlib.sha256(dump.read_bytes()).hexdigest(),
                   "restoredCopyRehearsed":True,"existingTablesUnchanged":True,"seededProductValues":False,

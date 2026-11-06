@@ -698,7 +698,16 @@ async function setEditorState(
     },
     { onConflict: "staff_telegram_id" },
   );
-  if (error) console.error("[bot] editor state write failed");
+  if (error) {
+    console.error("[bot] editor state write failed");
+    await tg("sendMessage", {
+      chat_id: staffTelegramId,
+      text:
+        error.message === "EDITOR_TECHNICAL_ACTIVE"
+          ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
+          : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Повторите действие или отмените ввод командой /cancel.",
+    });
+  }
   return !error;
 }
 
@@ -764,7 +773,7 @@ async function startEditorField(
       chat_id: chatId,
       text: `⚠️ ${NOT_ACTIVATED_MSG}\n\nКогда база обновится, диалог заработает. Пока доступна команда: /set ${field === "description" ? "desc" : field} ${p.sku ?? p.title} <значение>`,
     });
-  await setEditorState(m.telegram_id, `edit_${field}`, { product_id: p.id }, p.id);
+  if (!(await setEditorState(m.telegram_id, `edit_${field}`, { product_id: p.id }, p.id))) return;
   return tg("sendMessage", {
     chat_id: chatId,
     text: `Отправьте новое значение — ${FIELD_PROMPT[field]}.${CANCEL_HINT}`,
@@ -821,7 +830,7 @@ async function handleDraftStep(
       await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
       return true;
     }
-    await setEditorState(m.telegram_id, "new_sku", { title: v.value });
+    if (!(await setEditorState(m.telegram_id, "new_sku", { title: v.value }))) return true;
     await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_sku") });
     return true;
   }
@@ -848,7 +857,8 @@ async function handleDraftStep(
         return true;
       }
     }
-    await setEditorState(m.telegram_id, "new_price", { ...data, title: data.title, sku });
+    if (!(await setEditorState(m.telegram_id, "new_price", { ...data, title: data.title, sku })))
+      return true;
     await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_price") });
     return true;
   }
@@ -862,7 +872,7 @@ async function handleDraftStep(
       return true;
     }
     const d: Required<DraftData> = { title: data.title ?? "", sku: data.sku ?? null, price };
-    await setEditorState(m.telegram_id, "new_confirm", d);
+    if (!(await setEditorState(m.telegram_id, "new_confirm", d))) return true;
     await tg("sendMessage", {
       chat_id: chatId,
       text: draftPreviewText(d, slugBase(d.title)),
@@ -886,7 +896,7 @@ async function startNewDraft(m: StaffMember, chatId: number) {
     });
   if (!(await editorAvailable()))
     return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  await setEditorState(m.telegram_id, "new_title", {});
+  if (!(await setEditorState(m.telegram_id, "new_title", {}))) return;
   return tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_title") });
 }
 
@@ -947,7 +957,7 @@ async function startCategoryPicker(m: StaffMember, chatId: number, productId: st
       chat_id: chatId,
       text: `⚠️ ${NOT_ACTIVATED_MSG}\n\nПока доступна команда: /set cat ${p.sku ?? p.title} <название раздела>`,
     });
-  await setEditorState(m.telegram_id, "pick_cat", { product_id: p.id, cats }, p.id);
+  if (!(await setEditorState(m.telegram_id, "pick_cat", { product_id: p.id, cats }, p.id))) return;
   const rows: Btn[][] = cats.map((c, i) => [
     { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i) },
   ]);

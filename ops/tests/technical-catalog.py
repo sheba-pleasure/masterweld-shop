@@ -112,6 +112,59 @@ try:
     migration20=(ROOT / "docs/migrations/0020_technical_editor_sessions.sql").read_text()
     sql(operator.transaction(migration20,editor_sessions=True))
     sql(operator.transaction(migration20,editor_sessions=True),"TECH_ALREADY_APPLIED")
+    migration21=(ROOT / "docs/migrations/0021_editor_exclusivity.sql").read_text()
+    # Migration must not silently discard pre-existing conflicting drafts.
+    sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour');")
+    sql("INSERT INTO technical_editor_sessions(staff_telegram_id,product_id,base_version,data) VALUES(101,"+lit(EDITOR)+",0,'{}');")
+    sql(operator.transaction(migration21,editor_exclusive=True),"EDITOR_EXISTING_CONFLICT")
+    assert sql("SELECT count(*) FROM bot_editor_states")== "1"
+    assert sql("SELECT count(*) FROM technical_editor_sessions")== "1"
+    sql("DELETE FROM bot_editor_states; DELETE FROM technical_editor_sessions;")
+    sql(operator.transaction(migration21,editor_exclusive=True))
+    sql(operator.transaction(migration21,editor_exclusive=True),"TECH_ALREADY_APPLIED")
+    assert sql("SELECT has_function_privilege('service_role','bot_editor_exclusive()','EXECUTE')")=="f"
+    assert sql("SELECT has_function_privilege('anon','bot_editor_exclusive()','EXECUTE')")=="f"
+
+    ordinary = """INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at)
+      VALUES(101,'new_title',now()+interval '1 hour') ON CONFLICT(staff_telegram_id)
+      DO UPDATE SET state=excluded.state,expires_at=excluded.expires_at,consumed_at=NULL;"""
+    technical = "SELECT bot_technical_editor(101,'start',p_product_id=>"+lit(EDITOR)+");"
+    def clear_dialogs():
+        sql("UPDATE bot_editor_states SET consumed_at=now(); UPDATE technical_editor_sessions SET phase='canceled';")
+    def wait_for_holder(tag):
+        for _ in range(100):
+            if sql("SELECT count(*) FROM pg_stat_activity WHERE application_name="+lit(tag)+" AND wait_event='PgSleep'")=="1":
+                return
+            time.sleep(.01)
+        raise AssertionError("Competing transaction did not acquire the editor lock")
+    # Force both serial orders with a live transaction, not merely sequential inserts.
+    for first,second,error,tag in (
+        (ordinary,technical,"EDITOR_ORDINARY_ACTIVE","qa-ordinary-first"),
+        (technical,ordinary,"EDITOR_TECHNICAL_ACTIVE","qa-technical-first"),
+    ):
+        clear_dialogs()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            holder=pool.submit(sql,"BEGIN; SET application_name="+lit(tag)+"; "+first+" SELECT pg_sleep(2); COMMIT;")
+            wait_for_holder(tag)
+            contender=pool.submit(sql,second,error)
+            holder.result()
+            contender.result()
+        assert sql("""SELECT
+          (SELECT count(*) FROM bot_editor_states WHERE consumed_at IS NULL AND expires_at>now())+
+          (SELECT count(*) FROM technical_editor_sessions WHERE phase IN ('editing','preview') AND expires_at>now())""")=="1"
+    clear_dialogs()
+    sql("BEGIN ISOLATION LEVEL REPEATABLE READ; "+ordinary+" COMMIT;","EDITOR_ISOLATION_REQUIRED")
+    sql("BEGIN ISOLATION LEVEL REPEATABLE READ; "+technical+" COMMIT;","EDITOR_ISOLATION_REQUIRED")
+    sql(ordinary)
+    sql("UPDATE bot_editor_states SET expires_at=now()-interval '1 second';")
+    sql(technical)  # Expired ordinary draft does not block a new technical dialog.
+    sql("INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(102,'new_title',now()+interval '1 hour');")
+    clear_dialogs()
+    sql(ordinary)  # Explicit cancellation releases the actor's input.
+    clear_dialogs()
+    # These rows belong only to this disposable QA cluster; the next upgrade check requires an empty editor baseline.
+    sql("DELETE FROM bot_editor_states; DELETE FROM technical_editor_sessions;")
+    print("exclusive editors: both concurrent orders, expiry, cancellation, actor isolation and migration refusal PASS",flush=True)
     sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
     assert sql("SELECT to_regprocedure('bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL") == "t"
     # Exercise the production rehearsal checks in this disposable, no-network QA cluster.
