@@ -15,6 +15,7 @@ NAME = "mw-tech-qa-" + uuid.uuid4().hex[:12]
 PRODUCT = "10000000-0000-4000-8000-000000000001"
 HIDDEN = "10000000-0000-4000-8000-000000000002"
 OTHER = "10000000-0000-4000-8000-000000000003"
+EDITOR = "10000000-0000-4000-8000-000000000004"
 
 def run(args, **kwargs):
     return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs)
@@ -88,7 +89,7 @@ try:
       (101,'QA admin','admin',false,true),(102,'QA other admin','admin',false,true),
       (103,'QA seller','seller',false,true),(104,'QA inactive','admin',false,false),
       (105,'QA director','director',false,true),(106,'QA elevated','director',true,true);""")
-    for pid, slug, status, decision in [(PRODUCT,"qa-tech","published","review"),(HIDDEN,"qa-hidden","hidden","excluded"),(OTHER,"qa-other","draft","review")]:
+    for pid, slug, status, decision in [(PRODUCT,"qa-tech","published","review"),(HIDDEN,"qa-hidden","hidden","excluded"),(OTHER,"qa-other","draft","review"),(EDITOR,"qa-editor","draft","review")]:
         sql("INSERT INTO products(id,slug,sku,title,price,specs,status,assortment_decision) VALUES(" +
             ",".join(map(lit,[pid,slug,slug,"[Учебный] "+slug,100,"Old specs preserved",status,decision])) + ");")
     fingerprint = sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
@@ -108,6 +109,9 @@ try:
     migration19=(ROOT / "docs/migrations/0019_technical_editor_version.sql").read_text()
     sql(operator.transaction(migration19,version_guard=True))
     sql(operator.transaction(migration19,version_guard=True),"TECH_ALREADY_APPLIED")
+    migration20=(ROOT / "docs/migrations/0020_technical_editor_sessions.sql").read_text()
+    sql(operator.transaction(migration20,editor_sessions=True))
+    sql(operator.transaction(migration20,editor_sessions=True),"TECH_ALREADY_APPLIED")
     sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
     assert sql("SELECT to_regprocedure('bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL") == "t"
     dictionary = json.loads((ROOT / "src/lib/technical/pilot-dictionary.json").read_text())
@@ -248,12 +252,86 @@ try:
     assert published["revision_id"] not in [r["id"] for r in history["revisions"]]
     assert history["published"]["id"] == published["revision_id"]
     assert history["published"]["document"] == DOC
-    # Restart retains public pointer, proposals, audit and idempotency.
+    # Durable editor: actor ownership, CAS, atomic preview/apply, stale base, restart.
+    def editor(op, session=None, actor=101, error=None, **extra):
+        args={"p_staff_telegram_id":actor,"p_op":op}
+        if session: args.update(p_session_id=session["id"],p_revision=session["revision"])
+        args.update(extra)
+        result=sql("SET ROLE service_role; SELECT bot_technical_editor("+",".join(k+"=>"+lit(json.dumps(v) if isinstance(v,dict) else v) for k,v in args.items())+");",error)
+        return json.loads(result)["session"] if not error else None
+    for role in ["anon","authenticated","service_role"]:
+        sql("SET ROLE "+role+"; SELECT * FROM technical_editor_sessions;","permission denied")
+    sql("SET ROLE anon; SELECT bot_technical_editor(101,'current');","permission denied")
+    for actor in [104,105,999]:
+        editor("start",actor=actor,p_product_id=EDITOR,error="TECH_DENIED")
+    draft=editor("start",p_product_id=EDITOR)
+    assert draft["base_version"]==0 and draft["base_document"] is None
+    editor("start",p_product_id=PRODUCT,error="TECH_EDITOR_ACTIVE")
+    editor("get",draft,actor=102,error="TECH_EDITOR_NOT_FOUND")
+    state={**draft["data"],"document":DOC}
+    # Exactly one racing save wins; the loser must not overwrite it.
+    def racing_save():
+        try: return editor("save",draft,p_data=state)
+        except RuntimeError as exc:
+            assert "TECH_EDITOR_STALE" in str(exc)
+            return None
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes=list(pool.map(lambda _: racing_save(),range(2)))
+    assert sum(v is not None for v in outcomes)==1
+    draft=next(v for v in outcomes if v is not None)
+    prompted=editor("prompt",draft,p_prompt_message_id=321)
+    assert prompted["prompt_message_id"]==321 and prompted["revision"]==draft["revision"]
+    # Audit failure rolls back the nested core preview and session transition together.
+    sql("""CREATE FUNCTION reject_editor_audit() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN
+      IF NEW.action='technical_editor_preview' THEN RAISE EXCEPTION 'QA_EDITOR_AUDIT_FAILURE'; END IF;
+      RETURN NEW; END $f$;
+      CREATE TRIGGER reject_editor_audit BEFORE INSERT ON staff_audit_log FOR EACH ROW EXECUTE FUNCTION reject_editor_audit();""")
+    changes=sql("SELECT count(*) FROM technical_changes")
+    editor("preview",draft,p_review_state="verified",error="QA_EDITOR_AUDIT_FAILURE")
+    assert editor("get",draft)["phase"]=="editing"
+    assert sql("SELECT count(*) FROM technical_changes")==changes
+    sql("DROP TRIGGER reject_editor_audit ON staff_audit_log; DROP FUNCTION reject_editor_audit();")
+    preview=editor("preview",draft,p_review_state="verified")
+    applied=editor("apply",preview)
+    assert applied["phase"]=="applied"
+    assert editor("apply",preview)["applied_revision"]==applied["applied_revision"]
+    assert editor("latest")["id"]==applied["id"]
+    assert editor("current") is None
+    undone=editor("undo",applied)
+    assert editor("undo",applied)["phase"]=="undone"
+    seller=editor("start",actor=103,p_product_id=EDITOR)
+    seller=editor("save",seller,actor=103,p_data=state)
+    editor("preview",seller,actor=103,p_review_state="verified",error="TECH_REVIEW_DENIED")
+    seller=editor("apply",editor("preview",seller,actor=103),actor=103)
+    # A reviewable proposal is copied explicitly; starting it never changes publication.
+    editor("start",actor=102,p_source_revision=seller["applied_revision"],p_product_id=PRODUCT,error="TECH_REVIEW_DENIED")
+    review=editor("start",p_source_revision=seller["applied_revision"])
+    assert review["product_id"]==EDITOR and review["data"]["document"]==DOC
+    assert public(EDITOR) is None
+    editor("cancel",review)
+    # Seller cannot copy an unrelated administrator's revision.
+    editor("start",actor=103,p_source_revision=applied["applied_revision"],error="TECH_REVIEW_DENIED")
+    stale=editor("start",p_product_id=EDITOR)
+    preview_apply(product=EDITOR,actor=102)
+    editor("preview",stale,error="TECH_CONFLICT")
+    assert editor("get",stale)["base_version"]==stale["base_version"]
+    editor("cancel",stale)
+    expired=editor("start",p_product_id=EDITOR)
+    sql("UPDATE technical_editor_sessions SET expires_at=now()-interval '1 second' WHERE id="+lit(expired["id"]))
+    editor("save",expired,p_data=state,error="TECH_EDITOR_EXPIRED")
+    resumed=editor("start",p_product_id=EDITOR)
+    assert resumed["id"]!=expired["id"]
+    resumed=editor("save",resumed,p_data=state)
+    sql("UPDATE staff SET active=false WHERE telegram_id=101")
+    editor("get",resumed,error="TECH_DENIED")
+    sql("UPDATE staff SET active=true WHERE telegram_id=101")
+    # Restart retains public pointer, proposals, audit, editor and idempotency.
     run(["docker","restart",NAME])
     for _ in range(120):
         if subprocess.run(["docker","exec",NAME,"pg_isready","-h","127.0.0.1","-U","postgres"],capture_output=True).returncode==0: break
         time.sleep(.25)
     assert public() == published
+    assert editor("current")["data"]==state
     assert rpc("apply",change=b["change_id"])["duplicate"]
     dump = subprocess.run(["docker","exec",NAME,"pg_dump","-U","postgres","-d","postgres","-Fc"],check=True,capture_output=True).stdout
     run(["docker","exec",NAME,"createdb","-U","postgres","restored"])
@@ -262,7 +340,7 @@ try:
     assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(PRODUCT)+");",db="restored")) == published
     assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;",db="restored")
     print(json.dumps({"dictionary":len(dictionary["attributes"]),"families":48,"concurrentSingleApply":True,
-      "readToPreviewConflict":True,"publishedOutsideHistory":True,"pendingKeepsPublished":True,"conflictUndo":True,"revocationExpiry":True,"atomicAudit":True,
+      "editorOwnershipCasRestart":True,"editorPreviewAuditAtomic":True,"editorApplyDuplicate":True,"readToPreviewConflict":True,"publishedOutsideHistory":True,"pendingKeepsPublished":True,"conflictUndo":True,"revocationExpiry":True,"atomicAudit":True,
       "typedContextsSources":True,"publicScope":True,"productsUnchanged":True,"restartPreserved":True,"dumpRestored":True}))
 finally:
     if created: subprocess.run(["docker","rm","-fv",NAME],capture_output=True)
