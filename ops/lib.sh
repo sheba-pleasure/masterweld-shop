@@ -10,17 +10,37 @@ GITHUB_API="${GITHUB_API:-https://api.github.com}"
 GITHUB_REPO="${GITHUB_REPO:-sheba-pleasure/masterweld-shop}"
 IMAGE_REPO="${IMAGE_REPO:-masterweld-shop}"
 BIND_IP="127.0.0.1"
-GATEWAY_PORT=18080
-GATEWAY_NAME="mw-shop-gateway"
+# Defaults remain the production topology. Isolated rehearsals must provide their own resources.
+GATEWAY_PORT="${GATEWAY_PORT:-18080}"
+SLOT_A_PORT="${SLOT_A_PORT:-18081}"
+SLOT_B_PORT="${SLOT_B_PORT:-18082}"
+BACKEND_PORT="${BACKEND_PORT:-18084}"
+MW_CONTAINER_PREFIX="${MW_CONTAINER_PREFIX:-mw-shop}"
+APP_NETWORK="${APP_NETWORK:-mw-prod-edge}"
+GATEWAY_NAME="$MW_CONTAINER_PREFIX-gateway"
 HEALTH_TRIES="${HEALTH_TRIES:-30}"
 HEALTH_SLEEP="${HEALTH_SLEEP:-2}"
 
 log() { printf '[mw-release] %s\n' "$*" >&2; }
 die() { log "ОШИБКА: $*"; exit 1; }
 
-slot_port() { case "$1" in a) echo 18081 ;; b) echo 18082 ;; *) die "неизвестный slot $1" ;; esac; }
+slot_port() { case "$1" in a) echo "$SLOT_A_PORT" ;; b) echo "$SLOT_B_PORT" ;; *) die "неизвестный slot $1" ;; esac; }
 other_slot() { [ "$1" = a ] && echo b || echo a; }
-slot_name() { echo "mw-shop-slot-$1"; }
+slot_name() { echo "$MW_CONTAINER_PREFIX-slot-$1"; }
+
+# Reject configuration mistakes before Docker, state writes, or generated nginx configuration.
+validate_topology() {
+  local port seen=" "
+  for port in "$GATEWAY_PORT" "$SLOT_A_PORT" "$SLOT_B_PORT" "$BACKEND_PORT"; do
+    [[ "$port" =~ ^[1-9][0-9]{3,4}$ ]] && (( port >= 1024 && port <= 65535 )) \
+      || die "порт должен быть числом 1024–65535"
+    [[ "$seen" != *" $port "* ]] || die "порты gateway, slots и backend должны различаться"
+    seen+="$port "
+  done
+  [[ "$MW_CONTAINER_PREFIX" =~ ^[a-z][a-z0-9-]{0,39}$ ]] || die "недопустимый префикс контейнеров"
+  [[ "$APP_NETWORK" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || die "недопустимое имя сети"
+}
+validate_topology
 
 state_get() { [ -f "$STATE_DIR/$1" ] && cat "$STATE_DIR/$1" || true; }
 state_set() { mkdir -p "$STATE_DIR"; ( umask 077; printf '%s\n' "$2" > "$STATE_DIR/$1.tmp" ); mv "$STATE_DIR/$1.tmp" "$STATE_DIR/$1"; }
@@ -115,7 +135,7 @@ write_gateway_conf() {
 server {
   listen $BIND_IP:$GATEWAY_PORT;
   location /backend/rest/v1/ {
-    proxy_pass http://127.0.0.1:18084/rest/v1/;
+    proxy_pass http://127.0.0.1:$BACKEND_PORT/rest/v1/;
     proxy_set_header Authorization \$http_authorization;
     add_header Cache-Control "no-store" always;
   }

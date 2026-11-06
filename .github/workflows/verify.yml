@@ -64,6 +64,11 @@ jobs:
         run: |
           for f in ops/*.sh ops/tests/*.sh; do bash -n "$f"; done
           bash ops/tests/release-synthetic.sh
+      - name: Real Docker gateway release and rollback (synthetic application)
+        run: |
+          docker pull node:22-bookworm-slim
+          docker pull nginx:1.27-alpine
+          python3 ops/tests/release-containers.py
       - name: ESLint изменённых файлов (advisory)
         continue-on-error: true
         run: |
