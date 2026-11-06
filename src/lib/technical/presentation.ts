@@ -55,7 +55,8 @@ export function formatTechnicalContext(context: TechnicalValue["context"]): stri
   if (context.gas !== undefined) parts.push(`Газ: ${context.gas}`);
   if (context.cooling !== undefined)
     parts.push(`Охлаждение: ${context.cooling === "air" ? "воздушное" : "жидкостное"}`);
-  if (context.duty_pct !== undefined) parts.push(`ПН: ${number.format(context.duty_pct)} %`);
+  if (context.duty_pct !== undefined)
+    parts.push(`Продолжительность нагрузки: ${number.format(context.duty_pct)} %`);
   if (context.material !== undefined) parts.push(`Материал: ${context.material}`);
   if (context.diameter_mm !== undefined)
     parts.push(`Диаметр: ${number.format(context.diameter_mm)} мм`);

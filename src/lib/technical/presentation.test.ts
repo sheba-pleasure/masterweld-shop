@@ -92,7 +92,7 @@ it("keeps all measurement conditions, including zero current and temperature", (
     "Давление: 5,5 бар",
     "Газ: M21",
     "Охлаждение: жидкостное",
-    "ПН: 60 %",
+    "Продолжительность нагрузки: 60 %",
     "Материал: Сталь",
     "Диаметр: 3,2 мм",
   ]);

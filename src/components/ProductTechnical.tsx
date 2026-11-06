@@ -43,7 +43,9 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
                     className="grid gap-1 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-4"
                   >
                     <dt className="min-w-0 break-words text-sm text-muted-foreground">
-                      {fact.label}
+                      {fact.label.startsWith("ПН ")
+                        ? `Продолжительность нагрузки${fact.label.slice(2)}`
+                        : fact.label}
                     </dt>
                     <dd className="min-w-0 break-words text-sm text-foreground">
                       <span
