@@ -961,10 +961,10 @@ async function startCategoryPicker(m: StaffMember, chatId: number, productId: st
   const rows: Btn[][] = cats.map((c, i) => [
     { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i) },
   ]);
-  rows.push([{ text: "⬅️ Отмена", callback_data: `prd:${p.id}` }]);
+  rows.push([{ text: "⬅️ К карточке", callback_data: `prd:${p.id}` }]);
   return tg("sendMessage", {
     chat_id: chatId,
-    text: `Перенос «${p.title}» — выберите раздел:`,
+    text: `Перенос «${p.title}» — выберите раздел.\n\n/cancel — отменить выбор. Переход к карточке сохраняет ввод.`,
     reply_markup: { inline_keyboard: rows },
   });
 }
