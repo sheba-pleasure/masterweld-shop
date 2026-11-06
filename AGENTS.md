@@ -31,6 +31,9 @@
 - The shop sets robots noindex in the root route until indexing is deliberately enabled, so it does not compete with the old masterweld.ru for the same search queries.
 - Releases outside Lovable use the Dockerfile (upstream Vite/TanStack/Nitro node-server; no Lovable build wrapper) and ops/ blue/green scripts on loopback slots; scripts require an exact SHA merged to main with green verify, never touch the database, and keep the previous container for rollback; rollback runs offline from the local approved history and container labels, and release/rollback/build share one non-blocking flock so they never interleave. All changes go to DEV first. Only the owner's explicit «обнови main» authorizes promotion after a fresh release review. An unprotected main push is insufficient: deploy-production requires successful verify and a short-lived server approval for the exact main SHA. Automatic deployment is prepared, not yet provisioned. Native Git Sync is off; Git CLI is now authorized. Preserve current remote files and history when publishing. See docs/WORKFLOW.md and STATUS.md.
 
+## Type safety
+- npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
+
 ## Environment rules — 06.11.2026
 - DEV: https://masterweld-dev.138-124-106-211.sslip.io, isolated masterweld_dev in mw-dev-db; no production data or token copies.
 - Customer production bot: @msvarbot (9168738475); staff production bot: @masterweldermanagerbot (8861999166). Tokens/config are staged in ops/.secrets/production, never mounted in DEV. Staff bot still has a legacy Lovable webhook until an explicitly reviewed production cutover. See docs/TELEGRAM-SHOP.md.

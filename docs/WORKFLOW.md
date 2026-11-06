@@ -50,6 +50,7 @@ authorized_keys: restrict и forced command python3 /home/codex/projects/masterw
 
 ## Проверки
 
+npm run typecheck
 npm test
 node --test ops/runtime/environment.test.mjs
 python3 -m unittest discover -s ops/production -p 'test_*.py'
@@ -58,7 +59,7 @@ NITRO_PRESET=node-server npm run build
 bash ops/tests/release-synthetic.sh
 
 Инфраструктура: HTTPS/сертификат/noindex, заказ DEV, SQL-права, маркер базы, возврат предыдущей версии.
-Полный lint имеет старый долг; изменённые участки проверяются отдельно.
+TypeScript: npm run typecheck — обязательный этап verify сразу после установки зависимостей. Действует неизменённый строгий tsconfig: src/**/*.ts/tsx (включая тесты), vite.config.ts и vitest.config.ts. Отдельные ops/*.ts этим tsconfig не охвачены; для них сохраняются собственные проверки. Не отключать strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes или noPropertyAccessFromIndexSignature ради зелёной проверки. Полный lint имеет старый долг; изменённые участки проверяются отдельно.
 
 ## Откат
 
