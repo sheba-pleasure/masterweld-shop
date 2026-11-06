@@ -93,21 +93,21 @@ beforeEach(() => {
       order: () => chain,
       maybeSingle: async () => {
         if (table === "staff") return { data: member, error: null };
-        if (table === "pending_actions") return { data: { action: last?.action }, error: null };
+        if (table === "pending_actions") return { data: { action: last?.["action"] }, error: null };
         if (table === "products")
           return {
             data: { id: product, slug: "qa", title: "Учебный", price: 100, status: "draft" },
             error: null,
           };
-        expect(filters.deleted_at).toBeNull();
+        expect(filters["deleted_at"]).toBeNull();
         if (lookupError) return { data: null, error: { message: "SECRET" } };
-        const ph = photos.find((p) => p.id === filters.id && !deleted.has(p.id));
+        const ph = photos.find((p) => p.id === filters["id"] && !deleted.has(p.id));
         return { data: ph ? { product_id: product } : null, error: null };
       },
       then: (resolve: (r: unknown) => unknown) => {
         expect(table).toBe("product_photos");
-        expect(filters.product_id).toBe(product);
-        expect(filters.deleted_at).toBeNull();
+        expect(filters["product_id"]).toBe(product);
+        expect(filters["deleted_at"]).toBeNull();
         return Promise.resolve({
           data: listError ? null : photos.filter((p) => !deleted.has(p.id)),
           error: listError ? { message: "SECRET" } : null,
