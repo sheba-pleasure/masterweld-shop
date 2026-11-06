@@ -52,6 +52,8 @@ jobs:
         run: python3 ops/tests/catalog-previews.py
       - name: Catalog draft recovery (isolated PostgreSQL)
         run: python3 ops/tests/catalog-drafts.py
+      - name: Database backup snapshot and restore (isolated PostgreSQL)
+        run: python3 ops/tests/database-backup.py
       - name: Technical catalog transactions (isolated PostgreSQL)
         run: python3 ops/tests/technical-catalog.py
       - name: Telegram bot receipts (isolated PostgreSQL)
