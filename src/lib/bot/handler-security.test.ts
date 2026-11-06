@@ -102,6 +102,9 @@ describe("single service gate", () => {
     }
   });
   it.each([
+    "shop_versions",
+    "shop_preview",
+    "shop_pro_pending",
     "staff",
     "audit",
     "elevate_on",
@@ -128,21 +131,29 @@ describe("single service gate", () => {
       text: "Нет доступа.",
     });
   });
-  it.each(["/start", "/menu", "/catalog", "/lead", "/new", "/cancel", "/unknown", "plain"])(
-    "group command %s is blocked",
-    async (text) => {
-      await handleUpdate({
-        update_id: 1,
-        message: { text, from: { id: 101 }, chat: { id: -123, type: "group" } },
-      });
-      expect(mocks.from).not.toHaveBeenCalled();
-      expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("sendMessage", {
-        chat_id: -123,
-        text: "Нет доступа.",
-      });
-    },
-  );
+  it.each([
+    "/start",
+    "/menu",
+    "/shops",
+    "/shop",
+    "/catalog",
+    "/lead",
+    "/new",
+    "/cancel",
+    "/unknown",
+    "plain",
+  ])("group command %s is blocked", async (text) => {
+    await handleUpdate({
+      update_id: 1,
+      message: { text, from: { id: 101 }, chat: { id: -123, type: "group" } },
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("sendMessage", {
+      chat_id: -123,
+      text: "Нет доступа.",
+    });
+  });
   it("missing type denies even equal IDs", async () => {
     const u = callback("staff");
     if (u.callback_query?.message?.chat) delete u.callback_query.message.chat.type;
@@ -252,6 +263,64 @@ describe("persistent navigation", () => {
     expect(events).toEqual(["from:staff"]);
     expect(mocks.tg.mock.calls[0]?.[1].text).toBe("Нет доступа.");
   });
+});
+describe("staff storefront environments", () => {
+  it.each(["dev", "production"])(
+    "authorised seller opens %s links without data or role mutations",
+    async (env) => {
+      vi.stubEnv("APP_ENV", env);
+      try {
+        member = { ...actor, role: "seller" };
+        await handleUpdate(callback("shop_versions"));
+        const payload = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")?.[1];
+        expect(payload.text).toContain("Корзины и заказы этих магазинов раздельные");
+        expect(payload.reply_markup.inline_keyboard[0][0].web_app.url).toBe(
+          "https://masterweld-dev.138-124-106-211.sslip.io/?miniapp=1",
+        );
+        const pro = payload.reply_markup.inline_keyboard[1][0];
+        if (env === "production")
+          expect(pro.web_app.url).toBe("https://shop.masterweld.ru/?miniapp=1");
+        else {
+          expect(pro.web_app).toBeUndefined();
+          expect(pro.callback_data).toBe("shop_pro_pending");
+        }
+        expect(events).toEqual(["from:staff"]);
+        expect(mocks.rpc).not.toHaveBeenCalled();
+        expect(process.env["APP_ENV"]).toBe(env);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+  it.each(["shop_versions", "shop_preview", "shop_pro_pending"])(
+    "revoked staff cannot access %s through an old message",
+    async (action) => {
+      member = { ...actor, active: false };
+      await handleUpdate(callback(action));
+      expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("answerCallbackQuery", {
+        callback_query_id: "cb",
+        text: "Нет доступа.",
+      });
+      expect(events).toEqual(["from:staff"]);
+    },
+  );
+  it.each(["🧪 DEV · учебный магазин", "🏪 PRO · рабочий магазин", "/shops"])(
+    "shop entry %s cannot become pending product editor input",
+    async (text) => {
+      vi.stubEnv("APP_ENV", "dev");
+      try {
+        await handleUpdate({
+          update_id: 3,
+          message: { text, from: { id: 101 }, chat: { id: 101, type: "private" } },
+        });
+        expect(events).toEqual(["from:staff"]);
+        expect(mocks.rpc).not.toHaveBeenCalled();
+        expect(mocks.tg.mock.calls[0]?.[1].text).toContain("PRO — готовится к запуску");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
 });
 describe("audit-before-disclosure", () => {
   it.each(["staff", "audit"])("%s audits before read", async (data) => {

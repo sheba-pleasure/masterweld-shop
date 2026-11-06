@@ -33,6 +33,7 @@
 ## Environment rules — 06.11.2026
 - DEV: https://masterweld-dev.138-124-106-211.sslip.io, isolated masterweld_dev in mw-dev-db; no production data or token copies.
 - Customer production bot: @msvarbot (9168738475); staff production bot: @masterweldermanagerbot (8861999166). Tokens/config are staged in ops/.secrets/production, never mounted in DEV. Staff bot still has a legacy Lovable webhook until an explicitly reviewed production cutover. See docs/TELEGRAM-SHOP.md.
+- Staff bot DEV/PRO buttons open the respective public storefront as Telegram Mini Apps; they never switch the bot database or grant staff rights. Production handler offers both fixed HTTPS origins; DEV explains that PRO is not launched. Preserve separate data, cart origins and tokens. See docs/TELEGRAM-SHOP.md.
 - Telegram webhook claims use 0016 bot_id + update_id, retaining legacy staff claims as a replay barrier. Customer route never dispatches staff commands. Mini App is the same public storefront; launch parameters are not authentication.
 - Intended DEV bot: @testmw639bot. Check getMe and other active integrations before installing a webhook. @psinavsvaobot belongs to another project and must not be used.
 - DEV has migrations 0000–0016; the new empty standalone production database remains at 0000–0013. Review/apply 0014–0016 separately before production. No Cloud migration was performed. Historical Cloud observations above remain historical; do not assume production was migrated.
