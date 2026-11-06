@@ -11,6 +11,7 @@ const requestSchema = z.discriminatedUnion("op", [
       op: z.literal("preview"),
       productId: z.string().uuid(),
       document: technicalDocument,
+      expectedVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
       reviewState: technicalReviewState,
     })
     .strict(),
@@ -48,9 +49,15 @@ export async function technicalOperation(
       ? { p_product_id: request.productId }
       : { p_change_id: request.changeId }),
     ...(request.op === "preview"
-      ? { p_document: request.document, p_review_state: request.reviewState }
+      ? {
+          p_document: request.document,
+          p_review_state: request.reviewState,
+          p_expected_version: request.expectedVersion,
+        }
       : {}),
   });
+  if (error?.message === "TECH_CONFLICT" || error?.message === "TECH_VERSION_REQUIRED")
+    throw new Error(error.message);
   if (error || !data || typeof data !== "object" || !("ok" in data) || data.ok !== true)
     throw new Error("TECH_OPERATION_UNCONFIRMED");
   return data;

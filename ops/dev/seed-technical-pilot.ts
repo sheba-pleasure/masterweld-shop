@@ -82,6 +82,7 @@ const document: TechnicalDocument = {
 const preview = (await technicalOperation(member, chat, from, {
   op: "preview",
   productId,
+  expectedVersion: current.card.version,
   document,
   reviewState: "verified",
 })) as { change_id: string };

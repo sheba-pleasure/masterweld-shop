@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply 0017 or explicit --read-fix (0018) only to identified DEV after backup/rehearsal."""
+"""Apply an explicit technical migration only to identified DEV after backup/rehearsal."""
 import fcntl
 import hashlib
 import json
@@ -32,13 +32,25 @@ def require_clean_source():
         raise RuntimeError("COMMIT_SOURCE_BEFORE_MIGRATION")
     return run(["git","rev-parse","HEAD"],cwd=ROOT).stdout.decode().strip()
 
-def transaction(migration, read_fix=False):
+def transaction(migration, read_fix=False, version_guard=False):
+    if read_fix and version_guard: raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
     guard = """
 IF to_regclass('public.technical_cards') IS NULL THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
+IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)') IS NOT NULL
+  THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
 IF strpos(pg_get_functiondef('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)'::regprocedure),
   'technical-read-alias-v2')>0 THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
 """ if read_fix else """
 IF to_regclass('public.technical_cards') IS NOT NULL THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
+"""
+    if version_guard:
+        guard = """
+IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)') IS NOT NULL
+  THEN RAISE EXCEPTION 'TECH_ALREADY_APPLIED'; END IF;
+IF to_regprocedure('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL
+  THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
+IF strpos(pg_get_functiondef('public.bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)'::regprocedure),
+  'technical-read-alias-v2')=0 THEN RAISE EXCEPTION 'TECH_BASELINE_MISSING'; END IF;
 """
     # Fingerprint each existing application table inside the transaction. No SQL
     # seed changes a product, old specs, price, order, staff row or delivery receipt.
@@ -72,23 +84,28 @@ DO $after$ DECLARE t record; h text; BEGIN
     THEN RAISE EXCEPTION 'TECH_DICTIONARY_MISSING'; END IF;
   IF has_table_privilege('anon','technical_revisions','SELECT')
     OR has_table_privilege('service_role','technical_revisions','INSERT')
-    OR has_function_privilege('anon','bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)','EXECUTE')
+    OR has_function_privilege('anon','TECH_RPC_SIGNATURE','EXECUTE')
+    OR has_function_privilege('authenticated','TECH_RPC_SIGNATURE','EXECUTE')
     THEN RAISE EXCEPTION 'TECH_PRIVILEGE_OPEN'; END IF;
 END $after$;
 COMMIT;
-""".replace("TECH_REQUIRE_EMPTY", "false" if read_fix else "true")
+""".replace("TECH_REQUIRE_EMPTY", "false" if read_fix or version_guard else "true").replace(
+    "TECH_RPC_SIGNATURE", "bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text,bigint)" if version_guard
+    else "bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)")
 
 def main():
-    if sys.argv[1:] not in ([], ["--read-fix"]): raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
+    if sys.argv[1:] not in ([], ["--read-fix"], ["--editor-version"]): raise RuntimeError("UNSUPPORTED_MIGRATION_ARGUMENT")
     read_fix = sys.argv[1:] == ["--read-fix"]
-    migration_path = ROOT / "docs/migrations/0018_technical_read_alias.sql" if read_fix else MIGRATION
+    version_guard = sys.argv[1:] == ["--editor-version"]
+    migration_path = (ROOT / "docs/migrations/0019_technical_editor_version.sql" if version_guard else
+                      ROOT / "docs/migrations/0018_technical_read_alias.sql" if read_fix else MIGRATION)
     sha = require_clean_source()
     info = json.loads(run(["docker","inspect",CONTAINER]).stdout)[0]
     if info["Config"].get("Labels",{}).get("mw.environment") != "dev":
         raise RuntimeError("TECH_FOREIGN_CONTAINER")
     validate_identity(json.loads(sql("SELECT public.mw_environment_identity()")))
     missing = sql("SELECT to_regclass('public.technical_cards') IS NULL") == "t"
-    if missing == read_fix:
+    if missing == (read_fix or version_guard):
         raise RuntimeError("TECH_WRONG_MIGRATION_BASELINE")
     state = ROOT / "ops/.state/dev"
     with (state / "update.lock").open("a") as lock:
@@ -96,7 +113,8 @@ def main():
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         folder = state / "backups"
         folder.mkdir(parents=True,exist_ok=True,mode=0o700)
-        dump = folder / (("before-technical-read-fix-" if read_fix else "before-technical-") + stamp + "-" + uuid.uuid4().hex[:8] + ".dump")
+        prefix = "before-technical-editor-version-" if version_guard else "before-technical-read-fix-" if read_fix else "before-technical-"
+        dump = folder / (prefix + stamp + "-" + uuid.uuid4().hex[:8] + ".dump")
         fd = os.open(dump,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         with os.fdopen(fd,"wb") as target:
             subprocess.run(["docker","exec",CONTAINER,"pg_dump","-U","postgres","-d",DB,"-Fc"],
@@ -109,13 +127,13 @@ def main():
                 run(["docker","exec","-i",CONTAINER,"pg_restore","-U","postgres","-d",rehearsal,
                      "--single-transaction","--exit-on-error"],stdin=stream)
             validate_identity(json.loads(sql("SELECT public.mw_environment_identity()",rehearsal)))
-            sql(transaction(migration,read_fix),rehearsal)
+            sql(transaction(migration,read_fix,version_guard),rehearsal)
         finally:
             run(["docker","exec",CONTAINER,"dropdb","-U","postgres",rehearsal])
         # Recheck the target, then apply exactly the already rehearsed bytes.
         validate_identity(json.loads(sql("SELECT public.mw_environment_identity()")))
-        sql(transaction(migration,read_fix))
-        report = {"environment":"dev","sourceSha":sha,"migration":"0018" if read_fix else "0017",
+        sql(transaction(migration,read_fix,version_guard))
+        report = {"environment":"dev","sourceSha":sha,"migration":"0019" if version_guard else "0018" if read_fix else "0017",
                   "migrationSha256":hashlib.sha256(migration.encode()).hexdigest(),
                   "backup":dump.name,"backupSha256":hashlib.sha256(dump.read_bytes()).hexdigest(),
                   "restoredCopyRehearsed":True,"existingTablesUnchanged":True,"seededProductValues":False,

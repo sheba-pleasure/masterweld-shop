@@ -33,8 +33,10 @@ def lit(value):
     if isinstance(value, int): return str(value)
     return "'" + str(value).replace("'", "''") + "'"
 
-def rpc(op, document=None, review="pending_review", change=None, actor=101, product=PRODUCT, error=None):
-    args = [actor, op, product, change, json.dumps(document) if document is not None else None, review]
+def rpc(op, document=None, review="pending_review", change=None, actor=101, product=PRODUCT, error=None, expected_version="current"):
+    if expected_version == "current":
+        expected_version = int(sql("SELECT coalesce((SELECT version FROM technical_cards WHERE product_id="+lit(product)+"),0)")) if op == "preview" else None
+    args = [actor, op, product, change, json.dumps(document) if document is not None else None, review, expected_version]
     value = sql("SET ROLE service_role; SELECT bot_technical_catalog(" + ",".join(map(lit, args)) + ");", error)
     return json.loads(value) if not error else None
 
@@ -103,6 +105,11 @@ try:
     sql(operator.transaction(migration18,True))
     sql(operator.transaction(migration17),"TECH_ALREADY_APPLIED")
     sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
+    migration19=(ROOT / "docs/migrations/0019_technical_editor_version.sql").read_text()
+    sql(operator.transaction(migration19,version_guard=True))
+    sql(operator.transaction(migration19,version_guard=True),"TECH_ALREADY_APPLIED")
+    sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
+    assert sql("SELECT to_regprocedure('bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL") == "t"
     dictionary = json.loads((ROOT / "src/lib/technical/pilot-dictionary.json").read_text())
     assert int(sql("SELECT count(*) FROM technical_attributes")) == len(dictionary["attributes"])
     for attr in dictionary["attributes"]:
@@ -110,7 +117,7 @@ try:
         assert stored == attr, (stored, attr)
     assert public() is None
     empty = rpc("read")
-    assert empty["card"] == {"version":0,"published_revision":None,"revisions":[]}
+    assert empty["card"] == {"version":0,"published_revision":None,"published":None,"revisions":[]}
     for role in ["anon", "authenticated", "service_role"]:
         sql(f"SET ROLE {role}; SELECT * FROM technical_revisions;", "permission denied")
         sql(f"SET ROLE {role}; DELETE FROM technical_changes;", "permission denied")
@@ -119,7 +126,11 @@ try:
     for actor in [104,105,999]:
         rpc("preview", DOC, actor=actor, error="TECH_DENIED")
     rpc("preview", DOC, "verified", actor=103, error="TECH_REVIEW_DENIED")
-    b = rpc("preview", DOC, "verified")
+    for version in [None,-1,9007199254740992]:
+        rpc("preview", DOC, "verified", expected_version=version, error="TECH_VERSION_REQUIRED")
+    assert sql("SELECT count(*) FROM technical_cards") == "0"
+    initial_version = rpc("read")["card"]["version"]
+    b = rpc("preview", DOC, "verified", expected_version=initial_version)
     rpc("apply", change=b["change_id"], actor=102, error="TECH_CHANGE_NOT_FOUND")
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         outcomes = list(pool.map(lambda _: rpc("apply", change=b["change_id"]), range(8)))
@@ -136,6 +147,14 @@ try:
     assert numbers["mig_current_max_a","mig"] == 200 and numbers["mma_current_max_a","mma"] == 160
     assert numbers["tig_current_max_a","tig"] is None
     assert numbers["power_consumption_kva","mma"] != numbers["power_consumption_kva","mig"]
+    assert staff_read["card"]["published"]["document"] == DOC
+    # Read-to-preview conflict: no preview/card/audit write survives the rejected attempt.
+    changes_before = sql("SELECT count(*) FROM technical_changes")
+    audits_before = sql("SELECT count(*) FROM staff_audit_log WHERE action='technical_preview'")
+    rpc("preview", DOC, "verified", expected_version=initial_version, error="TECH_CONFLICT")
+    assert sql("SELECT count(*) FROM technical_changes") == changes_before
+    assert sql("SELECT count(*) FROM staff_audit_log WHERE action='technical_preview'") == audits_before
+    assert public() == published
     # A seller's proposal and a conflict keep the published revision unchanged.
     proposal = preview_apply(review="pending_review", actor=103)
     assert public() == published
@@ -222,6 +241,13 @@ try:
     assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
     assert sql("SELECT count(*) FROM order_notifications") == "0"
     assert sql("SELECT count(*) FROM shop_orders") == "0"
+    # More than ten proposals cannot make the approved base document disappear.
+    for _ in range(11): preview_apply(review="pending_review",actor=103)
+    history=rpc("read",actor=103)["card"]
+    assert len(history["revisions"]) == 10
+    assert published["revision_id"] not in [r["id"] for r in history["revisions"]]
+    assert history["published"]["id"] == published["revision_id"]
+    assert history["published"]["document"] == DOC
     # Restart retains public pointer, proposals, audit and idempotency.
     run(["docker","restart",NAME])
     for _ in range(120):
@@ -236,7 +262,7 @@ try:
     assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(PRODUCT)+");",db="restored")) == published
     assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;",db="restored")
     print(json.dumps({"dictionary":len(dictionary["attributes"]),"families":48,"concurrentSingleApply":True,
-      "pendingKeepsPublished":True,"conflictUndo":True,"revocationExpiry":True,"atomicAudit":True,
+      "readToPreviewConflict":True,"publishedOutsideHistory":True,"pendingKeepsPublished":True,"conflictUndo":True,"revocationExpiry":True,"atomicAudit":True,
       "typedContextsSources":True,"publicScope":True,"productsUnchanged":True,"restartPreserved":True,"dumpRestored":True}))
 finally:
     if created: subprocess.run(["docker","rm","-fv",NAME],capture_output=True)
