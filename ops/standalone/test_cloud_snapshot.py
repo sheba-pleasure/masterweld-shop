@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location(
     "cloud_snapshot", Path(__file__).with_name("verify-cloud-snapshot.py"))
@@ -124,6 +125,40 @@ class CloudSnapshotTest(unittest.TestCase):
         self.save_metadata()
         with self.assertRaisesRegex(RuntimeError, "COLUMN_SET_MISMATCH_products"):
             snapshot.verify(self.folder)
+
+    def fake_migration_tree(self):
+        root = Path(self.temp.name) / "repository"
+        (root / "drizzle/migrations").mkdir(parents=True)
+        (root / "docs/migrations").mkdir(parents=True)
+        for name in ("0003_order_status_and_events.sql", "0004_lock_shop_orders_insert.sql"):
+            (root / "drizzle/migrations" / name).write_text("-- fixture")
+        for number in range(5, 17):
+            (root / "docs/migrations" / f"{number:04d}_fixture.sql").write_text("-- fixture")
+        return root
+
+    def test_future_migration_not_picked_up(self):
+        root = self.fake_migration_tree()
+        (root / "docs/migrations/0017_not_reviewed.sql").write_text("-- future")
+        with patch.object(snapshot, "ROOT", root):
+            paths = snapshot.migration_paths()
+        self.assertEqual([int(p.name[:4]) for p in paths], list(range(3, 17)))
+
+    def test_ambiguous_migration_rejected(self):
+        root = self.fake_migration_tree()
+        (root / "docs/migrations/0007_other.sql").write_text("-- ambiguous")
+        with patch.object(snapshot, "ROOT", root):
+            with self.assertRaisesRegex(RuntimeError, "MIGRATION_RANGE_AMBIGUOUS"):
+                snapshot.migration_paths()
+
+    def test_missing_baseline_migration_rejected(self):
+        root = self.fake_migration_tree()
+        (root / "drizzle/migrations/0004_lock_shop_orders_insert.sql").unlink()
+        with patch.object(snapshot, "ROOT", root):
+            with self.assertRaisesRegex(RuntimeError, "MIGRATION_FILE_MISSING"):
+                snapshot.migration_paths()
+
+    def test_sql_identifier_quotes_untrusted_column(self):
+        self.assertEqual(snapshot.identifier('name"; SELECT 1; --'), '"name""; SELECT 1; --"')
 
     def test_literal_preserves_quote_and_backslash(self):
         self.assertEqual(snapshot.literal("a'b\\c"), "'a''b\\c'")
