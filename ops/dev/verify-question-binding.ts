@@ -60,10 +60,14 @@ assert.equal(await editor("current"), null, "Do not replace the owner's technica
 const before = unchanged();
 
 const messages: { messageId:number; text:string; question:boolean; buttons:string[] }[] = [];
-let loseQuestion=true, keyboardVerified=false;
+let loseQuestion=true, keyboardVerified=false, failStateRead=false;
 const originalFetch=globalThis.fetch;
 globalThis.fetch=(async(input,init)=>{
   const url=String(input);
+  if (failStateRead && url.startsWith(origin + "/backend/") && url.includes("/bot_editor_states") && (!init?.method || init.method === "GET")) {
+    failStateRead=false;
+    return Response.json({code:"QA_READ_FAILURE",message:"Simulated state read failure"},{status:503});
+  }
   if (url.startsWith("https://api.telegram.org/") && url.endsWith("/answerCallbackQuery"))
     return Response.json({ok:true,result:true});
   if (url.startsWith("https://api.telegram.org/") && url.endsWith("/sendMessage")) {
@@ -98,7 +102,13 @@ assert.equal(unbound.data._prompt_message_id,null);
 assert.ok(messages.at(-1)?.text.includes("Не удалось подтвердить"));
 await send("Ответ на неподтверждённый вопрос",messages[0]!.messageId);
 assert.deepEqual(ordinary(),unbound);
-await send("/input");
+failStateRead=true;
+await callback("guide:input");
+assert.equal(failStateRead,false);
+assert.deepEqual(ordinary(),unbound);
+assert.ok(messages.at(-1)?.text.includes("Не удалось проверить текущий ввод"));
+assert.ok(messages.at(-1)?.buttons.includes("guide:input"));
+await callback("guide:input");
 const titlePrompt=prompt();
 assert.ok(titlePrompt>0 && titlePrompt!==messages[0]!.messageId);
 await send("ТЕСТ — привязка вопроса",titlePrompt);
@@ -130,17 +140,20 @@ assert.notEqual(prompt(),priceStep.data._prompt_message_id);
 await send("100",prompt());
 const confirm=ordinary();
 assert.equal(confirm.state,"new_confirm");
-await send("/input");
+await callback("guide:input");
 assert.deepEqual(ordinary(),confirm);
 assert.ok(messages.at(-1)?.buttons.includes("nd:c:"+confirm.data._revision));
 await callback("nd:x:"+confirm.data._revision);
 assert.ok(ordinary().consumed_at);
 assert.equal(sql("SELECT outcome FROM bot_draft_results WHERE revision='"+confirm.data._revision+"';"),"canceled");
+await send("DEV-001");
+assert.ok(messages.at(-1)?.buttons.includes("prd:"+productId));
 await send("/menu");
 assert.ok(keyboardVerified);
 assert.equal(unchanged(),before);
 const report={environment:"dev",sourceSha:sha,incomingCommands:"simulated",realHttpsDatabase:true,realTelegram:true,
   questionDeliveryResponseLost:true,unboundReplyRejected:true,lateAndUnthreadedTextRejected:true,
+  stateReadFailurePreservesInput:true,recoveryButtonsUsed:true,freeTextSearchOutsideEditor:true,
   invalidValueRepeatsSameQuestion:true,promptSurvivesDevAppRestart:true,resumeInvalidatesOldPrompt:true,
   confirmationRecoveryKeyPreserved:true,persistentContinueButtonDelivered:true,noActiveInputRemains:true,
   productsOrdersNotificationsAndTechnicalUnchanged:true,canceledRevision:confirm.data._revision,messages};

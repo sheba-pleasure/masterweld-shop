@@ -240,14 +240,11 @@ describe("диалог нового черновика", () => {
       expect(text).toContain("/cancel");
     }
   });
-  it("предпросмотр: только черновик, slug и предупреждение о source_url", () => {
-    const text = draftPreviewText(
-      { title: "Новая горелка", sku: "MW-999", price: 14990 },
-      "novaya-gorelka",
-    );
+  it("предпросмотр объясняет черновик и следующий шаг без технических полей", () => {
+    const text = draftPreviewText({ title: "Новая горелка", sku: "MW-999", price: 14990 });
     expect(text).toContain("черновик");
-    expect(text).toContain("novaya-gorelka");
-    expect(text).toContain("source_url");
+    expect(text).not.toMatch(/slug|source_url/);
+    expect(text).toContain("Покупатели его пока не увидят");
     expect(text).toContain("Подтвердите создание");
   });
 });

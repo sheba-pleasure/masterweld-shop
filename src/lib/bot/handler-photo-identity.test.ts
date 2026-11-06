@@ -186,7 +186,7 @@ it("an already stored legacy request remains recoverable", async () => {
   };
   receipts.set(key, last);
   await handleUpdate(update);
-  expect(sent().text).toContain("ожидает подтверждения");
+  expect(sent().text).toContain("Пока ничего не сохранено");
   expect(prepared()).toHaveLength(0);
 });
 it.each(["pfd", "pfm", "pfu", "pfn", "pfx"])(
