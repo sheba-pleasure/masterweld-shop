@@ -87,6 +87,14 @@ if (order.status === "new") {
 }
 const result = await db.from("shop_orders").select("status").eq("id", order.id).single();
 assert.equal(result.data?.status, "processing");
+// Show the current card layout without replaying the status mutation.
+await handleUpdate({
+  update_id: ++seq,
+  callback_query: {
+    ...callback.callback_query,
+    data: "order:" + order.id,
+  },
+});
 const events = await db
   .from("order_events")
   .select("id", { count: "exact", head: true })
