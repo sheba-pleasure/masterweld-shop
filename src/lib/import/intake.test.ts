@@ -41,6 +41,56 @@ it("denies documents and enrollment before storage/download for sellers, inactiv
   expect(mocks.rpc).not.toHaveBeenCalled();
   expect(mocks.download).not.toHaveBeenCalled();
 });
+it("reads table guidance without creating reviews and recovers a failed read without guessing", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  mocks.rpc.mockResolvedValue({
+    data: {
+      ok: true,
+      id,
+      state: "review",
+      file_name: "Прайс.xlsx",
+      extraction: {
+        tables: [
+          {
+            label: "Лист",
+            header: ["sku", "price"],
+            rows: [["A", "=1+2"]],
+            warnings: ["FORMULA_NOT_EVALUATED"],
+          },
+        ],
+        blocks: [],
+        warnings: [],
+        coverage: { complete: true },
+      },
+    },
+    error: null,
+  });
+  await showIntake(admin, chat, `di:checks:${id}:0`);
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_document_intake", {
+    p_actor: 101,
+    p_op: "get",
+    p_id: id,
+    p_payload: { index: 0 },
+  });
+  expect(mocks.tg.mock.calls[0]![1].text).toContain("не вычислял результат");
+  expect(mocks.download).not.toHaveBeenCalled();
+  mocks.rpc.mockClear();
+  for (const [m, c] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { ...chat, type: "group" }],
+  ] as const)
+    await showIntake(m, c, `di:checks:${id}:0`);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.rpc.mockRejectedValue(new Error("private warning details"));
+  mocks.tg.mockClear();
+  await showIntake(admin, chat, `di:checks:${id}:0`);
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  expect(mocks.tg.mock.calls[0]![1].text).toContain("Не удалось прочитать");
+  expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("private warning details");
+});
+
 it("uploads original only and does not publish or apply", async () => {
   await receiveIntakeDocument(admin, chat, { file_name: "a.pdf" });
   expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_document_intake", {
