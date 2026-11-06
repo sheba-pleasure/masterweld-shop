@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0016.
+"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0020.
 Never changes the source database, webhooks, app containers or release approvals.
 """
 import hashlib
@@ -20,7 +20,9 @@ from preflight import read_env, schema_errors  # noqa: E402
 
 SOURCE = "mw-prod-db"
 DB = "masterweld_production"
-PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_receipts.sql")
+PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_receipts.sql",
+           "0017_technical_catalog.sql", "0018_technical_read_alias.sql",
+           "0019_technical_editor_version.sql", "0020_technical_editor_sessions.sql")
 
 
 def run(args, **kwargs):
@@ -126,6 +128,10 @@ def main():
         for table, value in before.items():
             if table != "mw_private.schema_files" and after.get(table) != value:
                 raise ValueError("RESTORED_DATA_CHANGED")
+        technical_sql = (ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+        technical = json.loads(sql(name, technical_sql))
+        if fingerprint(name) != after:
+            raise ValueError("REHEARSAL_FIXTURES_NOT_ROLLED_BACK")
         first_claim = sql(name, """DO $$ BEGIN
           IF has_table_privilege('anon','shop_orders','INSERT')
              OR has_table_privilege('service_role','shop_orders','INSERT')
@@ -145,6 +151,8 @@ def main():
             raise ValueError("RESTART_IDENTITY_MISMATCH")
         if sql(name, "SET ROLE service_role; SELECT public.claim_telegram_bot_update(1,42,true);") != "f":
             raise ValueError("RESTART_REPLAY_BARRIER_FAILED")
+        if json.loads(sql(name, technical_sql)) != technical:
+            raise ValueError("TECHNICAL_RESTART_MISMATCH")
         if fingerprint(SOURCE) != before:
             raise ValueError("SOURCE_CHANGED_DURING_REHEARSAL")
         report = {
@@ -153,7 +161,9 @@ def main():
             "backupSha256": hashlib.sha256(backup).hexdigest(),
             "rolesSha256": hashlib.sha256(roles).hexdigest(),
             "sourceUnchanged": True, "restoredInSeparateOfflineCluster": True,
-            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0016",
+            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0020",
+            "technicalChecks": technical,
+            "technicalChecksSha256": hashlib.sha256(technical_sql.encode()).hexdigest(),
             "migrations": {f: hashes["docs/migrations/" + f] for f in PENDING},
             "existingTableFingerprintsPreserved": True, "directOrderInsertClosed": True,
             "receiptSurvivesRestart": True, "productionMigrationsApplied": False,

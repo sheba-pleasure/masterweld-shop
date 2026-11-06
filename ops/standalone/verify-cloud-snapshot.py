@@ -102,7 +102,7 @@ def migration_paths():
     """An explicit reviewed range; never silently pick up a future migration."""
     paths = [ROOT / "drizzle/migrations" / name for name in (
         "0003_order_status_and_events.sql", "0004_lock_shop_orders_insert.sql")]
-    for number in range(5, 17):
+    for number in range(5, 21):
         matches = list((ROOT / "docs/migrations").glob(f"{number:04d}_*.sql"))
         require(len(matches) == 1, "MIGRATION_RANGE_AMBIGUOUS")
         paths.append(matches[0])
@@ -190,7 +190,8 @@ def restore(folder, manifest, metadata, payloads, report, upgrade=False):
                 OR has_table_privilege('service_role','order_notifications','INSERT')),
               'public_security_definer_execute',(
                 SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-                WHERE n.nspname='public' AND p.prosecdef AND (
+                WHERE n.nspname='public' AND p.prosecdef
+                AND p.oid<>'public.public_product_technical(uuid)'::regprocedure AND (
                   has_function_privilege('anon',p.oid,'EXECUTE')
                   OR has_function_privilege('authenticated',p.oid,'EXECUTE')))
             );
@@ -216,6 +217,8 @@ def restore(folder, manifest, metadata, payloads, report, upgrade=False):
                 and all(value == "f" for value in receipt_results), "LEGACY_RECEIPT_BARRIER_FAILED")
         require(sql("SET ROLE service_role; SELECT count(*) FROM claim_order_notification();", database) == "0",
                 "HISTORICAL_NOTIFICATION_CLAIMED")
+        technical = json.loads(sql((ROOT / "ops/standalone/check-technical-upgrade.sql").read_text(), database))
+        facts["technical_upgrade"] = technical
         compare(database, original_columns_only=True)
         return facts
 
@@ -291,7 +294,7 @@ def restore(folder, manifest, metadata, payloads, report, upgrade=False):
             paths = migration_paths()
             sql("BEGIN;\n" + "\n".join(path.read_text() for path in paths) + "\nCOMMIT;", "upgrade")
             facts = upgrade_checks("upgrade")
-            steps.append("0003_0016_applied_only_to_offline_copy")
+            steps.append("0003_0020_applied_only_to_offline_copy")
             upgraded_dump = evidence / "upgraded-application.dump"
             fd = os.open(upgraded_dump, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, "wb") as out:
@@ -309,7 +312,8 @@ def restore(folder, manifest, metadata, payloads, report, upgrade=False):
             compare("roundtrip")
             steps.append("upgraded_dump_restore_restart_and_legacy_fields_verified")
             report["upgrade"] = {
-                "rehearsed_schema": "0000-0016",
+                "rehearsed_schema": "0000-0020",
+                "technical_checks_sha256": hashlib.sha256((ROOT / "ops/standalone/check-technical-upgrade.sql").read_bytes()).hexdigest(),
                 "migration_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                                      for p in paths},
                 "source_fields_and_staff_preserved": True,
@@ -357,7 +361,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", help="Private immediate subdirectory of ops/.state/production/cloud-export")
     parser.add_argument("--restore", action="store_true", help="Restore only into disposable no-network Docker databases")
-    parser.add_argument("--upgrade", action="store_true", help="Also rehearse 0003-0016 on another offline copy; requires --restore")
+    parser.add_argument("--upgrade", action="store_true", help="Also rehearse the reviewed 0003-0020 range on another offline copy; requires --restore")
     args = parser.parse_args()
     require(not args.upgrade or args.restore, "UPGRADE_REQUIRES_RESTORE")
     folder = Path(os.path.abspath(args.archive))
