@@ -102,5 +102,35 @@ export const publicTechnicalCard = z
       .max(128),
     sources: z.array(technicalSource).max(32),
   })
-  .strict();
+  .strict()
+  .superRefine((card, ctx) => {
+    const sourceKeys = new Set(card.sources.map((source) => source.key));
+    if (sourceKeys.size !== card.sources.length)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "TECH_DUPLICATE_SOURCE" });
+    card.values.forEach((fact, index) => {
+      const value = fact.value;
+      const validValue =
+        fact.kind === "number"
+          ? typeof value === "number"
+          : fact.kind === "integer"
+            ? typeof value === "number" && Number.isInteger(value)
+            : fact.kind === "boolean"
+              ? typeof value === "boolean"
+              : fact.kind === "text" || fact.kind === "enum"
+                ? typeof value === "string"
+                : fact.kind === "number_list"
+                  ? Array.isArray(value) && value.every((v) => typeof v === "number")
+                  : Array.isArray(value) && value.every((v) => typeof v === "string");
+      const valid =
+        fact.state === "known"
+          ? validValue && fact.source_key !== null && sourceKeys.has(fact.source_key)
+          : value === null && fact.source_key === null && Object.keys(fact.context).length === 0;
+      if (!valid)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["values", index],
+          message: "TECH_INVALID_PUBLIC_VALUE",
+        });
+    });
+  });
 export type PublicTechnicalCard = z.infer<typeof publicTechnicalCard>;

@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { productQuery, rub, type Photo } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
+import { ProductTechnical } from "@/components/ProductTechnical";
 import { validateCatalogSearch } from "@/lib/catalog-search";
 
 export const Route = createFileRoute("/product/$slug")({
@@ -131,21 +132,7 @@ function ProductPage() {
               }}
             />
           </div>
-          {p.specs && (
-            <section className="mt-8">
-              <h2 className="font-display text-lg font-semibold text-foreground">Характеристики</h2>
-              <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
-                {p.specs
-                  .split("\n")
-                  .filter(Boolean)
-                  .map((l, i) => (
-                    <li key={i} className="px-4 py-2 text-sm text-foreground">
-                      {l}
-                    </li>
-                  ))}
-              </ul>
-            </section>
-          )}
+          <ProductTechnical key={p.id} productId={p.id} legacySpecs={p.specs} />
         </div>
       </div>
       {p.description && (

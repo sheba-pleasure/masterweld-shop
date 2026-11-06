@@ -22,6 +22,7 @@
 
 [Два Telegram-бота и магазин внутри Telegram](docs/TELEGRAM-SHOP.md).
 [Технические характеристики: основа P0 и границы готовности](docs/TECHNICAL-CATALOG-P0.md).
+[Характеристики на сайте и в Mini App: режимы, условия, источники](docs/TECHNICAL-CARD-UI.md).
 
 [Следующие шаги](roadmap.md). [GitHub](https://github.com/sheba-pleasure/masterweld-shop).
 
