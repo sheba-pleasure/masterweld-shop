@@ -6,6 +6,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Telegram chrome must not cover shop controls; ordinary browsers keep their layout. */
+.mw-miniapp body {
+  padding-top: var(--mw-tg-top, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--mw-tg-bottom, 0px));
+  padding-left: var(--mw-tg-left, 0px);
+  padding-right: var(--mw-tg-right, 0px);
+}
+.mw-miniapp [role="dialog"] {
+  top: var(--mw-tg-top, 0px);
+  bottom: max(env(safe-area-inset-bottom, 0px), var(--mw-tg-bottom, 0px));
+  height: auto;
+}
+
 /*
  * Design system definition.
  *

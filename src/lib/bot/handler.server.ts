@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { customerMessage, shopUrl } from "./customer";
 import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
 import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
@@ -107,6 +108,8 @@ export interface TgUpdate {
 
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
   const rows: Btn[][] = [];
+  if (process.env["APP_ENV"] === "dev")
+    rows.push([{ text: "Магазин глазами покупателя", callback_data: "shop_preview" }]);
   if (m.role === "director" && !m.elevated) {
     rows.push([
       { text: "📊 Сводка", callback_data: "summary" },
@@ -1567,22 +1570,33 @@ export async function handleUpdate(update: TgUpdate) {
   )
     return deny();
 
+  // DEV preview uses the existing test bot; production staff access stays separate.
+  if (!cb && process.env["APP_ENV"] === "dev" && update.message?.text === "/shop")
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: customerMessage("/shop", process.env["PUBLIC_ORIGIN"]).text,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Открыть учебный магазин",
+              web_app: { url: shopUrl(process.env["PUBLIC_ORIGIN"]) },
+            },
+          ],
+        ],
+      },
+    });
+
   const { data, error: staffError } = await supabaseAdmin
     .from("staff")
     .select("*")
     .eq("telegram_id", from.id)
     .maybeSingle();
   const m = data as StaffMember | null;
-  if (
-    !staffError &&
-    !m &&
-    !cb &&
-    process.env["APP_ENV"] === "dev" &&
-    update.message?.text === "/start"
-  ) {
+  if (!staffError && !m && !cb && update.message?.text === "/start") {
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: `Доступ ещё не выдан. Ваш Telegram ID: ${from.id}. Передайте его владельцу магазина для доступа к тестовой среде. Затем снова отправьте /start.`,
+      text: `Доступ ещё не выдан. Ваш Telegram ID: ${from.id}. Передайте его владельцу магазина для доступа к ${process.env["APP_ENV"] === "dev" ? "тестовому" : "рабочему"} магазину. Затем снова отправьте /start.`,
     });
   }
   if (
@@ -1621,6 +1635,22 @@ export async function handleUpdate(update: TgUpdate) {
     return result;
   }
   await tg("answerCallbackQuery", { callback_query_id: cb.id });
+
+  if (cb.data === "shop_preview" && process.env["APP_ENV"] === "dev")
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: "Учебный магазин внутри Telegram. Все товары и заказы — DEV.",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Открыть учебный магазин",
+              web_app: { url: shopUrl(process.env["PUBLIC_ORIGIN"]) },
+            },
+          ],
+        ],
+      },
+    });
 
   if (cb.data === "elevate_on" || cb.data === "elevate_off") {
     if (!can(m, "toggle_full_access")) return;

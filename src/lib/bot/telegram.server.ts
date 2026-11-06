@@ -1,4 +1,4 @@
-import { telegramConfig } from "./transport-config";
+import { telegramConfig, type BotRole } from "./transport-config";
 
 export class TelegramDeliveryError extends Error {
   constructor(
@@ -38,10 +38,10 @@ function retryDelay(payload: unknown): number | undefined {
   return undefined;
 }
 
-export async function tg(method: string, body: unknown) {
+export async function tg(method: string, body: unknown, role: BotRole = "staff") {
   let config: ReturnType<typeof telegramConfig>;
   try {
-    config = telegramConfig(process.env);
+    config = telegramConfig(process.env, role);
   } catch {
     return fail("configuration", false);
   }

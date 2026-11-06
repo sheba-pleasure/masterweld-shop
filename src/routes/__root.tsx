@@ -1,4 +1,5 @@
 import { SiteMenu } from "@/components/SiteMenu";
+import { TelegramShopBridge } from "@/components/TelegramShopBridge";
 import { SiteActions } from "@/components/SiteActions";
 import { SiteFooter } from "@/components/SiteFooter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -151,6 +152,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <TelegramShopBridge />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       {import.meta.env.VITE_APP_ENV === "dev" && (
         <div

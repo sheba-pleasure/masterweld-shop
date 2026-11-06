@@ -32,6 +32,20 @@ try {
     )
       throw new Error("TELEGRAM_IDENTITY_MISMATCH");
   }
+  if (env.CUSTOMER_TELEGRAM_ENABLED === "true") {
+    const response = await fetch(
+      "https://api.telegram.org/bot" + env.CUSTOMER_TELEGRAM_BOT_TOKEN + "/getMe",
+      { signal: AbortSignal.timeout(10000) },
+    );
+    const data = await response.json();
+    if (
+      !response.ok ||
+      data.ok !== true ||
+      String(data.result.id) !== env.CUSTOMER_TELEGRAM_BOT_ID ||
+      data.result.username !== env.CUSTOMER_TELEGRAM_BOT_USERNAME
+    )
+      throw new Error("CUSTOMER_TELEGRAM_IDENTITY_MISMATCH");
+  }
   console.info("[startup] environment and database identity verified:", env.APP_ENV);
 } catch (error) {
   const safe =
