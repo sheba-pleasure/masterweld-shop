@@ -39,6 +39,11 @@
 ## Type safety
 - npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
 
+## Document structure correction — 07.11.2026
+- 0028 adds derived header corrections, manually added rows and split rows through an actor-bound draft with preview/confirmation. Originals/extraction stay immutable. Stable row IDs never move to a neighbour; retired rows remain in history.
+- Structural edits never approve, apply imports or publish products. Header changes withdraw existing approvals; added/split rows begin pending. Preserve skipped decisions, lineage, revision checks, exact question binding and mutation receipts. Undo only the latest unchanged structure revision; never overwrite later decisions.
+- Migration requires the guarded DEV runner, an offsite backup verified by restore, rehearsal, and unchanged values in every pre-existing public column. Current deployment is recorded in STATUS.md.
+
 ## Document review — 06.11.2026
 - 0027 is DEV-only: immutable document originals/extraction, separate row corrections and human decisions. Every row must be approved or excluded before the explicit handoff; editing withdraws approval. Handoff creates one catalog-import preview and never applies or publishes products.
 - Review text is accepted only as a reply to the persisted current Telegram question. Preserve revision checks, editor exclusivity, safe cancellation/recovery, source row locators, and the legacy unreviewed-import gate. Do not call the private pre-gate RPC implementations.
@@ -49,7 +54,7 @@
 - Staff bot DEV/PRO buttons open the respective public storefront as Telegram Mini Apps; they never switch the bot database or grant staff rights. Production handler offers both fixed HTTPS origins; DEV explains that PRO is not launched. Preserve separate data, cart origins and tokens. See docs/TELEGRAM-SHOP.md.
 - Telegram webhook claims use 0016 bot_id + update_id, retaining legacy staff claims as a replay barrier. Customer route never dispatches staff commands. Mini App is the same public storefront; launch parameters are not authentication.
 - Intended DEV bot: @testmw639bot. Check getMe and other active integrations before installing a webhook. @psinavsvaobot belongs to another project and must not be used.
-- DEV has migrations 0000–0026; the new empty standalone production database remains at 0000–0013. Offline Cloud/target copies have been rehearsed through 0025; the downloaded historical Yandex Cloud archive remains through 0024. Review/apply 0014–0026 separately before production; 0026 still requires a new production/Cloud rehearsal. No Cloud migration was performed. Historical Cloud observations above remain historical; do not assume production was migrated.
+- DEV has migrations 0000–0028; the new empty standalone production database remains at 0000–0013. Offline Cloud/target copies have been rehearsed through 0025; the downloaded historical Yandex Cloud archive remains through 0024. Review/apply 0014–0028 separately before production; 0026–0028 still require a new production/Cloud rehearsal. No Cloud migration was performed. Historical Cloud observations above remain historical; do not assume production was migrated.
 - Standalone database backups use ops/standalone/database-backup.py: a read-only shared snapshot, full dump, private artifacts, fresh offline restore, and optional Yandex upload/download/restore. Never restore into the live DB container or reset notification/request states. The DEV daily user timer uses an exact committed runner; production scheduling remains disabled. See docs/DATABASE-BACKUPS.md.
 - Runtime must verify APP_ENV, immutable build manifest and database instance identity. Never bypass these guards to make a deployment start.
 - Never update main merely because work is complete. After «обнови main», report tests, blockers, omitted requirements, remaining work and the next priority; stop promotion on unresolved blockers.

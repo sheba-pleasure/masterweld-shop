@@ -13,6 +13,7 @@ import {
   showDocumentReview,
   handleDocumentReviewText,
   documentReviewControl,
+  showDocumentStructure,
 } from "@/lib/import/review.server";
 import { parseImportCallback } from "@/lib/import/catalog-view";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
@@ -2369,6 +2370,7 @@ export async function handleUpdate(update: TgUpdate) {
     return sendMenu(chat.id, { ...m, elevated });
   }
   if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
+  if (cb.data?.startsWith("ds:")) return showDocumentStructure(m, chat, cb.data);
   if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
   if (cb.data === "staff" && can(m, "manage_staff")) {
     try {

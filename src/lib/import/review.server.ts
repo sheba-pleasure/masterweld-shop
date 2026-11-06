@@ -12,8 +12,11 @@ import {
   type ReviewButton,
 } from "./review-view";
 
+import { parseStructureCallback, renderStructure, structureQuestion } from "./structure-view";
+
 type Chat = { id: number; type?: string };
 interface Prompt {
+  kind?: "cell" | "structure";
   review_id: string;
   revision: number;
   row_index: number;
@@ -26,6 +29,23 @@ const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
   args: Record<string, unknown>,
 ) => Promise<{ data: Result | null; error: { message?: string } | null }>;
 const errors: Record<string, string> = {
+  DOCUMENT_STRUCTURE_ACTIVE:
+    "В таблице открыт черновик структуры. Сначала подтвердите или отмените его. /input — продолжить.",
+  DOCUMENT_INPUT_ACTIVE: "Сначала завершите ввод поля. /input — продолжить, /cancel — отменить.",
+  DOCUMENT_ROW_REPLACED:
+    "Эта строка уже заменена при исправлении структуры. Откройте текущий разбор.",
+  DOCUMENT_UNDO_CONFLICT:
+    "После исправления уже были другие изменения. Автоматическая отмена недоступна; откройте текущую таблицу.",
+  DOCUMENT_SOURCE_NOTE:
+    "Укажите место товара в исходном файле. Если точное место неизвестно, выберите соответствующую кнопку.",
+  DOCUMENT_HEADER: "Название должно быть непустым, до 100 знаков и не повторять другую колонку.",
+  DOCUMENT_EMPTY_PRODUCT:
+    "Один из новых товаров полностью пустой. Заполните его поля перед подтверждением.",
+  DOCUMENT_NO_CHANGE: "Заголовок не изменён. Выберите другое название либо отмените черновик.",
+  DOCUMENT_CAPACITY: "Достигнут предел 5000 строк с учётом истории. Подготовьте меньший документ.",
+  DOCUMENT_STRUCTURE_PREVIEW:
+    "Откройте предпросмотр перед подтверждением или вернитесь к исправлению.",
+  DOCUMENT_STRUCTURE_MISSING: "Черновик уже закрыт. Откройте текущий разбор.",
   DOCUMENT_OTHER_INPUT:
     "Сначала завершите или отмените текущий ввод товара. /input — продолжить обычный ввод, /technical — характеристики, /cancel — отменить незавершённый ввод. Затем вернитесь к документу.",
   DOCUMENT_DENIED: "🔒 Разбор и импорт доступны администратору с правом импорта.",
@@ -79,7 +99,7 @@ async function recover(chat: Chat, error: unknown, id?: string, row = 0) {
   );
 }
 async function display(chat: Chat, r: DocumentReview, screen = "get", page = 0) {
-  const v = renderReview(r, screen, page);
+  const v = r.structure_draft ? renderStructure(r, screen, page) : renderReview(r, screen, page);
   await send(chat, v.text, v.rows);
 }
 export async function openDocumentReview(
@@ -124,12 +144,12 @@ export async function showDocumentReview(m: StaffMember, chat: Chat, data: strin
       );
     await send(
       chat,
-      `✏️ Строка ${row + 1} · ${reviewColumnLabel(r.header[column!], column!)}\nСейчас: ${r.cells[column!] || "(пусто)"}\n\nИсправление сохранится только в этом разборе. Затем строку нужно проверить заново. Чтобы оставить поле пустым, ответьте одним знаком «—».`,
+      `✏️ Строка ${r.position ?? row + 1} · ${reviewColumnLabel(r.header[column!], column!)}\nСейчас: ${r.cells[column!] || "(пусто)"}\n\nИсправление сохранится только в этом разборе. Затем строку нужно проверить заново. Чтобы оставить поле пустым, ответьте одним знаком «—».`,
       [[reviewButton(r, "↩️ Отмена ввода — оставить прежнее", "cancel")]],
     );
     const response = await tg("sendMessage", {
       chat_id: chat.id,
-      text: `Введите значение поля «${reviewColumnLabel(r.header[column!], column!)}» для строки ${row + 1}. Ответьте именно на это сообщение.`,
+      text: `Введите значение поля «${reviewColumnLabel(r.header[column!], column!)}» для строки ${r.position ?? row + 1}. Ответьте именно на это сообщение.`,
       reply_markup: { force_reply: true, input_field_placeholder: "Исправленное значение" },
     });
     const body = (await response.json()) as { ok?: boolean; result?: { message_id?: number } };
@@ -156,6 +176,24 @@ export async function documentReviewControl(
   try {
     const { prompt } = await call(m, "input");
     if (!prompt) return false;
+    if (prompt.kind === "structure") {
+      const r = await call(m, command === "cancel" ? "st_cancel" : "get", {
+        p_id: prompt.review_id,
+        p_revision: prompt.revision,
+        p_row: prompt.row_index,
+      });
+      if (command === "resume" && r.structure_draft && r.structure_draft.focus >= -1) {
+        const fresh = await call(m, "st_focus", {
+          p_id: r.id,
+          p_revision: r.revision,
+          p_row: r.structure_draft.target,
+          p_column: r.structure_draft.focus,
+          p_payload: { guided: r.structure_draft.guided },
+        });
+        await structureDisplay(m, chat, fresh, true);
+      } else await display(chat, r);
+      return true;
+    }
     if (command === "resume") {
       await showDocumentReview(
         m,
@@ -195,6 +233,32 @@ export async function handleDocumentReviewText(
     prompt = result.prompt;
     if (!prompt) return false;
     if (replyTo !== undefined && replyTo !== prompt.message_id) return false;
+    if (prompt.kind === "structure") {
+      if (!replyTo || !prompt.message_id) {
+        await send(
+          chat,
+          "🛠 Есть незавершённый черновик таблицы. /input — продолжить, /cancel — отменить. Обычный текст ничего не меняет.",
+          [
+            [
+              {
+                text: "🛠 Открыть черновик",
+                callback_data: `ds:${prompt.review_id}:${prompt.revision}:tools:${prompt.row_index}`,
+              },
+            ],
+          ],
+        );
+        return true;
+      }
+      const r = await call(m, "st_save", {
+        p_id: prompt.review_id,
+        p_revision: prompt.revision,
+        p_row: prompt.row_index,
+        p_column: prompt.column_index,
+        p_payload: { value: text.trim() === "—" ? "" : text.trim(), reply_to: replyTo },
+      });
+      await structureDisplay(m, chat, r, true);
+      return true;
+    }
     if (!replyTo || !prompt.message_id) {
       await send(
         chat,
@@ -233,4 +297,68 @@ export async function handleDocumentReviewText(
     await recover(chat, e, prompt?.review_id, prompt?.row_index);
   }
   return true;
+}
+
+async function structureDisplay(
+  m: StaffMember,
+  chat: Chat,
+  r: DocumentReview,
+  ask = false,
+  screen = "tools",
+  arg = 0,
+) {
+  if (!r.structure_draft && !["tools", "heads", "parts", "askundo"].includes(screen))
+    return display(chat, r);
+  const view = renderStructure(r, screen, arg);
+  await send(chat, view.text, view.rows);
+  const d = r.structure_draft;
+  if (!ask || !d || d.stage !== "editing" || d.focus < -1) return;
+  const response = await tg("sendMessage", {
+    chat_id: chat.id,
+    text: structureQuestion(r),
+    reply_markup: {
+      force_reply: true,
+      input_field_placeholder: d.focus === -1 ? "Место в документе" : "Значение одного поля",
+    },
+  });
+  const body = (await response.json()) as { ok?: boolean; result?: { message_id?: number } };
+  const messageId = body.result?.message_id;
+  if (!body.ok || !Number.isSafeInteger(messageId) || messageId! <= 0)
+    throw new Error("DOCUMENT_PROMPT");
+  await call(m, "st_bind", {
+    p_id: r.id,
+    p_revision: r.revision,
+    p_row: d.target,
+    p_column: d.focus,
+    p_payload: { message_id: messageId },
+  });
+}
+export async function showDocumentStructure(m: StaffMember, chat: Chat, data: string) {
+  if (!allowed(m, chat)) return;
+  const action = parseStructureCallback(data);
+  if (!action) return;
+  const { id, revision, row, op, arg } = action;
+  try {
+    const reads = ["tools", "heads", "parts", "askundo", "fields"];
+    const operation = reads.includes(op)
+      ? "get"
+      : ({
+          edit: "st_focus",
+          walk: "st_focus",
+          src: "st_focus",
+          std: "st_standard",
+          where: "st_where",
+        }[op] ?? "st_" + op);
+    const r = await call(m, operation, {
+      p_id: id,
+      p_revision: revision,
+      p_row: row,
+      p_column: ["src", "where"].includes(op) ? -1 : arg,
+      p_payload: { guided: op === "walk" },
+    });
+    if (["apply", "cancel", "undo"].includes(op)) return display(chat, r);
+    await structureDisplay(m, chat, r, !reads.includes(op), op, arg ?? 0);
+  } catch (error) {
+    await recover(chat, error, id, row);
+  }
 }
