@@ -11,27 +11,31 @@ describe("small shop staff contract", () => {
       active: true,
       elevated: false,
     };
-    it(name + ": orders/catalog/stock allowed; money and staff administration denied", () => {
-      for (const p of [
-        "manage_orders",
-        "edit_products",
-        "upload_photos",
-        "edit_stock",
-      ] as Permission[])
-        expect(can(staff, p)).toBe(true);
-      for (const p of [
-        "view_costs",
-        "edit_prices",
-        "manage_staff",
-        "view_audit",
-        "import_prices",
-        "publish_products",
-        "toggle_full_access",
-      ] as Permission[])
-        expect(can(staff, p)).toBe(false);
-      expect(can({ ...staff, elevated: true }, "view_costs")).toBe(false);
-      expect(can({ ...staff, active: false }, "manage_orders")).toBe(false);
-    });
+    it(
+      name +
+        ": orders/catalog/stock/cost reading allowed; price changes and staff administration denied",
+      () => {
+        for (const p of [
+          "manage_orders",
+          "edit_products",
+          "upload_photos",
+          "edit_stock",
+          "view_costs",
+        ] as Permission[])
+          expect(can(staff, p)).toBe(true);
+        for (const p of [
+          "edit_prices",
+          "manage_staff",
+          "view_audit",
+          "import_prices",
+          "publish_products",
+          "toggle_full_access",
+        ] as Permission[])
+          expect(can(staff, p)).toBe(false);
+        expect(can({ ...staff, elevated: true }, "edit_prices")).toBe(false);
+        expect(can({ ...staff, active: false }, "manage_orders")).toBe(false);
+      },
+    );
   }
   it("Moscow date handles midnight and explicit offsets", () => {
     expect(orderDateMoscow("2026-11-06T22:15:00Z")).toBe("07.11.2026, 01:15 МСК");

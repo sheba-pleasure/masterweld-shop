@@ -19,6 +19,24 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   canceled: "отменён",
 };
 
+export const STATUS_ACTION: Record<OrderStatus, string> = {
+  new: "Новый заказ",
+  processing: "Начать обработку",
+  ready: "Заказ собран — готов к выдаче",
+  completed: "Подтвердить выдачу покупателю",
+  canceled: "Отменить заказ",
+};
+
+const NEXT_STEP: Record<OrderStatus, string> = {
+  new: "«Начать обработку» сразу отметит, что вы занялись заказом. Свяжитесь с покупателем и проверьте наличие.",
+  processing:
+    "Когда товары собраны, нажмите «Заказ собран — готов к выдаче». Статус сразу станет «готов». Сообщите покупателю о готовности самостоятельно.",
+  ready:
+    "После передачи товаров покупателю нажмите «Подтвердить выдачу покупателю». Бот попросит подтверждение, затем закроет заказ.",
+  completed: "Заказ выдан. Данные сохранены в истории.",
+  canceled: "Заказ отменён. Данные сохранены в истории.",
+};
+
 export const STATUS_ICON: Record<OrderStatus, string> = {
   new: "🆕",
   processing: "🛠",
@@ -149,7 +167,9 @@ export function buildOrderCard(
     `💰 Итого: ${Math.round(Number(order.total) || 0).toLocaleString("ru-RU")} ₽`,
     status
       ? ALLOWED_TRANSITIONS[status].length
-        ? "👇 Выберите следующий шаг кнопкой ниже."
+        ? "👇 " +
+          NEXT_STEP[status] +
+          "\n\n«Отменить заказ» попросит подтверждение. Отмена заказа не выполняет возврат денег."
         : "🏁 Заказ закрыт. Данные сохранены в истории."
       : "ℹ️ Статус пока не подключён. Доступен только просмотр.",
   ]
@@ -162,13 +182,14 @@ export function buildOrderCard(
       const confirm = CONFIRM_REQUIRED.includes(next);
       rows.push([
         {
-          text: `${STATUS_ICON[next]} ${STATUS_LABEL[next]}${confirm ? " (подтвердить)" : ""}`,
+          text: `${STATUS_ICON[next]} ${STATUS_ACTION[next]}`,
           callback_data: confirm ? `stc:${order.id}:${next}` : `st:${order.id}:${next}`,
         },
       ]);
     }
   }
-  rows.push([{ text: "⬅️ К списку", callback_data: "orders:0" }]);
+  rows.push([{ text: "⬅️ К списку заказов", callback_data: "orders:0" }]);
+  rows.push([{ text: "🏠 Главное меню", callback_data: "home" }]);
   return { text, rows };
 }
 

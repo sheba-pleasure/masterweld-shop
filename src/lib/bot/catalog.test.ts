@@ -128,10 +128,10 @@ describe("поиск в боте", () => {
 });
 
 describe("карточка товара", () => {
-  it("содержит UUID, SKU, бренд, статус, наличие, категорию, фото", () => {
+  it("содержит артикул, бренд, статус, наличие, категорию, фото без технического UUID", () => {
     const { text } = buildProductCardBot(p(), { categoryName: "Горелки", photoCount: 3 });
-    expect(text).toContain(`UUID: ${UUID_A}`);
-    expect(text).toContain("SKU: MW-123");
+    expect(text).not.toContain(UUID_A);
+    expect(text).toContain("Артикул: MW-123");
     expect(text).toContain("Бренд: FoxWeld");
     expect(text).toContain("Статус: на витрине");
     expect(text).toContain("Наличие: Отмечено в наличии");
