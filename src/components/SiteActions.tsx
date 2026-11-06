@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CreditCard, Phone, ShoppingCart, Truck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CartRows } from "@/components/CartRows";
@@ -6,6 +6,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useServerFn } from "@tanstack/react-start";
 import { createOrder } from "@/lib/orders/orders.functions";
 import { clearCart, useCart } from "@/lib/cart";
+import {
+  ATTEMPT_STORAGE_KEY,
+  UNKNOWN_ORDER_MESSAGE,
+  loadAttempt,
+  saveAttempt,
+  submissionSchema,
+  type Submission,
+} from "@/lib/orders/submission";
 import { rub } from "@/lib/catalog";
 
 const PHONE = { display: "+7 (495) 639-13-18", href: "tel:+74956391318" };
@@ -18,6 +26,27 @@ export function SiteActions() {
   const [phone, setPhone] = useState("");
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
+  const [attempt, setAttempt] = useState<Submission | null>(null);
+  const attemptRef = useRef<Submission | null>(null);
+  const sendingRef = useRef(false);
+  const [storageReady, setStorageReady] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = loadAttempt(sessionStorage);
+      attemptRef.current = saved;
+      setAttempt(saved);
+      if (saved) {
+        setName(saved.name);
+        setPhone(saved.phone);
+        setComment(saved.comment ?? "");
+      }
+      setStorageReady(true);
+    } catch {
+      setError(
+        "Не удалось прочитать сохранённую попытку заказа. Не оформляйте заново: свяжитесь с магазином для проверки.",
+      );
+    }
+  }, []);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doneInfo, setDoneInfo] = useState<{
@@ -38,7 +67,7 @@ export function SiteActions() {
     setOpen(next);
     if (next) {
       setDone(false);
-      setError(null);
+      if (storageReady && !attemptRef.current) setError(null);
       setPriceChange(null);
     }
   };
@@ -49,27 +78,58 @@ export function SiteActions() {
   }, [items]);
 
   const send = async () => {
-    if (!name.trim() || !phone.trim() || items.length === 0) return;
+    if (sendingRef.current || !storageReady) return;
+    let current = attemptRef.current;
+    if (!current) {
+      const parsed = submissionSchema.safeParse({
+        requestId: crypto.randomUUID(),
+        name: name.trim(),
+        phone: phone.trim(),
+        comment: comment.trim() || null,
+        items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
+        expected: priceChange
+          ? {
+              total: priceChange.total,
+              items: priceChange.items.map((i) => ({
+                product_id: i.product_id,
+                unit_price: i.price,
+              })),
+            }
+          : {
+              total: Math.round(total * 100) / 100,
+              items: items.map((i) => ({ product_id: i.id, unit_price: i.price })),
+            },
+      });
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message ?? "Проверьте данные заказа.");
+        return;
+      }
+      current = parsed.data;
+      try {
+        saveAttempt(sessionStorage, current);
+      } catch {
+        setError(
+          "Браузер не сохранил попытку. Заказ не отправлялся. Разрешите хранение данных сайта и повторите.",
+        );
+        return;
+      }
+      attemptRef.current = current;
+      setAttempt(current);
+    }
+    sendingRef.current = true;
     setSending(true);
     setError(null);
     try {
-      // Цены и состав пересчитывает сервер по published-товарам; клиентские
-      // price/title/total не отправляются и не используются. expected — это
-      // лишь «ожидание» покупателя (то, что он видел в корзине), не сумма:
-      // при расхождении сервер вернёт PRICE_CHANGED и заказ не запишет.
-      const res = await placeOrder({
-        data: {
-          name: name.trim(),
-          phone: phone.trim(),
-          comment: comment.trim() || null,
-          items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
-          expected: {
-            total: Math.round(total * 100) / 100,
-            items: items.map((i) => ({ product_id: i.id, unit_price: i.price })),
-          },
-        },
-      });
+      const res = await placeOrder({ data: current });
+      if (!res.ok && res.code !== "PRICE_CHANGED" && res.code !== "REJECTED") {
+        setError(res.message ?? UNKNOWN_ORDER_MESSAGE);
+        return;
+      }
+      // Only a durable, definitive server result allows a new attempt.
       if (!res.ok) {
+        sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+        attemptRef.current = null;
+        setAttempt(null);
         if (res.code === "PRICE_CHANGED" && typeof res.total === "number") {
           setPriceChange({
             total: res.total,
@@ -79,18 +139,32 @@ export function SiteActions() {
               price: i.price,
             })),
           });
-          setError(null);
-          return;
-        }
-        setError(res.message ?? "Заказ не ушёл. Позвоните нам — примем по телефону.");
+        } else setError(res.message ?? "Проверьте данные заказа.");
         return;
       }
       setDoneInfo({ number: res.number, total: res.total, backorder: res.hasBackorder });
-      clearCart();
+      // Clear the submitted cart BEFORE dropping the recovery token. A reload
+      // between these steps can still recover the receipt instead of reordering.
+      const persisted: unknown = JSON.parse(localStorage.getItem("mw_cart_v1") ?? "[]");
+      if (
+        Array.isArray(persisted) &&
+        persisted.length === current.items.length &&
+        persisted.every((i) =>
+          current.items.some((p) => p.product_id === i?.id && p.qty === i?.qty),
+        )
+      ) {
+        localStorage.setItem("mw_cart_v1", "[]");
+        if (localStorage.getItem("mw_cart_v1") !== "[]") throw new Error("CART_STORAGE_FAILED");
+        clearCart();
+      }
+      sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+      attemptRef.current = null;
+      setAttempt(null);
       setDone(true);
     } catch {
-      setError("Заказ не ушёл. Позвоните нам — примем по телефону.");
+      setError(UNKNOWN_ORDER_MESSAGE);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -128,7 +202,8 @@ export function SiteActions() {
             <SheetTitle className="menu-label menu-label--title text-brand-yellow">
               Корзина{" "}
               <span className="ml-2 text-xs font-normal text-primary-foreground/60">
-                {items.length} поз. · {count} шт.
+                {attempt?.items.length ?? items.length} поз. ·{" "}
+                {attempt ? attempt.items.reduce((n, i) => n + i.qty, 0) : count} шт.
               </span>
             </SheetTitle>
           </SheetHeader>
@@ -139,7 +214,7 @@ export function SiteActions() {
                 Спасибо! Заказ {doneInfo.number ?? ""} принят.
               </p>
               <p className="mt-2 text-primary-foreground/70">
-                {import.meta.env.VITE_APP_ENV === "dev"
+                {import.meta.env["VITE_APP_ENV"] === "dev"
                   ? "Учебный заказ сохранён. Звонка, оплаты и доставки не будет."
                   : `Позвоним на ${phone.trim()} и уточним доставку.`}
               </p>
@@ -149,12 +224,48 @@ export function SiteActions() {
                   <span className="font-semibold text-brand-yellow">{rub(doneInfo.total)}</span>
                 </p>
               )}
-              {doneInfo.backorder && import.meta.env.VITE_APP_ENV !== "dev" && (
+              {doneInfo.backorder && import.meta.env["VITE_APP_ENV"] !== "dev" && (
                 <p className="mt-2 text-xs text-primary-foreground/60">
                   Часть позиций отмечена как отсутствующая на складе — это заказ «под заказ», срок
                   поставки подтвердит менеджер по телефону.
                 </p>
               )}
+            </div>
+          ) : attempt ? (
+            <div className="px-5 pb-6 text-sm">
+              <p className="font-semibold text-brand-yellow">
+                {sending ? "Проверяем оформление…" : "Проверим результат оформления"}
+              </p>
+              <p className="mt-2">
+                {attempt.name} · {attempt.phone}
+              </p>
+              <p className="mt-1">
+                Позиций: {attempt.items.length}. Сумма при отправке:{" "}
+                {rub(attempt.expected?.total ?? 0)}.
+              </p>
+              <p role="status" className="mt-3">
+                {error ??
+                  (sending
+                    ? "Проверяем сохранённую попытку. Дождитесь ответа."
+                    : "Нажмите кнопку ниже, чтобы получить результат сохранённой попытки.")}
+              </p>
+              <Button
+                onClick={send}
+                disabled={sending}
+                className="checkout-submit mt-4 h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep"
+              >
+                {sending ? "Проверяем…" : "Проверить и завершить заказ"}
+              </Button>
+              <p className="mt-3 text-xs text-primary-foreground/70">
+                Не закрывайте эту вкладку и не оформляйте тот же заказ в другой. При повторной
+                проверке вернётся результат этой попытки.
+              </p>
+              <p className="mt-2 break-all text-xs text-primary-foreground/60">
+                Код для проверки магазином: {attempt.requestId}
+              </p>
+              <a href={PHONE.href} className="mt-2 inline-block text-brand-yellow">
+                {PHONE.display}
+              </a>
             </div>
           ) : items.length === 0 ? (
             <p className="px-5 pb-6 text-sm text-primary-foreground/70">
@@ -187,7 +298,7 @@ export function SiteActions() {
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-primary-foreground/70">Итого</span>
                   <span className="font-display text-xl font-bold text-brand-yellow">
-                    {rub(total)}
+                    {rub(priceChange?.total ?? total)}
                   </span>
                 </div>
                 <input
@@ -247,14 +358,14 @@ export function SiteActions() {
                 )}
                 <Button
                   onClick={send}
-                  disabled={sending || !name.trim() || !phone.trim()}
+                  disabled={sending || !storageReady || !name.trim() || !phone.trim()}
                   className="checkout-submit h-auto min-h-11 whitespace-normal bg-brand-yellow px-3 py-2 text-brand-deep hover:bg-brand-yellow/90"
                 >
                   {sending
                     ? "Отправляем…"
                     : priceChange
                       ? "Согласиться с новой ценой и оформить"
-                      : import.meta.env.VITE_APP_ENV === "dev"
+                      : import.meta.env["VITE_APP_ENV"] === "dev"
                         ? "Оформить учебный заказ"
                         : "Оформить заказ"}
                 </Button>
@@ -286,7 +397,11 @@ export function SiteActions() {
                     </button>
                   </div>
                 )}
-                {error && <p className="text-xs text-brand-yellow">{error}</p>}
+                {error && (
+                  <p role="alert" className="text-xs text-brand-yellow">
+                    {error}
+                  </p>
+                )}
                 <p className="text-xs text-primary-foreground/50">
                   Или просто позвоните:{" "}
                   <a href={PHONE.href} className="text-brand-yellow">

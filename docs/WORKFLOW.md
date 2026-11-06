@@ -39,7 +39,7 @@ Production-образ собирается с production public-настройк
 
 ## Настройка автодеплоя пока не завершена
 
-Уже настроены GitHub CLI, серверный GitHub credential, ограниченный SSH deploy key, закреплённый host key и repository secrets. Нужны production-база/ключи/маркер, рабочий бот, gateway/домен и production public-параметры. shop.masterweld.ru пока не разрешается в IPv4 при проверке сервера.
+Уже настроены GitHub CLI, серверный GitHub credential, ограниченный SSH deploy key, закреплённый host key и repository secrets. Gateway mw-shop-gateway подготовлен на 127.0.0.1:18080 и пока отвечает 503; внешний Caddy не переключён. Нужны production-база/ключи/маркер, рабочий бот, домен и production public-параметры. shop.masterweld.ru пока не разрешается в IPv4 при проверке сервера.
 GitHub variables: MW_DEPLOY_HOST, MW_DEPLOY_USER, MW_PRODUCTION_ORIGIN, MW_PRODUCTION_SUPABASE_URL, MW_PRODUCTION_PUBLIC_KEY, MW_PRODUCTION_PROJECT_ID.
 GitHub secrets: MW_DEPLOY_SSH_KEY, MW_DEPLOY_KNOWN_HOSTS.
 Сервер: ops/.secrets/github-read-token (600). Сейчас это защищённая копия OAuth credential GitHub CLI; имя файла обозначает использование для чтения проверок, а не ограниченный scope токена. Исходная авторизация имеет repo/workflow-доступ.

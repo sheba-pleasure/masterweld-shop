@@ -1,103 +1,62 @@
 import { createServerFn } from "@tanstack/react-start";
-import {
-  orderPayloadSchema,
-  computeOrder,
-  checkExpectedPrice,
-  type OrderProductRow,
-  type OrderSnapshotItem,
-} from "./schema";
+import { submissionSchema, type CreateOrderResult } from "./submission";
 import { peekOrderRateLimit, recordOrderHit } from "./rate-limit.server";
 
-export interface CreateOrderResult {
-  ok: boolean;
-  /** PRICE_CHANGED — цены изменились; заказ НЕ записан, нужно подтверждение. */
-  code?: "PRICE_CHANGED";
-  /** Безопасный короткий номер заказа (только для показа покупателю). */
-  number?: string;
-  total?: number;
-  /** Проверенные строки заказа (только published-товары, без PII) — для «было → стало». */
-  items?: OrderSnapshotItem[];
-  hasBackorder?: boolean;
-  message?: string;
-}
+export type { CreateOrderResult } from "./submission";
 
-/**
- * Публичная серверная точка оформления заказа.
- * Покупатель передаёт только name/phone/comment и позиции {product_id, qty}.
- * Цены, состав и сумма пересчитываются на сервере по published-товарам;
- * клиентским price/title/total не доверяем.
- * Запись в shop_orders — только через service_role (см. миграцию 0004,
- * которая закрывает прямой INSERT из браузера после развёртывания).
- */
+/** Service-only persistence: a durable request ID commits order and receipt together. */
 export const createOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => orderPayloadSchema.parse(input))
+  .inputValidator((input: unknown) => submissionSchema.parse(input))
   .handler(async ({ data }): Promise<CreateOrderResult> => {
-    // Анти-спам: ad-hoc лимит в памяти воркера (best-effort, не штатный primitive).
-    // peek не расходует окно: PRICE_CHANGED (честное подтверждение цены) не
-    // блокирует повторную попытку; счётчик растёт только при реальной записи.
-    const key = `phone:${data.phone.replace(/\D/g, "")}`;
-    if (!peekOrderRateLimit(key)) {
-      return {
-        ok: false,
-        message: "Слишком много заказов подряд. Позвоните нам — примем по телефону.",
-      };
-    }
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const ids = [...new Set(data.items.map((i) => i.product_id))];
-    const { data: rows, error: readErr } = await supabaseAdmin
-      .from("products")
-      .select("id, slug, title, price, status, in_stock")
-      .in("id", ids);
-    if (readErr) {
-      console.error(`[orders] product read failed: ${readErr.message}`);
-      return { ok: false, message: "Заказ не ушёл. Позвоните нам — примем по телефону." };
-    }
-
-    const computed = computeOrder(data, (rows ?? []) as OrderProductRow[]);
-    if (!computed.ok) {
-      return { ok: false, message: computed.message };
-    }
-
-    // Сверка с ожиданием покупателя (сумма/цены, которые он видел). Заказ не
-    // пишется при расхождении: возвращаем актуальную сумму и проверенные строки,
-    // UI показывает «было → стало» и ждёт явного повторного подтверждения.
-    const expectedCheck = checkExpectedPrice(computed, data.expected);
-    if (!expectedCheck.ok) {
-      return {
-        ok: false,
-        code: "PRICE_CHANGED",
-        total: computed.total,
-        items: computed.items,
-        hasBackorder: computed.hasBackorder,
-        message: "Цены изменились с момента добавления в корзину. Подтвердите новую сумму.",
-      };
-    }
-
-    const { data: inserted, error: insErr } = await supabaseAdmin
-      .from("shop_orders")
-      .insert({
-        name: data.name,
-        phone: data.phone,
-        comment: data.comment ?? null,
-        total: computed.total,
-        items: computed.items as never,
-      })
-      .select("id")
-      .single();
-    if (insErr || !inserted) {
-      console.error(`[orders] insert failed: ${insErr?.message ?? "no row"}`);
-      return { ok: false, message: "Заказ не ушёл. Позвоните нам — примем по телефону." };
-    }
-
-    // Заказ реально записан — только теперь расходуем окно анти-спама.
-    recordOrderHit(key);
-
-    return {
-      ok: true,
-      number: `#${inserted.id.slice(0, 8)}`,
-      total: computed.total,
-      hasBackorder: computed.hasBackorder,
+    const { submitOrder, AttemptConflict } = await import("./submit.server");
+    // Reviewed migration RPCs are absent from the historical Cloud-generated types.
+    const rpc = async (name: string, args: Record<string, unknown>) => {
+      const { data: result, error } = await supabaseAdmin
+        .rpc(name as never, args as never)
+        .abortSignal(AbortSignal.timeout(10_000));
+      if (error) {
+        if (error.message.includes("ORDER_ATTEMPT_CONFLICT")) throw new AttemptConflict();
+        throw new Error("ORDER_STORAGE_UNAVAILABLE");
+      }
+      return result as CreateOrderResult | null;
     };
+    return submitOrder(
+      data,
+      {
+        lookup: (id, hash) =>
+          rpc("lookup_order_submission", { p_request_id: id, p_payload_hash: hash }),
+        async products(ids) {
+          const { data: rows, error } = await supabaseAdmin
+            .from("products")
+            .select("id,slug,title,price,status,in_stock")
+            .in("id", ids)
+            .abortSignal(AbortSignal.timeout(10_000));
+          if (error) throw new Error("ORDER_PRODUCTS_UNAVAILABLE");
+          return rows ?? [];
+        },
+        async commit(attempt, hash, order, rejection) {
+          const result = await rpc("commit_order_submission", {
+            p_request_id: attempt.requestId,
+            p_payload_hash: hash,
+            p_name: attempt.name,
+            p_phone: attempt.phone,
+            p_comment: attempt.comment ?? null,
+            p_items: order?.items ?? null,
+            p_total: order?.total ?? null,
+            p_has_backorder: order?.hasBackorder ?? null,
+            p_rejection: rejection ?? null,
+          });
+          if (
+            !result ||
+            (result.ok
+              ? !result.number
+              : !["REJECTED", "PRICE_CHANGED"].includes(result.code ?? ""))
+          )
+            throw new Error("ORDER_RECEIPT_UNAVAILABLE");
+          return result;
+        },
+      },
+      { allowed: peekOrderRateLimit, record: recordOrderHit },
+    );
   });

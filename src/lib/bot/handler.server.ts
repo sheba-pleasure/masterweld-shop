@@ -1,9 +1,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
+import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
 import {
   buildOrderCard,
+  orderDateMoscow,
   buildOrdersList,
   canViewOrderData,
   checkTransition,
@@ -139,6 +141,8 @@ function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
       { text: "👥 Сотрудники", callback_data: "staff" },
       { text: "📜 Журнал", callback_data: "audit" },
     ]);
+  if (can(m, "view_audit"))
+    rows.push([{ text: "🔔 Доставка уведомлений", callback_data: "deliveries" }]);
   if (m.role === "director" && m.elevated)
     rows.push([{ text: "🔒 Вернуть простой режим", callback_data: "elevate_off" }]);
   const label =
@@ -1654,10 +1658,37 @@ export async function handleUpdate(update: TgUpdate) {
     const text = (list ?? [])
       .map(
         (s) =>
-          `${s.active ? "✅" : "⛔"} ${s.name} — ${s.role}${s.elevated ? " (полный)" : ""} · ${s.telegram_id}`,
+          `${s.active ? "✅" : "⛔"} ${s.name} — ${{ admin: "администратор", director: "директор", seller: "продавец-консультант" }[s.role]}${s.elevated ? " (полный)" : ""} · ${s.telegram_id}`,
       )
       .join("\n");
     return tg("sendMessage", { chat_id: chat.id, text: `Сотрудники:\n${text}` });
+  }
+  if (cb.data === "deliveries") {
+    if (!can(m, "view_audit"))
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: "Недостаточно прав для просмотра доставки.",
+      });
+    try {
+      await audit(m.telegram_id, "order_deliveries_read");
+      const { data: deliveries, error } = await supabaseAdmin
+        .from("order_notifications" as never)
+        .select("order_id,staff_telegram_id,state,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(10);
+      if (error) throw new Error("DELIVERIES_UNAVAILABLE");
+      const report = deliveryReport((deliveries ?? []) as unknown as DeliveryRow[]);
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: report.text,
+        reply_markup: { inline_keyboard: report.rows },
+      });
+    } catch {
+      return tg("sendMessage", {
+        chat_id: chat.id,
+        text: "Не удалось проверить доставку. Откройте «Заказы» и сообщите администратору время ошибки.",
+      });
+    }
   }
   if (cb.data === "audit" && can(m, "view_audit")) {
     try {
@@ -1673,7 +1704,7 @@ export async function handleUpdate(update: TgUpdate) {
     if (error) return tg("sendMessage", { chat_id: chat.id, text: "Не удалось выполнить запрос." });
     const text =
       (rows ?? [])
-        .map((r) => `${r.created_at.slice(0, 16)} · ${r.telegram_id} · ${r.action}`)
+        .map((r) => `${orderDateMoscow(r.created_at)} · ${r.telegram_id} · ${r.action}`)
         .join("\n") || "Пусто";
     return tg("sendMessage", { chat_id: chat.id, text: `Журнал:\n${text}` });
   }
