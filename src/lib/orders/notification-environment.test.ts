@@ -127,7 +127,7 @@ describe("worker switching during a batch", () => {
       staff: vi.fn(async () => ({
         telegram_id: 42,
         name: "fixture",
-        role: "seller",
+        role: "seller" as const,
         active: true,
         elevated: false,
       })),
