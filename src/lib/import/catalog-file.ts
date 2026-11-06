@@ -35,8 +35,7 @@ export function catalogColumnLabel(header: string | undefined, index: number): s
   const name = header?.trim() ?? "";
   if (Object.hasOwn(FIELD_LABEL, name.toLowerCase()))
     return FIELD_LABEL[name.toLowerCase() as Field];
-  if (!name) return `Колонка ${index + 1}`;
-  return name.replace(/^[а-яё]/u, (letter) => letter.toLocaleUpperCase("ru-RU"));
+  return name || `Колонка ${index + 1}`;
 }
 export type Mapping = Record<Field, number>;
 const ALIASES: Record<Field, string[]> = {
