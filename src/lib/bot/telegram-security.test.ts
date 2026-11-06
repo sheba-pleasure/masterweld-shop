@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tg, TelegramDeliveryError } from "./telegram.server";
 import { processClaimedUpdate } from "./webhook-processing";
 beforeEach(() => {
-  vi.stubEnv("LOVABLE_API_KEY", "mock-secret");
-  vi.stubEnv("TELEGRAM_API_KEY", "mock-token");
+  vi.stubEnv("TELEGRAM_TRANSPORT", "direct");
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "12345:abcdefghijklmnopqrstuvwxyz");
+  vi.stubEnv("TELEGRAM_BOT_ID", "12345");
+  vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "s".repeat(40));
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -88,7 +90,7 @@ describe("Telegram typed safe failures", () => {
     });
   });
   it("configuration failure never fetches", async () => {
-    vi.stubEnv("TELEGRAM_API_KEY", "");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
     await expect(tg("sendMessage", {})).rejects.toMatchObject({

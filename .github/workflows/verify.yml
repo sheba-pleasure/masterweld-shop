@@ -29,6 +29,8 @@ jobs:
         run: |
           node --test ops/runtime/environment.test.mjs
           python3 -m unittest discover -s ops/production -p 'test_*.py'
+      - name: Independent source and dependency graph
+        run: node ops/check-independence.mjs
       - name: Tests (обязательно)
         run: npm test
       - name: Build default preset (обязательно)
@@ -38,6 +40,7 @@ jobs:
           rm -rf .output
           NITRO_PRESET=node-server npx vite build
           test -f .output/server/index.mjs
+          node ops/check-independence.mjs --built
       - name: Ops shell syntax + synthetic release tests (обязательно)
         run: |
           for f in ops/*.sh ops/tests/*.sh; do bash -n "$f"; done

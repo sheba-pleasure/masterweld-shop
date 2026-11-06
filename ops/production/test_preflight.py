@@ -8,6 +8,8 @@ class PreflightTest(unittest.TestCase):
         self.assertIn("DEV_INSTANCE_FORBIDDEN",errors)
         self.assertIn("DEV_BOT_FORBIDDEN",errors)
         self.assertIn("PRODUCTION_ALERTS_NOT_REVIEWED",errors)
+    def test_hosted_backend_cannot_be_promoted(self):
+        self.assertIn("INDEPENDENT_DATABASE_ENDPOINT_REQUIRED", configuration_errors({"SUPABASE_URL":"https://example.supabase.co"},{}))
     def test_shared_key_denied(self):
         errors=configuration_errors({"SUPABASE_SERVICE_ROLE_KEY":"same"},{"SUPABASE_SERVICE_ROLE_KEY":"same"})
         self.assertIn("SHARED_DEV_SECRET:SUPABASE_SERVICE_ROLE_KEY",errors)

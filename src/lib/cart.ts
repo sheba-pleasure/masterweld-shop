@@ -9,6 +9,11 @@ export interface CartItem {
   qty: number;
 }
 
+export const OPEN_CART_EVENT = "mw:open-cart";
+export function openCart() {
+  window.dispatchEvent(new Event(OPEN_CART_EVENT));
+}
+
 const KEY = "mw_cart_v1";
 const EMPTY: CartItem[] = [];
 
@@ -23,7 +28,9 @@ function load() {
     const raw = window.localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as CartItem[]) : EMPTY;
     if (Array.isArray(parsed)) {
-      items = parsed.filter((i) => i && typeof i.id === "string" && Number.isFinite(i.price) && i.qty > 0);
+      items = parsed.filter(
+        (i) => i && typeof i.id === "string" && Number.isFinite(i.price) && i.qty > 0,
+      );
     }
   } catch {
     items = EMPTY;

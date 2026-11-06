@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { CreditCard, Phone, ShoppingCart, Truck, User } from "lucide-react";
+import { Phone, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CartRows } from "@/components/CartRows";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { createOrder } from "@/lib/orders/orders.functions";
-import { clearCart, useCart } from "@/lib/cart";
+import { clearCart, useCart, OPEN_CART_EVENT } from "@/lib/cart";
 import {
   ATTEMPT_STORAGE_KEY,
   UNKNOWN_ORDER_MESSAGE,
@@ -16,12 +17,12 @@ import {
 } from "@/lib/orders/submission";
 import { rub } from "@/lib/catalog";
 
-const PHONE = { display: "+7 (495) 639-13-18", href: "tel:+74956391318" };
+import { CONTACTS } from "@/lib/contacts";
+
+const PHONE = { display: CONTACTS.phoneDisplay, href: CONTACTS.phoneHref };
 
 export function SiteActions() {
   const [open, setOpen] = useState(false);
-  const [cabinet, setCabinet] = useState(false);
-  const [serviceNotice, setServiceNotice] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [comment, setComment] = useState("");
@@ -71,6 +72,17 @@ export function SiteActions() {
       setPriceChange(null);
     }
   };
+
+  useEffect(() => {
+    const showCart = () => {
+      setOpen(true);
+      setDone(false);
+      setPriceChange(null);
+      if (storageReady && !attemptRef.current) setError(null);
+    };
+    window.addEventListener(OPEN_CART_EVENT, showCart);
+    return () => window.removeEventListener(OPEN_CART_EVENT, showCart);
+  }, [storageReady]);
 
   // Любое изменение корзины аннулирует предыдущее сравнение цен.
   useEffect(() => {
@@ -268,32 +280,28 @@ export function SiteActions() {
               </a>
             </div>
           ) : items.length === 0 ? (
-            <p className="px-5 pb-6 text-sm text-primary-foreground/70">
-              Корзина пуста.
-              <button type="button" onClick={() => setOpen(false)} className="ml-1 underline">
-                Выбрать товары
-              </button>
-            </p>
+            <div className="flex flex-col gap-3 px-5 pb-6">
+              <p className="text-primary-foreground">В корзине пока ничего нет</p>
+              <Link
+                to="/"
+                onClick={() => setOpen(false)}
+                className="menu-pill menu-pill--accent flex min-h-11 items-center justify-center"
+              >
+                Открыть каталог
+              </Link>
+              <a href={PHONE.href} className="text-sm text-brand-yellow">
+                Помочь с подбором? {PHONE.display}
+              </a>
+            </div>
           ) : (
             <div className="checkout-layout">
               <div className="checkout-products">
                 <CartRows items={items} onNavigate={() => setOpen(false)} />
               </div>
               <div className="checkout-details flex flex-col gap-2">
-                <div className="flex items-center justify-between border-b border-brand-yellow/20 pb-2">
-                  <span className="text-xs text-primary-foreground/70">Ваши данные</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-brand-yellow"
-                    onClick={() => {
-                      setOpen(false);
-                      setCabinet(true);
-                    }}
-                  >
-                    <User /> Войти
-                  </Button>
-                </div>
+                <p className="border-b border-brand-yellow/20 pb-2 text-sm text-primary-foreground/75">
+                  Для заказа регистрация не нужна.
+                </p>
 
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-primary-foreground/70">Итого</span>
@@ -301,7 +309,11 @@ export function SiteActions() {
                     {rub(priceChange?.total ?? total)}
                   </span>
                 </div>
+                <label htmlFor="checkout-name" className="text-sm text-primary-foreground">
+                  Имя
+                </label>
                 <input
+                  id="checkout-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Имя"
@@ -309,7 +321,11 @@ export function SiteActions() {
                   autoComplete="name"
                   className="menu-field checkout-field"
                 />
+                <label htmlFor="checkout-phone" className="text-sm text-primary-foreground">
+                  Телефон
+                </label>
                 <input
+                  id="checkout-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Телефон"
@@ -319,7 +335,11 @@ export function SiteActions() {
                   inputMode="tel"
                   className="menu-field checkout-field"
                 />
+                <label htmlFor="checkout-comment" className="text-sm text-primary-foreground">
+                  Комментарий (необязательно)
+                </label>
                 <textarea
+                  id="checkout-comment"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Комментарий к заказу (необязательно)"
@@ -327,35 +347,10 @@ export function SiteActions() {
                   aria-label="Комментарий к заказу"
                   className="menu-field checkout-field resize-none"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="ghost"
-                    className="checkout-service"
-                    onClick={() =>
-                      setServiceNotice(
-                        "Онлайн-оплата пока не подключена. Списание денег недоступно.",
-                      )
-                    }
-                  >
-                    <CreditCard /> Оплатить онлайн
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="checkout-service"
-                    onClick={() =>
-                      setServiceNotice(
-                        "Доставка пока не настроена. Службу, стоимость и сроки согласуем отдельно.",
-                      )
-                    }
-                  >
-                    <Truck /> Доставка
-                  </Button>
-                </div>
-                {serviceNotice && (
-                  <p role="status" className="text-xs text-primary-foreground/70">
-                    {serviceNotice}
-                  </p>
-                )}
+                <p className="text-xs leading-relaxed text-primary-foreground/75">
+                  Онлайн-оплата пока недоступна. Условия оплаты и получения уточните у сотрудника
+                  магазина.
+                </p>
                 <Button
                   onClick={send}
                   disabled={sending || !storageReady || !name.trim() || !phone.trim()}
@@ -369,6 +364,11 @@ export function SiteActions() {
                         ? "Оформить учебный заказ"
                         : "Оформить заказ"}
                 </Button>
+                {(!name.trim() || !phone.trim()) && (
+                  <p className="text-xs text-primary-foreground/75">
+                    Укажите имя и телефон, чтобы оформить заказ.
+                  </p>
+                )}
                 {priceChange && (
                   <div className="rounded-md border border-brand-yellow/50 p-3 text-xs">
                     <p className="font-semibold text-brand-yellow">
@@ -411,71 +411,6 @@ export function SiteActions() {
               </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={cabinet} onOpenChange={setCabinet}>
-        <SheetTrigger asChild>
-          <button
-            type="button"
-            className="head-btn !hidden sm:!inline-flex"
-            aria-label="Личный кабинет"
-          >
-            <User className="h-4 w-4" strokeWidth={2.4} />
-          </button>
-        </SheetTrigger>
-        <SheetContent
-          side="right"
-          className="menu-panel inset-y-3 right-3 h-auto w-[92vw] max-w-md overflow-y-auto rounded-md border border-brand-yellow/60 bg-brand-deep p-0 text-primary-foreground"
-        >
-          <SheetHeader className="p-5 pb-2">
-            <SheetTitle className="menu-label menu-label--title text-brand-yellow">
-              Личный кабинет
-            </SheetTitle>
-          </SheetHeader>
-          <div className="flex flex-col gap-3 px-5 pb-6 text-sm">
-            <p className="text-primary-foreground/75">
-              Готовим раздел, где будут видны ваши заказы: статус, история и повтор заказа в один
-              клик.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="ghost" disabled className="checkout-service">
-                Войти
-              </Button>
-              <Button variant="ghost" disabled className="checkout-service">
-                Создать аккаунт
-              </Button>
-              <Button variant="ghost" disabled className="checkout-service">
-                Восстановить пароль
-              </Button>
-              <Button variant="ghost" disabled className="checkout-service">
-                Изменить почту
-              </Button>
-            </div>
-            <p className="text-xs text-primary-foreground/60">
-              Вход пока не подключён. Имя, контакты и предпочтения будут сохраняться после
-              подключения кабинета.
-            </p>
-            <p className="text-primary-foreground/75">
-              А пока оформите заказ через корзину или позвоните — примем и посчитаем сами.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setCabinet(false);
-                setOpen(true);
-              }}
-              className="menu-pill menu-pill--accent menu-label flex min-h-12 items-center justify-center"
-            >
-              Открыть корзину
-            </button>
-            <p className="text-xs text-primary-foreground/50">
-              Телефон отдела сварки:{" "}
-              <a href={PHONE.href} className="text-brand-yellow">
-                {PHONE.display}
-              </a>
-            </p>
-          </div>
         </SheetContent>
       </Sheet>
 

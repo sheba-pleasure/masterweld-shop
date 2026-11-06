@@ -90,6 +90,11 @@ write_gateway_conf() {
 # Генерируется ops/lib.sh. Активный upstream: $port
 server {
   listen $BIND_IP:$GATEWAY_PORT;
+  location /backend/rest/v1/ {
+    proxy_pass http://127.0.0.1:18084/rest/v1/;
+    proxy_set_header Authorization \$http_authorization;
+    add_header Cache-Control "no-store" always;
+  }
   location / {
     proxy_pass http://$BIND_IP:$port;
     proxy_set_header Host \$host;

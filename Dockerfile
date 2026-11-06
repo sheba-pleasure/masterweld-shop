@@ -22,8 +22,8 @@ ENV VITE_APP_ENV=$VITE_APP_ENV \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID \
     NITRO_PRESET=node-server
-# LOVABLE_SANDBOX не задан, поэтому пресет node-server не игнорируется.
-RUN npx vite build && test -f .output/server/index.mjs && node ops/runtime/write-manifest.mjs \
+# Vite использует собственную конфигурацию и upstream Nitro с пресетом node-server.
+RUN node ops/check-independence.mjs && npx vite build && node ops/check-independence.mjs --built && test -f .output/server/index.mjs && node ops/runtime/write-manifest.mjs \
     && bun build src/lib/orders/notification-worker.server.ts --target=node --outfile=.output/order-notifications.mjs
 
 FROM node:22-bookworm-slim AS runtime

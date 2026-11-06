@@ -22,6 +22,8 @@ def configuration_errors(env,dev):
     for k in ["SUPABASE_SERVICE_ROLE_KEY","SUPABASE_PUBLISHABLE_KEY","TELEGRAM_BOT_TOKEN","TELEGRAM_WEBHOOK_SECRET"]:
         if env.get(k) and env.get(k)==dev.get(k): errors.append("SHARED_DEV_SECRET:"+k)
     if env.get("SUPABASE_URL")==dev.get("SUPABASE_URL") and env.get("SUPABASE_URL"): errors.append("DEV_DATABASE_FORBIDDEN")
+    if env.get("SUPABASE_URL") and env["SUPABASE_URL"] != "http://mw-prod-api:8080":
+        errors.append("INDEPENDENT_DATABASE_ENDPOINT_REQUIRED")
     if env.get("ORDER_NOTIFICATIONS_ENABLED")=="true": errors.append("PRODUCTION_ALERTS_NOT_REVIEWED")
     return errors
 def main():
