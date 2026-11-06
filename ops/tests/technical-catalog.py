@@ -114,6 +114,21 @@ try:
     sql(operator.transaction(migration20,editor_sessions=True),"TECH_ALREADY_APPLIED")
     sql(operator.transaction(migration18,True),"TECH_ALREADY_APPLIED")
     assert sql("SELECT to_regprocedure('bot_technical_catalog(bigint,text,uuid,uuid,jsonb,text)') IS NULL") == "t"
+    # Exercise the production rehearsal checks in this disposable, no-network QA cluster.
+    # Never change the identity of an actual DEV/production database.
+    upgrade_checks=(ROOT / "ops/standalone/check-technical-upgrade.sql").read_text()
+    sql(upgrade_checks,"REHEARSAL_SYNTHETIC_ACCEPTED_OUTSIDE_DEV")
+    sql("""CREATE OR REPLACE FUNCTION mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$
+      SELECT '{"environment":"production","instanceId":"00000000-0000-4000-8000-000000000020"}'::jsonb $f$""")
+    sql("GRANT SELECT ON technical_editor_sessions TO anon")
+    sql(upgrade_checks,"REHEARSAL_TECH_DIRECT_ACCESS")
+    sql("REVOKE SELECT ON technical_editor_sessions FROM anon")
+    checked=json.loads(sql(upgrade_checks))
+    assert checked["editorApplyDuplicateUndo"] and checked["fixturesRolledBack"]
+    assert sql("SELECT count(*) FROM technical_editor_sessions")=="0"
+    assert fingerprint == sql("SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY id)::text) FROM products p;")
+    sql("""CREATE OR REPLACE FUNCTION mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $f$
+      SELECT '{"environment":"dev","instanceId":"3a6a67bc-5ce6-46a4-af72-e6ab78800e49"}'::jsonb $f$""")
     dictionary = json.loads((ROOT / "src/lib/technical/pilot-dictionary.json").read_text())
     assert int(sql("SELECT count(*) FROM technical_attributes")) == len(dictionary["attributes"])
     for attr in dictionary["attributes"]:
