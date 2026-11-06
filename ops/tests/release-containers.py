@@ -311,6 +311,13 @@ finally:
         thread.join(timeout=3)
     cleanup_errors = []
     for name in sorted(OWNED_CONTAINERS):
+        logs = docker("logs", name, check=False)
+        (BASE / (name + ".log")).write_text(logs.stdout + logs.stderr)
+        details = docker("inspect", name, check=False)
+        if details.returncode == 0:
+            container = json.loads(details.stdout)[0]
+            (BASE / (name + "-runtime.json")).write_text(json.dumps({
+                "state": container["State"], "ports": container["NetworkSettings"]["Ports"]}, indent=2))
         docker("rm", "-f", name, check=False)
         if docker("inspect", name, check=False).returncode == 0:
             cleanup_errors.append(name)
