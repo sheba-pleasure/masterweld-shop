@@ -39,6 +39,10 @@
 ## Type safety
 - npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
 
+## Document review — 06.11.2026
+- 0027 is DEV-only: immutable document originals/extraction, separate row corrections and human decisions. Every row must be approved or excluded before the explicit handoff; editing withdraws approval. Handoff creates one catalog-import preview and never applies or publishes products.
+- Review text is accepted only as a reply to the persisted current Telegram question. Preserve revision checks, editor exclusivity, safe cancellation/recovery, source row locators, and the legacy unreviewed-import gate. Do not call the private pre-gate RPC implementations.
+
 ## Environment rules — 06.11.2026
 - DEV: https://masterweld-dev.138-124-106-211.sslip.io, isolated masterweld_dev in mw-dev-db; no production data or token copies.
 - Customer production bot: @msvarbot (9168738475); staff production bot: @masterweldermanagerbot (8861999166). Tokens/config are staged in ops/.secrets/production, never mounted in DEV. Staff bot still has a legacy Lovable webhook until an explicitly reviewed production cutover. See docs/TELEGRAM-SHOP.md.
