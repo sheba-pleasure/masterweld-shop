@@ -103,7 +103,7 @@ it("groups processes without borrowing another mode's maximum", () => {
     { ...fact, process: "mma", value: 160 },
     { ...fact, process: "tig", state: "unknown", value: null },
   ]);
-  expect(groups.map((g) => [g.process, g.values[0].value])).toEqual([
+  expect(groups.map((g) => [g.process, g.values[0]?.value])).toEqual([
     ["mma", 160],
     ["mig", 200],
     ["tig", null],

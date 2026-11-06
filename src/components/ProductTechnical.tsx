@@ -157,7 +157,7 @@ export function ProductTechnical({
           Загружаем проверенные характеристики…
         </p>
       ) : query.isError ? (
-        <p role="alert" className="mt-3 text-sm text-destructive">
+        <p role="alert" className="mt-3 border-l-2 border-destructive pl-3 text-sm text-foreground">
           Не удалось загрузить характеристики. Нажмите «Обновить характеристики» или уточните
           параметры у магазина.
         </p>
