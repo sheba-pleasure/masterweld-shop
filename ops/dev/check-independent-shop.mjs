@@ -19,18 +19,21 @@ try {
       if (!new URL(route.request().url()).searchParams.has("slug")) return route.continue();
       const response = await route.fetch();
       const product = await response.json();
-      const original = product.product_photos?.[0];
-      if (original)
-        product.product_photos = Array.from({ length: 12 }, (_, i) => ({
-          ...original,
-          url: original.url + "?qa=" + i,
-          sort_order: i,
-          is_main: i === 0,
-        }));
+      const record = Array.isArray(product) ? product[0] : product;
+      assert.ok(record?.id);
+      const original = record.product_photos?.[0] ?? { url: origin + "/favicon-32x32.png" };
+      record.product_photos = Array.from({ length: 12 }, (_, i) => ({
+        ...original,
+        url: original.url + "?qa=" + i,
+        sort_order: i,
+        is_main: i === 0,
+      }));
       await route.fulfill({ response, json: product });
     });
     await page.goto(origin, { waitUntil: "networkidle" });
     await page.locator('a[href^="/product/"]').first().click();
+    await page.locator("main > nav").waitFor();
+    assert.equal(await page.getByRole("button", { name: /^Фото [0-9]+ товара/ }).count(), 12);
     await page.getByRole("button", { name: "В корзину", exact: true }).click();
     await page.getByRole("button", { name: "Перейти в корзину", exact: true }).waitFor();
     await page.screenshot({
@@ -82,5 +85,8 @@ try {
     await context.close();
   }
 } finally {
+  for (const context of browser.contexts()) {
+    for (const page of context.pages()) await page.unrouteAll({ behavior: "ignoreErrors" });
+  }
   await browser.close();
 }
