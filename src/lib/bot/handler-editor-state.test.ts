@@ -17,6 +17,7 @@ const revision = "20000000-0000-4000-8000-000000000001";
 const oldRevision = "20000000-0000-4000-8000-000000000002";
 let stored: EditorStateRow | null;
 let error: string | null;
+let readError: boolean;
 let role: string;
 let beforeWrite: (() => void) | null;
 let preview: Record<string, unknown> | null;
@@ -32,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   stored = null;
   error = null;
+  readError = false;
   role = "admin";
   beforeWrite = null;
   preview = null;
@@ -90,6 +92,8 @@ beforeEach(() => {
     let patch: Record<string, unknown> = {};
     const filters: ((row: Record<string, unknown>) => boolean)[] = [];
     const result = () => {
+      if (table === "bot_editor_states" && operation === "read" && readError)
+        return { data: null, error: { message: "PRIVATE_READ_FAILURE" } };
       if (table === "bot_editor_states" && operation !== "read") {
         mocks.write(operation, patch);
         if (beforeWrite) {
@@ -184,6 +188,54 @@ function callback(value: string) {
 }
 const messages = () =>
   mocks.tg.mock.calls.filter(([method]) => method === "sendMessage").map(([, p]) => p.text);
+const lastButtons = () =>
+  mocks.tg.mock.calls
+    .filter(([method]) => method === "sendMessage")
+    .at(-1)?.[1]
+    .reply_markup?.inline_keyboard?.flat()
+    .map((b: { callback_data: string }) => b.callback_data) ?? [];
+
+it.each(["/input", "/cancel", "/new", "маска"])(
+  "read failure during %s preserves input and gives working recovery buttons",
+  async (command) => {
+    stored = stateRow("new_title");
+    const before = structuredClone(stored);
+    readError = true;
+    await text(command, null);
+    expect(stored).toEqual(before);
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(mocks.pending).not.toHaveBeenCalled();
+    expect(messages().at(-1)).toContain("Не удалось проверить текущий ввод");
+    expect(messages().join(" ")).not.toMatch(
+      /PRIVATE_READ_FAILURE|Активного диалога нет|Ничего не найдено/,
+    );
+    expect(lastButtons()).toContain("guide:input");
+    expect(lastButtons()).toContain("acts:0");
+  },
+);
+
+it("recovery button rebinds a question and rejects an answer to the old one", async () => {
+  stored = stateRow("new_title");
+  await text("Не привязанный ответ", null);
+  expect(lastButtons()).toContain("guide:input");
+  await callback("guide:input");
+  const fresh = structuredClone(stored);
+  expect((fresh.data as Record<string, unknown>)["_prompt_message_id"]).not.toBe(200);
+  await text("Ответ на старый вопрос", 200);
+  expect(stored).toEqual(fresh);
+  expect(mocks.pending).not.toHaveBeenCalled();
+});
+
+it("free-text search runs only outside the editor and ignores replies to old prompts", async () => {
+  await text("маска", null);
+  expect(mocks.from.mock.calls.some(([table]) => table === "products")).toBe(true);
+  expect(messages().at(-1)).toContain("Ничего не найдено");
+  mocks.from.mockClear();
+  await text("маска", 200);
+  expect(mocks.from.mock.calls.some(([table]) => table === "products")).toBe(false);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+
 it.each(["new", "title", "cat"])(
   "does not open a competing %s prompt when technical editor is active",
   async (mode) => {
@@ -217,7 +269,7 @@ it("asks the ordinary first question only after the state was saved", async () =
   await text("/new");
   expect(stored).toMatchObject({ state: "new_title" });
   expect(messages()).toHaveLength(1);
-  expect(messages()[0]).toContain("Отправьте название");
+  expect(messages()[0]).toContain("Шаг 1 из 3");
 });
 it.each(["/new", "et:title:" + productId, "et:cat:" + productId])(
   "preserves the active ordinary input on %s",
@@ -409,7 +461,7 @@ it("keeps input recoverable when question delivery fails", async () => {
   mocks.tg.mockRejectedValueOnce(new Error("PRIVATE TRANSPORT"));
   await text("/new", null);
   expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeNull();
-  expect(messages().at(-1)).toContain("/input");
+  expect(messages().at(-1)).toContain("Продолжить ввод");
   await text("/input", null);
   expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeGreaterThan(0);
 });
@@ -486,9 +538,8 @@ it.each([
   mocks.tg.mockClear();
   await text("/input");
   expect(messages()[0]).toContain(message);
-  expect(
-    mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1].reply_markup,
-  ).toBeUndefined();
+  expect(lastButtons()).toEqual(["acts:0", "home"]);
+  expect(lastButtons().some((data: string) => /^(pc|ep|nd):/.test(data))).toBe(false);
 });
 it("offers read-only recovery after an uncertain preview response", async () => {
   stored = { ...stateRow("edit_title"), product_id: productId };
@@ -505,13 +556,12 @@ it("offers read-only recovery after an uncertain preview response", async () => 
   );
 });
 it.each(["PREVIEW_NOT_OWNER", "PREVIEW_PERMISSION_DENIED"])(
-  "hides recovery on %s",
+  "offers only own history and menu, never foreign preview recovery on %s",
   async (message) => {
     error = message;
     await callback("ep:" + revision);
     expect(messages()[0]).toContain("Недостаточно прав");
-    expect(
-      mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1].reply_markup,
-    ).toBeUndefined();
+    expect(lastButtons()).toEqual(["acts:0", "home"]);
+    expect(lastButtons().some((data: string) => data.includes(revision))).toBe(false);
   },
 );

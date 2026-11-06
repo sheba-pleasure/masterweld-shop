@@ -1,6 +1,24 @@
 import { can, type StaffMember } from "./permissions";
 import type { BtnRows } from "./catalog";
 
+export const INPUT_RECOVERY_MARKUP = {
+  inline_keyboard: [
+    [{ text: "✏️ Продолжить ввод", callback_data: "guide:input" }],
+    [{ text: "📝 Проверить мои правки", callback_data: "acts:0" }],
+    [{ text: "⚙️ Продолжить характеристики", callback_data: "te:resume" }],
+    [{ text: "✖️ Отмена ввода", callback_data: "guide:cancel" }],
+    [{ text: "🏠 Главное меню", callback_data: "home" }],
+  ],
+};
+
+export function resultNavigation(productId?: string) {
+  const rows: BtnRows = [];
+  if (productId) rows.push([{ text: "📄 Открыть товар", callback_data: "prd:" + productId }]);
+  rows.push([{ text: "📝 Проверить мои правки", callback_data: "acts:0" }]);
+  rows.push([{ text: "🏠 Главное меню", callback_data: "home" }]);
+  return { inline_keyboard: rows };
+}
+
 export const SEARCH_HELP = [
   "🔍 Найти товар",
   "Напишите название, часть модели или артикул обычным сообщением. Например: маска.",

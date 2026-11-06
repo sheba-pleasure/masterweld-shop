@@ -88,7 +88,7 @@ it("reads a pending result without automatically applying it", async () => {
   mocks.rpc.mockResolvedValue({ data: result("pending"), error: null });
   await callback("pcr");
   expect(mocks.rpc).toHaveBeenCalledTimes(1);
-  expect(sent().text).toContain("ожидает подтверждения");
+  expect(sent().text).toContain("Пока ничего не сохранено");
   expect(sent().reply_markup.inline_keyboard[0][0].callback_data).toBe("pc:" + id);
 });
 it.each(["canceled", "expired", "uncertain"])(

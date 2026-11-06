@@ -14,7 +14,14 @@ import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
 import { showProductCosts } from "./costs.server";
-import { sellerMenu, staffHelp, SEARCH_HELP, SEARCH_ROWS } from "./staff-guide";
+import {
+  sellerMenu,
+  staffHelp,
+  SEARCH_HELP,
+  SEARCH_ROWS,
+  INPUT_RECOVERY_MARKUP,
+  resultNavigation,
+} from "./staff-guide";
 import {
   buildOrderCard,
   orderDateMoscow,
@@ -68,7 +75,6 @@ import {
   categoryChoiceCallback,
   parseStatusInput,
   rollbackCallback,
-  slugBase,
   statusChoiceCallback,
   STATUS_CHOICE_LABEL,
   validateEditorValue,
@@ -569,8 +575,8 @@ function rpcErrMsg(err: { message: string; code?: string | null } | null): strin
 }
 
 const CONFIRM_ROWS = (pendingId: string): Btn[][] => [
-  [{ text: "✅ Подтвердить", callback_data: `pc:${pendingId}` }],
-  [{ text: "⬅️ Отмена", callback_data: `pcx:${pendingId}` }],
+  [{ text: "✅ Сохранить изменение", callback_data: `pc:${pendingId}` }],
+  [{ text: "⬅️ Отмена — не сохранять", callback_data: `pcx:${pendingId}` }],
 ];
 
 // A receipt survives both the database response and the Telegram message.
@@ -876,11 +882,16 @@ async function pendingOperation(
   )
     return uncertain();
   if (r.state === "canceled")
-    return tg("sendMessage", { chat_id: chatId, text: "Отменено: это действие не применялось." });
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Отменено: это действие не применялось.\n\nМожно вернуться к товару или проверить другие правки.",
+      reply_markup: resultNavigation(r.product_id),
+    });
   if (r.state === "expired")
     return tg("sendMessage", {
       chat_id: chatId,
       text: "Срок предпросмотра истёк. Откройте карточку и подготовьте новую правку.",
+      reply_markup: resultNavigation(r.product_id),
     });
   if (r.state === "uncertain")
     return tg("sendMessage", {
@@ -897,16 +908,16 @@ async function pendingOperation(
   if (r.state === "pending")
     return tg("sendMessage", {
       chat_id: chatId,
-      text: `📝 Эта операция ожидает подтверждения.\n\n${r.title ?? "Товар"}\n${change}\n\nПроверьте значения и подтвердите или отмените.`,
+      text: `📝 Проверьте изменение\n\n${r.title ?? "Товар"}\n${change}\n\nПока ничего не сохранено. «Сохранить изменение» применит показанные значения. «Отмена — не сохранять» закроет эту правку без применения.`,
       reply_markup: { inline_keyboard: CONFIRM_ROWS(pendingId) },
     });
   return tg("sendMessage", {
     chat_id: chatId,
-    text: `✅ ${r.replayed ? "Изменение уже сохранено" : "Изменение сохранено"}.\n\nРезультат этой операции: ${change}.\nКарточка покажет текущее состояние товара.`,
+    text: `✅ ${r.replayed ? "Изменение уже сохранено" : "Изменение сохранено"}.\n\nРезультат этой операции: ${change}.\nКарточка покажет текущее состояние товара.\n\nЕсли ошиблись, нажмите «Вернуть прежние значения». Сначала бот покажет обратное изменение для проверки. Позднейшие чужие правки не перезаписываются.`,
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "↩️ Откатить", callback_data: rollbackCallback(pendingId) },
+          { text: "↩️ Вернуть прежние значения", callback_data: rollbackCallback(pendingId) },
           { text: "📄 Карточка", callback_data: `prd:${r.product_id}` },
         ],
       ],
@@ -933,13 +944,24 @@ let editorTableState: boolean | null = null;
 async function editorAvailable(): Promise<boolean> {
   if (editorTableState !== null) return editorTableState;
   const res = await loose.from("bot_editor_states").select("staff_telegram_id").limit(1);
-  editorTableState = !res.error;
-  if (res.error) console.error("[bot] editor unavailable");
-  return editorTableState;
+  // Do not remember a transient read failure as a permanently missing editor.
+  if (res.error) {
+    console.error("[bot] editor unavailable");
+    return false;
+  }
+  editorTableState = true;
+  return true;
 }
 
 const EDITOR_CHANGED =
-  "⚠️ Этот шаг уже изменился или завершён. Используйте последнее сообщение бота; /cancel — отменить текущий ввод.";
+  "⚠️ Этот шаг уже изменился или завершён. Нажмите «Продолжить ввод», чтобы открыть текущий шаг. «Мои правки» покажет сохранённый результат.";
+
+const INPUT_READ_FAILED =
+  "⚠️ Не удалось проверить текущий ввод. Это не означает, что он потерян или завершён.\n\nНажмите «Продолжить ввод», чтобы проверить ещё раз. Не начинайте ту же правку заново. Если сбой повторяется, обратитесь к администратору.";
+
+function inputRecovery(chatId: number, text = INPUT_READ_FAILED) {
+  return tg("sendMessage", { chat_id: chatId, text, reply_markup: INPUT_RECOVERY_MARKUP });
+}
 
 function editorRevision(st: EditorStateRow): string | null {
   const revision = (st.data as Record<string, unknown> | null)?.["_revision"];
@@ -965,19 +987,24 @@ async function setEditorState(
   productId?: string | null,
   previous?: EditorStateRow,
 ): Promise<EditorStateRow | null> {
-  const observed =
-    previous ??
-    ((
-      await loose
-        .from("bot_editor_states")
-        .select("*")
-        .eq("staff_telegram_id", staffTelegramId)
-        .maybeSingle()
-    ).data as EditorStateRow | null);
+  let observed = previous ?? null;
+  if (!previous) {
+    const read = await loose
+      .from("bot_editor_states")
+      .select("*")
+      .eq("staff_telegram_id", staffTelegramId)
+      .maybeSingle();
+    if (read.error) {
+      await inputRecovery(staffTelegramId);
+      return null;
+    }
+    observed = read.data as EditorStateRow | null;
+  }
   if (!previous && observed && checkEditorState(observed, staffTelegramId, Date.now()).ok) {
     await tg("sendMessage", {
       chat_id: staffTelegramId,
-      text: "✏️ У вас уже есть незавершённый ввод. /input — продолжить, /cancel — отменить. Текущий ввод сохранён.",
+      text: "✏️ У вас уже есть незавершённый ввод. Текущий ввод сохранён.\n\nНажмите «Продолжить ввод», чтобы вернуться к текущему вопросу. «Отмена ввода» завершит этот ввод. Новая правка пока не начата.",
+      reply_markup: INPUT_RECOVERY_MARKUP,
     });
     return null;
   }
@@ -1001,11 +1028,12 @@ async function setEditorState(
       text:
         error.message === "EDITOR_TECHNICAL_ACTIVE"
           ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
-          : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Повторите действие или отмените ввод командой /cancel.",
+          : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Нажмите «Продолжить ввод», чтобы проверить текущий вопрос.",
+      reply_markup: INPUT_RECOVERY_MARKUP,
     });
   }
   if (error) return null;
-  if (!saved) await tg("sendMessage", { chat_id: staffTelegramId, text: EDITOR_CHANGED });
+  if (!saved) await inputRecovery(staffTelegramId, EDITOR_CHANGED);
   return saved as EditorStateRow | null;
 }
 
@@ -1031,16 +1059,21 @@ async function claimEditorStep(st: EditorStateRow, chatId: number): Promise<bool
   await tg("sendMessage", {
     chat_id: chatId,
     text: outcome === "failed" ? EDITOR_CLAIM_FAILED : EDITOR_CHANGED,
+    reply_markup: INPUT_RECOVERY_MARKUP,
   });
   return false;
 }
 
-async function getEditorState(m: StaffMember): Promise<EditorStateRow | null> {
+async function getEditorState(m: StaffMember): Promise<EditorStateRow | null | undefined> {
   const res = await loose
     .from("bot_editor_states")
     .select("*")
     .eq("staff_telegram_id", m.telegram_id)
     .maybeSingle();
+  if (res.error) {
+    await inputRecovery(m.telegram_id);
+    return undefined;
+  }
   return (res.data as EditorStateRow | null) ?? null;
 }
 
@@ -1054,7 +1087,7 @@ async function sendEditMenu(m: StaffMember, chatId: number, productId: string) {
   });
   return tg("sendMessage", {
     chat_id: chatId,
-    text: `Редактирование: ${p.title}${p.sku ? ` (SKU ${p.sku})` : ""}`,
+    text: `✏️ Что изменить в товаре?\n\n${p.title}${p.sku ? `\nАртикул: ${p.sku}` : ""}\n\nВыберите поле кнопкой ниже. Затем бот задаст вопрос и покажет «Было» и «Станет». Данные сохранятся только после подтверждения.`,
     reply_markup: { inline_keyboard: rows },
   });
 }
@@ -1072,7 +1105,7 @@ function editorNeedsText(st: EditorStateRow): boolean {
 }
 
 const QUESTION_RECOVERY =
-  "⚠️ Не удалось подтвердить текущий вопрос. /input — получить его заново; /cancel — отменить ввод.";
+  "⚠️ Не удалось подтвердить текущий вопрос. Нажмите «Продолжить ввод» — бот покажет вопрос заново. Старый ответ повторять не нужно.";
 
 async function showEditorQuestion(
   m: StaffMember,
@@ -1105,7 +1138,7 @@ async function showEditorQuestion(
         text:
           (warning ? warning + "\n\n" : "") +
           prompt +
-          "\n\n↩️ Ответьте на это сообщение. /input — показать вопрос заново.",
+          "\n\n↩️ Введите ответ под этим вопросом. Если вопрос не выделен над полем ввода, нажмите «Продолжить ввод» на нижней клавиатуре.",
         reply_markup: { force_reply: true, input_field_placeholder: "Ваш ответ на вопрос" },
       })
     ).json();
@@ -1113,7 +1146,7 @@ async function showEditorQuestion(
     if (!sent.ok || !Number.isSafeInteger(messageId) || messageId <= 0)
       throw new Error("QUESTION_UNCONFIRMED");
   } catch {
-    return tg("sendMessage", { chat_id: chatId, text: QUESTION_RECOVERY });
+    return inputRecovery(chatId, QUESTION_RECOVERY);
   }
   const { data, error } = await matchEditorState(
     loose.from("bot_editor_states").update({
@@ -1125,8 +1158,7 @@ async function showEditorQuestion(
     .gt("expires_at", new Date().toISOString())
     .select("staff_telegram_id")
     .maybeSingle();
-  if (error || !data)
-    return tg("sendMessage", { chat_id: chatId, text: error ? QUESTION_RECOVERY : EDITOR_CHANGED });
+  if (error || !data) return inputRecovery(chatId, error ? QUESTION_RECOVERY : EDITOR_CHANGED);
   return;
 }
 
@@ -1153,7 +1185,7 @@ async function showDraftConfirmation(chatId: number, st: EditorStateRow) {
   const d = st.data as Required<DraftData>;
   return tg("sendMessage", {
     chat_id: chatId,
-    text: draftPreviewText(d, slugBase(d.title)),
+    text: draftPreviewText(d),
     reply_markup: {
       inline_keyboard: [
         [{ text: "✅ Создать черновик", callback_data: `nd:c:${revision}` }],
@@ -1232,7 +1264,12 @@ async function editorPreview(
         knownText ??
         "⚠️ Не удалось проверить сохранение предпросмотра. Товар не менялся на этом шаге. /input — продолжить или восстановить предпросмотр.",
       ...(knownText
-        ? {}
+        ? {
+            reply_markup:
+              known.includes("PREVIEW_NOT_OWNER") || known.includes("PREVIEW_PERMISSION_DENIED")
+                ? resultNavigation()
+                : INPUT_RECOVERY_MARKUP,
+          }
         : {
             reply_markup: {
               inline_keyboard: [
@@ -1253,7 +1290,7 @@ async function editorPreview(
           : r.consumed_at
             ? "Действие завершено, результат требует проверки в карточке."
             : "Срок предпросмотра истёк. Начните новую правку из карточки.";
-    return tg("sendMessage", { chat_id: chatId, text: status });
+    return tg("sendMessage", { chat_id: chatId, text: status, reply_markup: resultNavigation() });
   }
   const product = { title: r.title, sku: r.sku, ...r.before } as BotProduct;
   const text =
@@ -1270,16 +1307,25 @@ async function editorPreview(
 async function resumeEditorInput(m: StaffMember, chatId: number) {
   if (!can(m, "edit_products"))
     return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для ввода товара." });
-  if (!(await editorAvailable()))
-    return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
+  if (!(await editorAvailable())) return inputRecovery(chatId);
   const st = await getEditorState(m);
+  if (st === undefined) return;
   const revision = st && editorRevision(st);
   if (st?.consumed_at && revision && (st.state.startsWith("edit_") || st.state === "pick_cat"))
     return editorPreview(m, chatId, revision, "read");
   if (!st || !checkEditorState(st, m.telegram_id, Date.now()).ok)
     return tg("sendMessage", {
       chat_id: chatId,
-      text: "Активного ввода товара нет или срок истёк. /new — новый товар; /technical — черновик характеристик.",
+      text: "Сейчас нет незавершённого ввода товара, либо время ввода истекло.\n\nЕсли вы уже отправляли изменение, сначала откройте «Проверить мои правки». Для другой задачи выберите кнопку ниже.",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "📝 Проверить мои правки", callback_data: "acts:0" }],
+          [{ text: "🔍 Найти товар для исправления", callback_data: "fndh" }],
+          [{ text: "➕ Добавить новый товар", callback_data: "product_new" }],
+          [{ text: "⚙️ Продолжить характеристики", callback_data: "te:resume" }],
+          [{ text: "🏠 Главное меню", callback_data: "home" }],
+        ],
+      },
     });
   if (editorNeedsText(st)) return refreshEditorQuestion(m, chatId, st);
   if (st.state === "new_confirm") return showDraftConfirmation(chatId, st);
@@ -1321,8 +1367,12 @@ async function handleEditorText(
   text: string,
   replyTo?: number,
 ): Promise<boolean> {
-  if (!(await editorAvailable())) return false;
+  if (!(await editorAvailable())) {
+    await inputRecovery(chatId);
+    return true;
+  }
   const st = await getEditorState(m);
+  if (st === undefined) return true;
   const chk = checkEditorState(st, m.telegram_id, Date.now());
   if (!chk.ok || !st) return false;
   if (!can(m, "edit_products")) {
@@ -1337,7 +1387,8 @@ async function handleEditorText(
     if (!Number.isSafeInteger(promptId) || Number(promptId) <= 0 || replyTo !== promptId) {
       await tg("sendMessage", {
         chat_id: chatId,
-        text: "↩️ Ответьте на текущий вопрос через «Ответить» в Telegram. /input — показать вопрос заново. Это сообщение не изменило товар или шаг.",
+        text: "↩️ Ответьте на текущий вопрос через «Ответить» в Telegram. Проще нажать «Продолжить ввод» ниже — бот снова выделит вопрос для ответа. Это сообщение не изменило товар или шаг.",
+        reply_markup: INPUT_RECOVERY_MARKUP,
       });
       return true;
     }
@@ -1558,6 +1609,7 @@ async function pickCategory(m: StaffMember, chatId: number, index: number, revis
       text: "Недостаточно прав: перенос в другой раздел недоступен для вашей роли.",
     });
   const st = await getEditorState(m);
+  if (st === undefined) return;
   const chk = checkEditorState(st, m.telegram_id, Date.now());
   if (!chk.ok || !st || st.state !== "pick_cat")
     return tg("sendMessage", {
@@ -1980,22 +2032,25 @@ async function handleCommand(
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
       const st = await getEditorState(m);
+      if (st === undefined) return;
       if (st?.consumed_at && (st.state.startsWith("edit_") || st.state === "pick_cat"))
         return tg("sendMessage", {
           chat_id: chat.id,
-          text: "Ввод уже завершён. /input — открыть результат или предпросмотр и отменить его кнопкой «Отмена».",
+          text: "Ввод уже завершён. Нажмите «Продолжить ввод», чтобы открыть предпросмотр или результат. Подготовленную правку можно отменить кнопкой «Отмена» под предпросмотром.",
+          reply_markup: INPUT_RECOVERY_MARKUP,
         });
       const outcome = st && (await consumeEditorState(st));
       return tg("sendMessage", {
         chat_id: chat.id,
         text:
           outcome === "claimed"
-            ? "Диалог отменён."
+            ? "Диалог отменён. Этот незавершённый ввод закрыт. Уже сохранённые правки остались без изменений."
             : outcome === "failed"
-              ? "⚠️ Не удалось подтвердить отмену из-за сбоя связи с базой. Проверьте текущий ввод и повторите /cancel."
+              ? "⚠️ Не удалось подтвердить отмену. Нажмите «Продолжить ввод», чтобы проверить текущий шаг. Если он ещё активен, можно снова нажать «Отмена ввода»."
               : outcome === "changed"
                 ? EDITOR_CHANGED
                 : "Активного диалога нет.",
+        reply_markup: INPUT_RECOVERY_MARKUP,
       });
     }
     case "/categories":

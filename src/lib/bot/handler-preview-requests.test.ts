@@ -169,7 +169,7 @@ it("lost commit response offers a read key and does not repeat preparation", asy
   expect(sent().text).not.toContain("SECRET");
   await handleUpdate(button(callback));
   expect(mutations()).toHaveLength(1);
-  expect(sent().text).toContain("ожидает подтверждения");
+  expect(sent().text).toContain("Пока ничего не сохранено");
 });
 it("a failed initial read stops the write", async () => {
   failRead = true;
