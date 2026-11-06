@@ -973,7 +973,7 @@ async function startNewDraft(m: StaffMember, chatId: number) {
 }
 
 // Создание черновика: stateful-диалог + дополнительное подтверждение (nd:c).
-// RPC bot_create_draft (0006): только draft, дубли SKU запрещены, slug уникален,
+// RPC bot_finish_draft (0022): создание/отмена и сохранённый результат атомарны;
 // source_url не приписывается, ID — UUID.
 async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean, revision?: string) {
   if (!can(m, "edit_products"))
@@ -983,35 +983,69 @@ async function confirmNewDraft(m: StaffMember, chatId: number, accept: boolean, 
     });
   if (!(await editorAvailable()))
     return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  const st = await getEditorState(m);
-  const chk = checkEditorState(st, m.telegram_id, Date.now());
-  if (!chk.ok || !st)
+  if (!revision) return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  // The database owns consumption + product + audit + receipt in one transaction.
+  // Read the receipt before looking at current input: a later dialog must survive recovery.
+  const { data, error } = await rpc("bot_finish_draft", {
+    p_staff_telegram_id: m.telegram_id,
+    p_revision: revision,
+    p_accept: accept,
+  });
+  const r = data as {
+    outcome?: string;
+    product_id?: string;
+    slug?: string;
+    title?: string;
+    replayed?: boolean;
+  } | null;
+  if (
+    error ||
+    !r ||
+    !["created", "canceled"].includes(r.outcome ?? "") ||
+    (r.outcome === "created" && (!r.product_id || !r.slug || !r.title))
+  ) {
+    const known: Record<string, string> = {
+      DRAFT_PERMISSION_DENIED:
+        "Недостаточно прав для создания товара. Обратитесь к администратору.",
+      DRAFT_NOT_OWNER: "Это подтверждение другого сотрудника.",
+      DRAFT_STEP_CHANGED: EDITOR_CHANGED,
+      DRAFT_STEP_CONSUMED:
+        "Этот ввод завершён прежней версией бота. Проверьте каталог перед новым созданием товара.",
+      DRAFT_STEP_EXPIRED:
+        "Время подтверждения истекло. Черновик этой попыткой не создан; начните заново: /cancel, затем /new.",
+      BOT_SKU_DUPLICATE:
+        "⚠️ Такой артикул уже есть в каталоге. Проверьте товар; для исправления ввода: /cancel, затем /new.",
+      BOT_BAD_VALUE: "⚠️ Данные черновика не прошли проверку. Исправьте ввод: /cancel, затем /new.",
+    };
+    const explanation = error && known[error.message];
     return tg("sendMessage", {
       chat_id: chatId,
-      text: EDITOR_STATE_REASON_MSG[chk.ok ? "not_found" : chk.reason]!,
+      text:
+        explanation ||
+        "⚠️ Итог создания или отмены пока не подтверждён. Нажмите «Проверить и завершить» ниже. Повтор использует эту же попытку и не создаст второй товар.",
+      ...(explanation
+        ? {}
+        : {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "🔄 Проверить и завершить",
+                    callback_data: `nd:${accept ? "c" : "x"}:${revision}`,
+                  },
+                ],
+              ],
+            },
+          }),
     });
-  if (st.state !== "new_confirm")
-    return tg("sendMessage", { chat_id: chatId, text: EDITOR_STATE_REASON_MSG["not_found"]! });
-  if (!revision || editorRevision(st) !== revision)
-    return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
-  // Одноразовость: забираем ровно тот шаг, который показан этой кнопкой.
-  if (!(await claimEditorStep(st, chatId))) return;
-  if (!accept) return tg("sendMessage", { chat_id: chatId, text: "Отменено: черновик не создан." });
-  const d = (st.data ?? {}) as DraftData;
-  const { data, error } = await rpc("bot_create_draft", {
-    p_staff_telegram_id: m.telegram_id,
-    p_title: d.title ?? "",
-    p_sku: d.sku ?? "",
-    p_price: d.price ?? 0,
-  });
-  if (error) return tg("sendMessage", { chat_id: chatId, text: rpcErrMsg(error) });
-  const r = data as { product_id: string; slug: string; title: string } | null;
-  if (!r) return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
+  }
+  if (r.outcome === "canceled")
+    return tg("sendMessage", { chat_id: chatId, text: "Отменено: черновик не создан." });
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `✅ Черновик создан: «${r.title}» (адрес: ${r.slug}). Статус — черновик; публикация — отдельным шагом после проверки полей и фото.`,
+    text: `✅ ${r.replayed ? "Черновик уже создан" : "Черновик создан"}: «${r.title}» (адрес: ${r.slug}). Статус — черновик; публикация — отдельным шагом после проверки полей и фото.`,
   });
-  return sendProductCard(chatId, r.product_id, m);
+  return sendProductCard(chatId, r.product_id!, m);
 }
 
 async function startCategoryPicker(m: StaffMember, chatId: number, productId: string) {

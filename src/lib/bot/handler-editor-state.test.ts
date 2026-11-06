@@ -34,13 +34,19 @@ beforeEach(() => {
   role = "admin";
   beforeWrite = null;
   mocks.tg.mockResolvedValue(Response.json({ ok: true, result: { message_id: 200 } }));
-  mocks.rpc.mockImplementation(async (name) => ({
-    data:
-      name === "bot_create_draft"
-        ? { product_id: productId, slug: "qa", title: "Учебный" }
-        : { ok: true, session: null },
-    error: null,
-  }));
+  mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_finish_draft") {
+      if (args.p_revision !== revision)
+        return { data: null, error: { message: "DRAFT_STEP_CHANGED" } };
+      return {
+        data: args.p_accept
+          ? { outcome: "created", product_id: productId, slug: "qa", title: "Учебный" }
+          : { outcome: "canceled" },
+        error: null,
+      };
+    }
+    return { data: { ok: true, session: null }, error: null };
+  });
   mocks.from.mockImplementation((table: string) => {
     let operation = "read";
     let patch: Record<string, unknown> = {};
@@ -227,10 +233,55 @@ it.each(["nd:c", "nd:x", "nd:c:" + oldRevision, "nd:x:" + oldRevision])(
     expect(messages()[0]).toContain("Этот шаг уже изменился");
   },
 );
-it("accepts the current draft confirmation once", async () => {
+it("delegates both confirmations with the same key without consuming input in the handler", async () => {
   stored = stateRow("new_confirm", { title: "Учебный товар", sku: null, price: 100 });
+  const before = structuredClone(stored);
   await Promise.all([callback("nd:c:" + revision), callback("nd:c:" + revision)]);
-  expect(mocks.rpc.mock.calls.filter(([name]) => name === "bot_create_draft")).toHaveLength(1);
+  expect(mocks.rpc.mock.calls.filter(([name]) => name === "bot_finish_draft")).toEqual([
+    ["bot_finish_draft", { p_staff_telegram_id: 101, p_revision: revision, p_accept: true }],
+    ["bot_finish_draft", { p_staff_telegram_id: 101, p_revision: revision, p_accept: true }],
+  ]);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+it("recovers the saved result without consuming a later dialog", async () => {
+  stored = stateRow("new_title", { _revision: oldRevision });
+  const before = structuredClone(stored);
+  mocks.rpc.mockResolvedValue({
+    data: {
+      outcome: "created",
+      product_id: productId,
+      slug: "qa",
+      title: "Учебный",
+      replayed: true,
+    },
+    error: null,
+  });
+  await callback("nd:c:" + revision);
+  expect(messages()[0]).toContain("Черновик уже создан");
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+it.each(["c", "x"])(
+  "preserves the exact %s attempt after an unknown RPC outcome",
+  async (action) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "PRIVATE NETWORK RESPONSE" } });
+    await callback("nd:" + action + ":" + revision);
+    expect(messages()[0]).toContain("пока не подтверждён");
+    expect(messages()[0]).not.toContain("PRIVATE");
+    const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+    expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe(
+      "nd:" + action + ":" + revision,
+    );
+    expect(mocks.write).not.toHaveBeenCalled();
+  },
+);
+it("does not retry a known denied creation", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "DRAFT_PERMISSION_DENIED" } });
+  await callback("nd:c:" + revision);
+  expect(messages()[0]).toContain("Недостаточно прав");
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup).toBeUndefined();
 });
 it.each(["ec:0", "ec:0:" + oldRevision])("rejects stale category button %s", async (action) => {
   stored = stateRow("pick_cat", {

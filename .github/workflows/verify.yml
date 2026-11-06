@@ -44,6 +44,8 @@ jobs:
         run: python3 ops/tests/assortment.py
       - name: Catalog import transactions (isolated PostgreSQL)
         run: python3 ops/tests/catalog-import.py
+      - name: Catalog draft recovery (isolated PostgreSQL)
+        run: python3 ops/tests/catalog-drafts.py
       - name: Technical catalog transactions (isolated PostgreSQL)
         run: python3 ops/tests/technical-catalog.py
       - name: Telegram bot receipts (isolated PostgreSQL)
