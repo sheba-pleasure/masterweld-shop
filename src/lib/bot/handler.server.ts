@@ -927,12 +927,98 @@ async function showCategoryChoices(chatId: number, st: EditorStateRow) {
   });
 }
 
+/** Prepare and recover through one durable revision; never consume input in the handler. */
+async function editorPreview(
+  m: StaffMember,
+  chatId: number,
+  revision: string,
+  mode: "prepare" | "read",
+  value: string | number | null = null,
+) {
+  if (!can(m, "edit_products"))
+    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для ввода товара." });
+  const { data, error } = await rpc("bot_editor_preview", {
+    p_staff_telegram_id: m.telegram_id,
+    p_revision: revision,
+    p_mode: mode,
+    p_value: value,
+  });
+  const r = data as {
+    id: string;
+    action: EditorTextField | "category";
+    title: string;
+    sku: string | null;
+    before: Record<string, string | null>;
+    after: Record<string, string | null>;
+    old_category: string | null;
+    new_category: string;
+    outcome: string | null;
+    consumed_at: string | null;
+    expired: boolean;
+  } | null;
+  if (error || !r?.id) {
+    const known = error?.message ?? "";
+    const msg =
+      known.includes("PREVIEW_PERMISSION_DENIED") || known.includes("PREVIEW_NOT_OWNER")
+        ? "Недостаточно прав для этого предпросмотра."
+        : known.includes("PREVIEW_STEP_CHANGED")
+          ? EDITOR_CHANGED
+          : known.includes("PREVIEW_STEP_EXPIRED")
+            ? "Срок ввода истёк. Откройте карточку и начните правку заново."
+            : known.includes("PREVIEW_NOT_FOUND")
+              ? "Сохранённого предпросмотра нет. /input — вернуться к вводу; если срок истёк, начните правку из карточки."
+              : Object.keys(RPC_ERR_MSG).find((key) => known.includes(key));
+    const knownText = msg && (RPC_ERR_MSG[msg] ?? msg);
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text:
+        knownText ??
+        "⚠️ Не удалось проверить сохранение предпросмотра. Товар не менялся на этом шаге. /input — продолжить или восстановить предпросмотр.",
+      ...(knownText
+        ? {}
+        : {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔎 Проверить предпросмотр", callback_data: `ep:${revision}` }],
+              ],
+            },
+          }),
+    });
+  }
+  if (r.action === "category" && !can(m, "manage_categories"))
+    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для выбора раздела." });
+  if (r.outcome || r.consumed_at || r.expired) {
+    const status =
+      r.outcome === "applied"
+        ? "✅ Это изменение уже применено."
+        : r.outcome === "canceled"
+          ? "Изменение отменено."
+          : r.consumed_at
+            ? "Действие завершено, результат требует проверки в карточке."
+            : "Срок предпросмотра истёк. Начните новую правку из карточки.";
+    return tg("sendMessage", { chat_id: chatId, text: status });
+  }
+  const product = { title: r.title, sku: r.sku, ...r.before } as BotProduct;
+  const text =
+    r.action === "category"
+      ? editCategoryPreviewText(product, r.old_category, r.new_category)
+      : editFieldPreviewText(r.action, product, r.after[r.action] ?? null);
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text,
+    reply_markup: { inline_keyboard: CONFIRM_ROWS(r.id) },
+  });
+}
+
 async function resumeEditorInput(m: StaffMember, chatId: number) {
   if (!can(m, "edit_products"))
     return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для ввода товара." });
   if (!(await editorAvailable()))
     return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
   const st = await getEditorState(m);
+  const revision = st && editorRevision(st);
+  if (st?.consumed_at && revision && (st.state.startsWith("edit_") || st.state === "pick_cat"))
+    return editorPreview(m, chatId, revision, "read");
   if (!st || !checkEditorState(st, m.telegram_id, Date.now()).ok)
     return tg("sendMessage", {
       chat_id: chatId,
@@ -1013,16 +1099,12 @@ async function handleEditorText(
       await refreshEditorQuestion(m, chatId, st, v.error);
       return true; // состояние сохраняем — ждём исправленный ввод
     }
-    if (!(await claimEditorStep(st, chatId))) return true;
-    await createPending(
-      m,
-      chatId,
-      p.id,
-      field,
-      { [field]: (p as unknown as Record<string, unknown>)[field] ?? null },
-      { [field]: v.value ?? null },
-      editFieldPreviewText(field, p, v.value ?? null),
-    );
+    const revision = editorRevision(st);
+    if (!revision) {
+      await tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+      return true;
+    }
+    await editorPreview(m, chatId, revision, "prepare", v.value ?? null);
     return true;
   }
   if (st.state === "new_title" || st.state === "new_sku" || st.state === "new_price")
@@ -1236,22 +1318,12 @@ async function pickCategory(m: StaffMember, chatId: number, index: number, revis
     if (!(await claimEditorStep(st, chatId))) return;
     return tg("sendMessage", { chat_id: chatId, text: "Товар не найден — диалог сброшен." });
   }
-  if (!(await claimEditorStep(st, chatId))) return;
   if (p.category_id === cat.id)
     return tg("sendMessage", {
       chat_id: chatId,
-      text: "Товар уже в этом разделе — изменять нечего.",
+      text: "Товар уже в этом разделе — изменять нечего. Выберите другой раздел или /cancel.",
     });
-  const oldName = await categoryName(p.category_id);
-  return createPending(
-    m,
-    chatId,
-    p.id,
-    "category",
-    { category_id: p.category_id },
-    { category_id: cat.id },
-    editCategoryPreviewText(p, oldName, cat.name),
-  );
+  return editorPreview(m, chatId, revision, "prepare", index);
 }
 
 async function startStatusMenu(m: StaffMember, chatId: number, productId: string) {
@@ -1648,6 +1720,11 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
       const st = await getEditorState(m);
+      if (st?.consumed_at && (st.state.startsWith("edit_") || st.state === "pick_cat"))
+        return tg("sendMessage", {
+          chat_id: chat.id,
+          text: "Ввод уже завершён. /input — открыть результат или предпросмотр и отменить его кнопкой «Отмена».",
+        });
       const outcome = st && (await consumeEditorState(st));
       return tg("sendMessage", {
         chat_id: chat.id,
@@ -2159,6 +2236,11 @@ export async function handleUpdate(update: TgUpdate) {
     if (f === "cat") return startCategoryPicker(m, chat.id, etM[2]!);
     if (f === "st") return startStatusMenu(m, chat.id, etM[2]!);
     return startEditorField(m, chat.id, f as EditorTextField, etM[2]!);
+  }
+  const epM = data_str.match(/^ep:([0-9a-f-]{36})$/);
+  if (epM) {
+    if (!priv) return catalogGuard();
+    return editorPreview(m, chat.id, epM[1]!, "read");
   }
   const ecM = data_str.match(/^ec:(\d{1,3})(?::([0-9a-f-]{36}))?$/);
   if (ecM) {
