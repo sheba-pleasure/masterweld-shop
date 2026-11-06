@@ -65,9 +65,33 @@ require_image() {
   [ "$rev" = "$sha" ] || die "метка revision образа ($rev) не совпадает с $sha"
 }
 
-# Проверка: HTTP 200, meta robots noindex, nofollow. Ничего не пишет.
+# Compare the exact running build, not just a successful response from an old upstream.
+release_matches() {
+  local base="$1" sha="$2" payload
+  payload="$(curl -fsS --max-time 5 --max-filesize 2048 -H 'Cache-Control: no-cache' \
+    "$base/api/public/release-health?expected=$sha")" || return 1
+  printf '%s' "$payload" | python3 -c 'import json,sys
+try:
+    data=json.load(sys.stdin)
+    ok=isinstance(data,dict) and data.get("ready") is True and data=={"ready":True,"revision":sys.argv[1],"environment":"production"}
+except (ValueError,TypeError):
+    ok=False
+raise SystemExit(0 if ok else 1)' "$sha"
+}
+wait_release() {
+  local base="$1" sha="$2" i
+  require_sha "$sha"
+  for i in $(seq "$HEALTH_TRIES"); do
+    if release_matches "$base" "$sha"; then return 0; fi
+    sleep "$HEALTH_SLEEP"
+  done
+  log "health: $base не подтвердил production SHA $sha"; return 1
+}
+
+# Проверка: точный production SHA, HTTP 200, meta robots noindex, nofollow. Ничего не пишет.
 smoke() {
-  local base="$1" html
+  local base="$1" sha="$2" html
+  wait_release "$base" "$sha" || return 1
   html="$(curl -fsS --max-time 10 "$base/")" || { log "smoke: $base/ не отвечает 200"; return 1; }
   printf '%s' "$html" | grep -Eqi '<meta name="robots" content="noindex, ?nofollow"' \
     || { log "smoke: на $base/ нет noindex,nofollow"; return 1; }

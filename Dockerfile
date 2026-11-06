@@ -11,12 +11,14 @@ RUN npm install -g bun@1.2 && npm cache clean --force
 COPY package.json bun.lock bunfig.toml ./
 RUN bun install --frozen-lockfile
 COPY . .
+ARG GIT_SHA
 ARG VITE_APP_ENV
 ARG PUBLIC_ORIGIN
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_SUPABASE_PROJECT_ID
-ENV VITE_APP_ENV=$VITE_APP_ENV \
+ENV GIT_SHA=$GIT_SHA \
+    VITE_APP_ENV=$VITE_APP_ENV \
     PUBLIC_ORIGIN=$PUBLIC_ORIGIN \
     VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
@@ -38,5 +40,5 @@ COPY --from=build --chown=node:node /app/ops/runtime ./ops/runtime
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/api/public/release-health').then(async r=>{const d=await r.json();if(!r.ok||d.ready!==true||d.revision!==process.env.RELEASE_SHA||d.environment!==process.env.APP_ENV)process.exit(1);const page=await fetch('http://127.0.0.1:3000/');process.exit(page.ok?0:1)}).catch(()=>process.exit(1))"
 CMD ["node", "ops/runtime/start.mjs"]
