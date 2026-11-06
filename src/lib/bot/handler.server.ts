@@ -720,14 +720,14 @@ async function setEditorState(
   if (!previous && observed && checkEditorState(observed, staffTelegramId, Date.now()).ok) {
     await tg("sendMessage", {
       chat_id: staffTelegramId,
-      text: "✏️ У вас уже есть незавершённый ввод. Ответьте на последний вопрос или отмените его командой /cancel. Текущий ввод сохранён.",
+      text: "✏️ У вас уже есть незавершённый ввод. /input — продолжить, /cancel — отменить. Текущий ввод сохранён.",
     });
     return null;
   }
   const next: EditorStateRow = {
     staff_telegram_id: staffTelegramId,
     state,
-    data: { ...data, _revision: crypto.randomUUID() },
+    data: { ...data, _revision: crypto.randomUUID(), _prompt_message_id: null },
     product_id: productId ?? null,
     expires_at: new Date(Date.now() + EDITOR_STATE_TTL_MS).toISOString(),
     consumed_at: null,
@@ -810,6 +810,144 @@ const FIELD_PROMPT: Record<EditorTextField, string> = {
   sku: "артикул (1–60 символов без пробелов; «-» очистит поле)",
 };
 
+function editorNeedsText(st: EditorStateRow): boolean {
+  return st.state.startsWith("edit_") || ["new_title", "new_sku", "new_price"].includes(st.state);
+}
+
+const QUESTION_RECOVERY =
+  "⚠️ Не удалось подтвердить текущий вопрос. /input — получить его заново; /cancel — отменить ввод.";
+
+async function showEditorQuestion(
+  m: StaffMember,
+  chatId: number,
+  st: EditorStateRow,
+  warning = "",
+) {
+  let prompt: string;
+  if (st.state.startsWith("edit_")) {
+    const field = st.state.slice(5) as EditorTextField;
+    if (!(field in FIELD_PROMPT)) return;
+    const p = await fetchProductById(st.product_id ?? "");
+    if (!p)
+      return tg("sendMessage", {
+        chat_id: chatId,
+        text: "Товар не найден. /cancel — отменить ввод.",
+      });
+    prompt = `✏️ «${p.title}»\nОтправьте новое значение — ${FIELD_PROMPT[field]}.${CANCEL_HINT}`;
+  } else {
+    const d = st.data as DraftData;
+    prompt =
+      (d.title ? `📝 Новый товар: «${d.title}»\n` : "") +
+      draftStepPrompt(st.state as "new_title" | "new_sku" | "new_price");
+  }
+  let messageId: number;
+  try {
+    const sent = await (
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text:
+          (warning ? warning + "\n\n" : "") +
+          prompt +
+          "\n\n↩️ Ответьте на это сообщение. /input — показать вопрос заново.",
+        reply_markup: { force_reply: true, input_field_placeholder: "Ваш ответ на вопрос" },
+      })
+    ).json();
+    messageId = sent.result?.message_id;
+    if (!sent.ok || !Number.isSafeInteger(messageId) || messageId <= 0)
+      throw new Error("QUESTION_UNCONFIRMED");
+  } catch {
+    return tg("sendMessage", { chat_id: chatId, text: QUESTION_RECOVERY });
+  }
+  const { data, error } = await matchEditorState(
+    loose.from("bot_editor_states").update({
+      data: { ...(st.data as Record<string, unknown>), _prompt_message_id: messageId },
+    }),
+    st,
+  )
+    .is("consumed_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .select("staff_telegram_id")
+    .maybeSingle();
+  if (error || !data)
+    return tg("sendMessage", { chat_id: chatId, text: error ? QUESTION_RECOVERY : EDITOR_CHANGED });
+  return;
+}
+
+async function refreshEditorQuestion(
+  m: StaffMember,
+  chatId: number,
+  st: EditorStateRow,
+  warning = "",
+) {
+  const saved = await setEditorState(
+    m.telegram_id,
+    st.state,
+    st.data as Record<string, unknown>,
+    st.product_id,
+    st,
+  );
+  if (saved) return showEditorQuestion(m, chatId, saved, warning);
+  return;
+}
+
+async function showDraftConfirmation(chatId: number, st: EditorStateRow) {
+  const revision = editorRevision(st);
+  if (!revision) return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  const d = st.data as Required<DraftData>;
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text: draftPreviewText(d, slugBase(d.title)),
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "✅ Создать черновик", callback_data: `nd:c:${revision}` }],
+        [{ text: "⬅️ Отмена", callback_data: `nd:x:${revision}` }],
+      ],
+    },
+  });
+}
+
+async function showCategoryChoices(chatId: number, st: EditorStateRow) {
+  const revision = editorRevision(st);
+  if (!revision) return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+  const d = st.data as { cats: { id: string; name: string }[] };
+  const p = await fetchProductById(st.product_id ?? "");
+  if (!p)
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Товар не найден. /cancel — отменить ввод.",
+    });
+  const rows: Btn[][] = d.cats.map((c, i) => [
+    { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i, revision) },
+  ]);
+  rows.push([{ text: "⬅️ К карточке", callback_data: `prd:${p.id}` }]);
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text: `Перенос «${p.title}» — выберите раздел.\n\n/cancel — отменить выбор. Переход к карточке сохраняет ввод.`,
+    reply_markup: { inline_keyboard: rows },
+  });
+}
+
+async function resumeEditorInput(m: StaffMember, chatId: number) {
+  if (!can(m, "edit_products"))
+    return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для ввода товара." });
+  if (!(await editorAvailable()))
+    return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
+  const st = await getEditorState(m);
+  if (!st || !checkEditorState(st, m.telegram_id, Date.now()).ok)
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "Активного ввода товара нет или срок истёк. /new — новый товар; /technical — черновик характеристик.",
+    });
+  if (editorNeedsText(st)) return refreshEditorQuestion(m, chatId, st);
+  if (st.state === "new_confirm") return showDraftConfirmation(chatId, st);
+  if (st.state === "pick_cat") {
+    if (!can(m, "manage_categories"))
+      return tg("sendMessage", { chat_id: chatId, text: "Недостаточно прав для выбора раздела." });
+    return showCategoryChoices(chatId, st);
+  }
+  return tg("sendMessage", { chat_id: chatId, text: EDITOR_CHANGED });
+}
+
 async function startEditorField(
   m: StaffMember,
   chatId: number,
@@ -828,15 +966,18 @@ async function startEditorField(
       chat_id: chatId,
       text: `⚠️ ${NOT_ACTIVATED_MSG}\n\nКогда база обновится, диалог заработает. Пока доступна команда: /set ${field === "description" ? "desc" : field} ${p.sku ?? p.title} <значение>`,
     });
-  if (!(await setEditorState(m.telegram_id, `edit_${field}`, { product_id: p.id }, p.id))) return;
-  return tg("sendMessage", {
-    chat_id: chatId,
-    text: `Отправьте новое значение — ${FIELD_PROMPT[field]}.${CANCEL_HINT}`,
-  });
+  const saved = await setEditorState(m.telegram_id, `edit_${field}`, { product_id: p.id }, p.id);
+  if (saved) return showEditorQuestion(m, chatId, saved);
+  return;
 }
 
 /** Текст от сотрудника в личном чате: продолжение диалога редактора, если он активен. */
-async function handleEditorText(m: StaffMember, chatId: number, text: string): Promise<boolean> {
+async function handleEditorText(
+  m: StaffMember,
+  chatId: number,
+  text: string,
+  replyTo?: number,
+): Promise<boolean> {
   if (!(await editorAvailable())) return false;
   const st = await getEditorState(m);
   const chk = checkEditorState(st, m.telegram_id, Date.now());
@@ -847,6 +988,16 @@ async function handleEditorText(m: StaffMember, chatId: number, text: string): P
       text: "Недостаточно прав: редактирование карточек недоступно для вашей роли.",
     });
     return true;
+  }
+  if (editorNeedsText(st)) {
+    const promptId = (st.data as Record<string, unknown> | null)?.["_prompt_message_id"];
+    if (!Number.isSafeInteger(promptId) || Number(promptId) <= 0 || replyTo !== promptId) {
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "↩️ Ответьте на текущий вопрос через «Ответить» в Telegram. /input — показать вопрос заново. Это сообщение не изменило товар или шаг.",
+      });
+      return true;
+    }
   }
   if (st.state.startsWith("edit_")) {
     const field = st.state.slice(5) as EditorTextField;
@@ -859,7 +1010,7 @@ async function handleEditorText(m: StaffMember, chatId: number, text: string): P
     }
     const v = validateEditorValue(field, text.trim() === "-" ? "" : text);
     if (!v.ok) {
-      await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
+      await refreshEditorQuestion(m, chatId, st, v.error);
       return true; // состояние сохраняем — ждём исправленный ввод
     }
     if (!(await claimEditorStep(st, chatId))) return true;
@@ -889,12 +1040,11 @@ async function handleDraftStep(
   if (st.state === "new_title") {
     const v = validateEditorValue("title", text);
     if (!v.ok) {
-      await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
+      await refreshEditorQuestion(m, chatId, st, v.error);
       return true;
     }
-    if (!(await setEditorState(m.telegram_id, "new_sku", { title: v.value }, null, st)))
-      return true;
-    await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_sku") });
+    const saved = await setEditorState(m.telegram_id, "new_sku", { title: v.value }, null, st);
+    if (saved) await showEditorQuestion(m, chatId, saved);
     return true;
   }
   if (st.state === "new_sku") {
@@ -902,7 +1052,7 @@ async function handleDraftStep(
     if (text.trim() !== "-") {
       const v = validateEditorValue("sku", text);
       if (!v.ok) {
-        await tg("sendMessage", { chat_id: chatId, text: `${v.error}${CANCEL_HINT}` });
+        await refreshEditorQuestion(m, chatId, st, v.error);
         return true;
       }
       sku = v.value ?? null;
@@ -913,48 +1063,40 @@ async function handleDraftStep(
         (p) => p.sku !== null && normalizeText(p.sku) === normalizeText(sku!),
       );
       if (dup.length > 0) {
-        await tg("sendMessage", {
-          chat_id: chatId,
-          text: `⚠️ Такой артикул уже есть: «${dup[0]!.title}». Укажите другой артикул или «-».${CANCEL_HINT}`,
-        });
+        await refreshEditorQuestion(
+          m,
+          chatId,
+          st,
+          `⚠️ Такой артикул уже есть: «${dup[0]!.title}». Укажите другой артикул или «-».`,
+        );
         return true;
       }
     }
-    if (
-      !(await setEditorState(
-        m.telegram_id,
-        "new_price",
-        { ...data, title: data.title, sku },
-        null,
-        st,
-      ))
-    )
-      return true;
-    await tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_price") });
+    const saved = await setEditorState(
+      m.telegram_id,
+      "new_price",
+      { ...data, title: data.title, sku },
+      null,
+      st,
+    );
+    if (saved) await showEditorQuestion(m, chatId, saved);
     return true;
   }
   if (st.state === "new_price") {
     const price = parseBotPrice(text);
     if (!price) {
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: `Не похоже на цену. Пример: 14990 или 14 990,50 (до 2 знаков).${CANCEL_HINT}`,
-      });
+      await refreshEditorQuestion(
+        m,
+        chatId,
+        st,
+        "Не похоже на цену. Пример: 14990 или 14 990,50 (до 2 знаков).",
+      );
       return true;
     }
     const d: Required<DraftData> = { title: data.title ?? "", sku: data.sku ?? null, price };
     const saved = await setEditorState(m.telegram_id, "new_confirm", d, null, st);
     if (!saved) return true;
-    await tg("sendMessage", {
-      chat_id: chatId,
-      text: draftPreviewText(d, slugBase(d.title)),
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "✅ Создать черновик", callback_data: `nd:c:${editorRevision(saved)}` }],
-          [{ text: "⬅️ Отмена", callback_data: `nd:x:${editorRevision(saved)}` }],
-        ],
-      },
-    });
+    await showDraftConfirmation(chatId, saved);
     return true;
   }
   return false;
@@ -968,8 +1110,9 @@ async function startNewDraft(m: StaffMember, chatId: number) {
     });
   if (!(await editorAvailable()))
     return tg("sendMessage", { chat_id: chatId, text: NOT_ACTIVATED_MSG });
-  if (!(await setEditorState(m.telegram_id, "new_title", {}))) return;
-  return tg("sendMessage", { chat_id: chatId, text: draftStepPrompt("new_title") });
+  const saved = await setEditorState(m.telegram_id, "new_title", {});
+  if (saved) return showEditorQuestion(m, chatId, saved);
+  return;
 }
 
 // Создание черновика: stateful-диалог + дополнительное подтверждение (nd:c).
@@ -1066,15 +1209,7 @@ async function startCategoryPicker(m: StaffMember, chatId: number, productId: st
     });
   const saved = await setEditorState(m.telegram_id, "pick_cat", { product_id: p.id, cats }, p.id);
   if (!saved) return;
-  const rows: Btn[][] = cats.map((c, i) => [
-    { text: c.name.slice(0, 40), callback_data: categoryChoiceCallback(i, editorRevision(saved)!) },
-  ]);
-  rows.push([{ text: "⬅️ К карточке", callback_data: `prd:${p.id}` }]);
-  return tg("sendMessage", {
-    chat_id: chatId,
-    text: `Перенос «${p.title}» — выберите раздел.\n\n/cancel — отменить выбор. Переход к карточке сохраняет ввод.`,
-    reply_markup: { inline_keyboard: rows },
-  });
+  return showCategoryChoices(chatId, saved);
 }
 
 async function pickCategory(m: StaffMember, chatId: number, index: number, revision?: string) {
@@ -1505,6 +1640,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return startSetCommand(m, chat.id, args);
     case "/new":
       return startNewDraft(m, chat.id);
+    case "/input":
+      return resumeEditorInput(m, chat.id);
     case "/technical":
       return technicalEditor(m, chat, from, { command: "/technical" });
     case "/cancel": {
@@ -1530,7 +1667,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
       return tg("sendMessage", {
         chat_id: chat.id,
         text: [
-          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Отмена ввода.",
+          "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Продолжить ввод, Отмена ввода.",
+          "/input — текущий вопрос или подтверждение товара. На вопрос отвечайте через «Ответить» в Telegram.",
           "/menu — главное меню, /orders — заказы",
           "/shops — открыть сайт DEV или PRO внутри Telegram",
           "Заказы → карточка → В обработке. Для выдачи и отмены нужно подтверждение.",
@@ -1784,7 +1922,16 @@ export async function handleUpdate(update: TgUpdate) {
     )
       return;
     // Текст в личном чате может продолжать активный диалог редактора (C2A).
-    if (isPrivateChat(chat, from) && (await handleEditorText(m, chat.id, text.trim()))) return;
+    if (
+      isPrivateChat(chat, from) &&
+      (await handleEditorText(
+        m,
+        chat.id,
+        text.trim(),
+        update.message?.reply_to_message?.message_id,
+      ))
+    )
+      return;
     return sendMenu(chat.id, m);
   }
   if (cb.data?.startsWith("b2b:")) {

@@ -87,7 +87,11 @@ globalThis.fetch = (async (input, init) => {
 }) as typeof fetch;
 const { handleUpdate } = await import("../../src/lib/bot/handler.server");
 const chat = { id: actor, type: "private" }, from = { id: actor };
-const command = (text: string) => handleUpdate({ update_id: 1, message: { text, from, chat } });
+const command = (text: string) => {
+  const prompt = text.startsWith("/") ? null : ordinary()?.data?._prompt_message_id;
+  return handleUpdate({ update_id: 1, message: { text, from, chat,
+    ...(prompt ? { reply_to_message: { message_id: prompt } } : {}) } });
+};
 const callback = (data: string) => handleUpdate({ update_id: 2,
   callback_query: { id: "dev-simulated", data, from, message: { chat, message_id: 1 } } });
 async function race(a: () => Promise<unknown>, b: () => Promise<unknown>) {

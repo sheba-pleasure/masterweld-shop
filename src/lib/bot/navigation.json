@@ -20,6 +20,11 @@
     "button": "❓ Помощь"
   },
   {
+    "command": "input",
+    "description": "Продолжить ввод товара",
+    "button": "✏️ Продолжить ввод"
+  },
+  {
     "command": "cancel",
     "description": "Отменить текущий ввод",
     "button": "✖️ Отмена ввода"

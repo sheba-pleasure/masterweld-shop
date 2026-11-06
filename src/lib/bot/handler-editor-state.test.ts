@@ -22,7 +22,7 @@ let beforeWrite: (() => void) | null;
 const stateRow = (state: string, data = {}): EditorStateRow => ({
   staff_telegram_id: 101,
   state,
-  data: { _revision: revision, ...data },
+  data: { _revision: revision, _prompt_message_id: 200, ...data },
   product_id: null,
   expires_at: new Date(Date.now() + 60000).toISOString(),
   consumed_at: null,
@@ -33,7 +33,10 @@ beforeEach(() => {
   error = null;
   role = "admin";
   beforeWrite = null;
-  mocks.tg.mockResolvedValue(Response.json({ ok: true, result: { message_id: 200 } }));
+  let delivered = 200;
+  mocks.tg.mockImplementation(async () =>
+    Response.json({ ok: true, result: { message_id: ++delivered } }),
+  );
   mocks.rpc.mockImplementation(async (name, args) => {
     if (name === "bot_finish_draft") {
       if (args.p_revision !== revision)
@@ -122,10 +125,15 @@ beforeEach(() => {
     return chain;
   });
 });
-function text(value: string) {
+function text(value: string, replyTo: number | null = 200) {
   return handleUpdate({
     update_id: 1,
-    message: { text: value, from: { id: 101 }, chat: { id: 101, type: "private" } },
+    message: {
+      text: value,
+      from: { id: 101 },
+      chat: { id: 101, type: "private" },
+      ...(replyTo === null ? {} : { reply_to_message: { message_id: replyTo } }),
+    },
   });
 }
 function callback(value: string) {
@@ -308,6 +316,101 @@ it("does not report successful cancellation when storage fails", async () => {
   expect(stored?.consumed_at).toBeNull();
   expect(messages()[0]).toContain("Не удалось подтвердить отмену");
   expect(messages()[0]).not.toContain("PRIVATE");
+});
+it.each([null, 199])("rejects text without the current question reference: %s", async (replyTo) => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  const before = structuredClone(stored);
+  await text("Новый текст", replyTo);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(mocks.pending).not.toHaveBeenCalled();
+  expect(messages()[0]).toContain("Это сообщение не изменило");
+});
+it("rejects a late answer after the next question has been sent", async () => {
+  stored = stateRow("new_title");
+  await text("Учебное название", 200);
+  const next = structuredClone(stored);
+  expect(next?.state).toBe("new_sku");
+  const prompt = (next?.data as Record<string, unknown>)["_prompt_message_id"] as number;
+  expect(prompt).not.toBe(200);
+  await text("ЗАПОЗДАЛЫЙ", 200);
+  expect(stored).toEqual(next);
+  await text("-", prompt);
+  expect(stored?.state).toBe("new_price");
+});
+it("resumes a question and invalidates its earlier reply target", async () => {
+  stored = stateRow("new_price", { title: "Учебный", sku: "QA" });
+  await text("✏️ Продолжить ввод", null);
+  const resumed = structuredClone(stored);
+  expect((resumed?.data as Record<string, unknown>)["_revision"]).not.toBe(revision);
+  expect((resumed?.data as Record<string, unknown>)["title"]).toBe("Учебный");
+  await text("100", 200);
+  expect(stored).toEqual(resumed);
+  await text("100", (resumed?.data as Record<string, unknown>)["_prompt_message_id"] as number);
+  expect(stored?.state).toBe("new_confirm");
+});
+it("resends a confirmation without replacing its recovery key", async () => {
+  stored = stateRow("new_confirm", { title: "Учебный", sku: null, price: 100 });
+  const before = structuredClone(stored);
+  await text("/input", null);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe("nd:c:" + revision);
+});
+it.each([
+  ["new_title", "я"],
+  ["new_sku", "invalid sku"],
+  ["new_price", "не цена"],
+])("validation failure repeats and binds the same %s question", async (state, answer) => {
+  stored = stateRow(state, { title: "Учебный", sku: null });
+  await text(answer);
+  expect(stored?.state).toBe(state);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).not.toBe(200);
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.force_reply).toBe(true);
+});
+it("keeps input recoverable when question delivery fails", async () => {
+  mocks.tg.mockRejectedValueOnce(new Error("PRIVATE TRANSPORT"));
+  await text("/new", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeNull();
+  expect(messages().at(-1)).toContain("/input");
+  await text("/input", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeGreaterThan(0);
+});
+it("does not accept an unbound question when its database write fails", async () => {
+  mocks.tg.mockImplementationOnce(async () => {
+    error = "PRIVATE DATABASE";
+    return Response.json({ ok: true, result: { message_id: 500 } });
+  });
+  await text("/new", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeNull();
+  expect(messages().at(-1)).toContain("Не удалось подтвердить");
+  error = null;
+  const before = structuredClone(stored);
+  await text("Не привязанный ответ", 500);
+  expect(stored).toEqual(before);
+  await text("/input", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeGreaterThan(0);
+});
+it("does not attach a delayed question to a replacement dialog", async () => {
+  const replacement = stateRow("new_sku", { _revision: oldRevision, title: "Другой" });
+  mocks.tg.mockImplementationOnce(async () => {
+    stored = structuredClone(replacement);
+    return Response.json({ ok: true, result: { message_id: 500 } });
+  });
+  await text("/new", null);
+  expect(stored).toEqual(replacement);
+  expect(messages().at(-1)).toContain("Этот шаг уже изменился");
+});
+it("checks category permission again when resuming", async () => {
+  stored = stateRow("pick_cat", { cats: [{ id: productId, name: "QA" }] });
+  role = "seller";
+  const before = structuredClone(stored);
+  await text("/input", null);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(messages()[0]).toContain("Недостаточно прав");
 });
 it("does not advance input after edit permission is revoked", async () => {
   stored = stateRow("new_title");
