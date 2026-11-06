@@ -19,7 +19,7 @@ def run(args):
 
 def sql(query, check=True):
     result = subprocess.run(
-        ["docker", "exec", "-i", NAME, "psql", "-U", "postgres", "-X", "-At",
+        ["docker", "exec", "-i", NAME, "psql", "-h", "127.0.0.1", "-U", "postgres", "-X", "-At",
          "-v", "ON_ERROR_STOP=1"],
         input=query, capture_output=True, text=True,
     )
@@ -30,7 +30,8 @@ def sql(query, check=True):
 
 def ready():
     for _ in range(60):
-        if subprocess.run(["docker", "exec", NAME, "pg_isready", "-U", "postgres"],
+        # The image starts a temporary Unix-socket server during initdb. Wait for final TCP startup.
+        if subprocess.run(["docker", "exec", NAME, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"],
                           capture_output=True).returncode == 0:
             return
         time.sleep(.3)
