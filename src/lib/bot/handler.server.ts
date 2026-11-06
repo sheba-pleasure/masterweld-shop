@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "./permissions";
 import { tg } from "./telegram.server";
 import { customerMessage, shopUrl } from "./customer";
+import { PRO_SHOP_PENDING, staffShopMessage } from "./shop-environments";
 import { parseAssortmentCallback } from "./assortment";
 import { showAssortment } from "./assortment.server";
 import { showCatalogImport, receiveCatalogDocument } from "@/lib/import/catalog.server";
@@ -108,8 +109,7 @@ export interface TgUpdate {
 
 function menuFor(m: StaffMember): { text: string; rows: Btn[][] } {
   const rows: Btn[][] = [];
-  if (process.env["APP_ENV"] === "dev")
-    rows.push([{ text: "🛍 Магазин глазами покупателя", callback_data: "shop_preview" }]);
+  rows.push([{ text: "🛍 Открыть сайт · DEV / PRO", callback_data: "shop_versions" }]);
   if (m.role === "director" && !m.elevated) {
     rows.push([
       { text: "📊 Сводка", callback_data: "summary" },
@@ -174,7 +174,7 @@ async function sendMenu(chatId: number, m: StaffMember) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `${text}\n\n👇 Основные разделы — на клавиатуре внизу.\n↩️ «Отмена ввода» завершает текущий диалог.`,
-    reply_markup: persistentKeyboard(),
+    reply_markup: persistentKeyboard(process.env["APP_ENV"]),
   });
   await tg("sendMessage", {
     chat_id: chatId,
@@ -1298,6 +1298,8 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
     return showB2B(m, chat, from, parseB2BCommand(cmd, args));
   }
   if (cmd === "/start" || cmd === "/menu") return sendMenu(chat.id, m);
+  if (cmd === "/shops" || cmd === "/shop")
+    return tg("sendMessage", { chat_id: chat.id, ...staffShopMessage(process.env["APP_ENV"]) });
   if (
     !priv &&
     [
@@ -1392,6 +1394,7 @@ async function handleCommand(m: StaffMember, chat: Chat, text: string, from: { i
         text: [
           "Постоянные кнопки внизу: Меню, Заказы, Каталог, Помощь, Отмена ввода.",
           "/menu — главное меню, /orders — заказы",
+          "/shops — открыть сайт DEV или PRO внутри Telegram",
           "Заказы → карточка → В обработке. Для выдачи и отмены нужно подтверждение.",
           "Переход в раздел сохраняет незавершённый ввод; /cancel его отменяет.",
           "",
@@ -1636,21 +1639,13 @@ export async function handleUpdate(update: TgUpdate) {
   }
   await tg("answerCallbackQuery", { callback_query_id: cb.id });
 
-  if (cb.data === "shop_preview" && process.env["APP_ENV"] === "dev")
+  if (cb.data === "shop_versions" || cb.data === "shop_preview")
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "🛍 Магазин глазами покупателя\n\n🧪 Все товары и заказы — учебные.\n👇 Откройте магазин внутри Telegram.",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "Открыть учебный магазин",
-              web_app: { url: shopUrl(process.env["PUBLIC_ORIGIN"]) },
-            },
-          ],
-        ],
-      },
+      ...staffShopMessage(process.env["APP_ENV"]),
     });
+  if (cb.data === "shop_pro_pending")
+    return tg("sendMessage", { chat_id: chat.id, text: PRO_SHOP_PENDING });
 
   if (cb.data === "elevate_on" || cb.data === "elevate_off") {
     if (!can(m, "toggle_full_access")) return;
