@@ -24,9 +24,10 @@
 ## Environment rules — 06.11.2026
 - DEV: https://masterweld-dev.138-124-106-211.sslip.io, isolated masterweld_dev in mw-dev-db; no production data or token copies.
 - Intended DEV bot: @testmw639bot. Check getMe and other active integrations before installing a webhook. @psinavsvaobot belongs to another project and must not be used.
-- DEV migrations 0000–0012 were applied only to the new isolated database. Historical Cloud observations above remain historical; do not assume production was migrated.
+- DEV migrations 0000–0013 were applied only to the new isolated database. Historical Cloud observations above remain historical; do not assume production was migrated.
 - Runtime must verify APP_ENV, immutable build manifest and database instance identity. Never bypass these guards to make a deployment start.
 - Never update main merely because work is complete. After «обнови main», report tests, blockers, omitted requirements, remaining work and the next priority; stop promotion on unresolved blockers.
 - Before a DEV build, commit source; build.py archives that exact local commit. Documentation and runtime status must identify what is actually deployed.
 - Do not claim unfinished import/photo/customer-account/payment/CRM flows are ready because routes or tables exist.
+- Checkout attempts use order_submissions (0013): durable request ID + payload hash, atomic order/result/notification, replay before catalog/rate checks. Never clear an uncertain attempt to retry or restore direct service_role INSERT on shop_orders. Pre-0013 application versions cannot safely serve checkout after this migration.
 - DEV new-order alerts use order_notifications (0012), atomic per-order/staff rows and permissions.ts manage_orders checks. Never reset sent/uncertain/sending to pending to make a test pass: Telegram has no sendMessage idempotency key. Worker is opt-in and restricted to the DEV bot; production requires a separate release review.

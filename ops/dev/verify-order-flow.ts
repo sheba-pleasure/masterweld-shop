@@ -12,7 +12,7 @@ import type { TgUpdate } from "../../src/lib/bot/handler.server";
 const orderId = process.argv[2] ?? "";
 const buyer = process.argv[3] ?? "";
 assert.match(orderId, /^[0-9a-f-]{36}$/);
-assert.match(buyer, /^DEV QA E2E-[0-9-]+$/);
+assert.match(buyer, /^DEV QA E2E-[A-Z0-9-]+$/);
 const path = new URL("../.secrets/dev/app.env", import.meta.url);
 assert.equal(statSync(path).mode & 0o077, 0);
 for (const line of readFileSync(path, "utf8").split("\n")) {
@@ -133,8 +133,11 @@ function latestButton(value: string) {
 try {
   await run(message("/menu"));
   assert.equal(keyboardAccepted, true);
+  await run(callback("deliveries"));
+  assert.match(delivered.at(-1)?.text ?? "", /Уведомления/);
   await run(message("🧾 Заказы"));
   await run(callback(latestButton("order:" + orderId)));
+  assert.match(delivered.at(-1)?.text ?? "", /МСК/);
   const transition = callback(latestButton("st:" + orderId + ":processing"));
   await run(transition);
   const finalOrder = await supabaseAdmin

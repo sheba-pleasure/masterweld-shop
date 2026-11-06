@@ -126,10 +126,10 @@ export function SiteActions() {
         return;
       }
       // Only a durable, definitive server result allows a new attempt.
-      sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
-      attemptRef.current = null;
-      setAttempt(null);
       if (!res.ok) {
+        sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+        attemptRef.current = null;
+        setAttempt(null);
         if (res.code === "PRICE_CHANGED" && typeof res.total === "number") {
           setPriceChange({
             total: res.total,
@@ -143,12 +143,23 @@ export function SiteActions() {
         return;
       }
       setDoneInfo({ number: res.number, total: res.total, backorder: res.hasBackorder });
-      // Another tab may have added goods while this attempt was being recovered.
+      // Clear the submitted cart BEFORE dropping the recovery token. A reload
+      // between these steps can still recover the receipt instead of reordering.
+      const persisted: unknown = JSON.parse(localStorage.getItem("mw_cart_v1") ?? "[]");
       if (
-        items.length === current.items.length &&
-        items.every((i) => current.items.some((p) => p.product_id === i.id && p.qty === i.qty))
-      )
+        Array.isArray(persisted) &&
+        persisted.length === current.items.length &&
+        persisted.every((i) =>
+          current.items.some((p) => p.product_id === i?.id && p.qty === i?.qty),
+        )
+      ) {
+        localStorage.setItem("mw_cart_v1", "[]");
+        if (localStorage.getItem("mw_cart_v1") !== "[]") throw new Error("CART_STORAGE_FAILED");
         clearCart();
+      }
+      sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+      attemptRef.current = null;
+      setAttempt(null);
       setDone(true);
     } catch {
       setError(UNKNOWN_ORDER_MESSAGE);
@@ -242,8 +253,8 @@ export function SiteActions() {
                 {sending ? "Проверяем…" : "Проверить и завершить заказ"}
               </Button>
               <p className="mt-3 text-xs text-primary-foreground/70">
-                Не оформляйте тот же заказ в другой вкладке. При повторной проверке вернётся
-                результат этой попытки.
+                Не закрывайте эту вкладку и не оформляйте тот же заказ в другой. При повторной
+                проверке вернётся результат этой попытки.
               </p>
               <p className="mt-2 break-all text-xs text-primary-foreground/60">
                 Код для проверки магазином: {attempt.requestId}
@@ -283,7 +294,7 @@ export function SiteActions() {
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-primary-foreground/70">Итого</span>
                   <span className="font-display text-xl font-bold text-brand-yellow">
-                    {rub(total)}
+                    {rub(priceChange?.total ?? total)}
                   </span>
                 </div>
                 <input
