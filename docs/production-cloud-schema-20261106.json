@@ -1,0 +1,1755 @@
+{
+  "checkedAt": "2026-11-06",
+  "projectId": "ab84e929-8a04-4ce0-a95a-8f14b6f9f3fe",
+  "scope": "Read-only public schema metadata. Not a database backup; excludes row data, auth/storage schemas, roles and migration ledger.",
+  "columns": [
+    {
+      "column_default": "gen_random_uuid()",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "categories"
+    },
+    {
+      "column_default": null,
+      "column_name": "slug",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "categories"
+    },
+    {
+      "column_default": null,
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "categories"
+    },
+    {
+      "column_default": null,
+      "column_name": "parent_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "table_name": "categories"
+    },
+    {
+      "column_default": "0",
+      "column_name": "sort_order",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "table_name": "categories"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "categories"
+    },
+    {
+      "column_default": null,
+      "column_name": "product_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "product_costs"
+    },
+    {
+      "column_default": null,
+      "column_name": "cost_price",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "table_name": "product_costs"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "product_costs"
+    },
+    {
+      "column_default": "gen_random_uuid()",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": null,
+      "column_name": "product_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": null,
+      "column_name": "url",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": "0",
+      "column_name": "sort_order",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": "false",
+      "column_name": "is_main",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "product_photos"
+    },
+    {
+      "column_default": "gen_random_uuid()",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "slug",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "category_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "brand",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "sku",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "match_key",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": "0",
+      "column_name": "price",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "old_price",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": "true",
+      "column_name": "in_stock",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "stock_qty",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "specs",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": "'draft'::product_status",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": null,
+      "column_name": "source_url",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "products"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "products"
+    },
+    {
+      "column_default": "gen_random_uuid()",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": null,
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": null,
+      "column_name": "phone",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": null,
+      "column_name": "comment",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": "'[]'::jsonb",
+      "column_name": "items",
+      "data_type": "jsonb",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": "0",
+      "column_name": "total",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "shop_orders"
+    },
+    {
+      "column_default": null,
+      "column_name": "telegram_id",
+      "data_type": "bigint",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": null,
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": null,
+      "column_name": "role",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": "false",
+      "column_name": "elevated",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": "true",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "staff"
+    },
+    {
+      "column_default": "gen_random_uuid()",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "column_default": null,
+      "column_name": "telegram_id",
+      "data_type": "bigint",
+      "is_nullable": "NO",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "column_default": null,
+      "column_name": "action",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "column_default": null,
+      "column_name": "details",
+      "data_type": "jsonb",
+      "is_nullable": "YES",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "column_default": null,
+      "column_name": "update_id",
+      "data_type": "bigint",
+      "is_nullable": "NO",
+      "table_name": "telegram_updates"
+    },
+    {
+      "column_default": "now()",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "table_name": "telegram_updates"
+    }
+  ],
+  "functions": [
+    {
+      "args": "",
+      "proacl": [
+        "=X/postgres",
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "proname": "touch_updated_at",
+      "prosecdef": false
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "policyname": "Public can read categories",
+      "qual": "true",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "categories",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Public can read photos of published products",
+      "qual": "(EXISTS ( SELECT 1\n   FROM products p\n  WHERE ((p.id = product_photos.product_id) AND (p.status = 'published'::product_status))))",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "product_photos",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Public can read published products",
+      "qual": "(status = 'published'::product_status)",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "products",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "policyname": "Shoppers can place an order",
+      "qual": null,
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "shop_orders",
+      "with_check": "(((char_length(btrim(name)) >= 2) AND (char_length(btrim(name)) <= 200)) AND ((char_length(btrim(phone)) >= 5) AND (char_length(btrim(phone)) <= 40)) AND ((comment IS NULL) OR (char_length(comment) <= 1000)) AND (total >= (0)::numeric) AND (total < (100000000)::numeric) AND (jsonb_typeof(items) = 'array'::text) AND ((jsonb_array_length(items) >= 1) AND (jsonb_array_length(items) <= 200)))"
+    }
+  ],
+  "triggers": [
+    {
+      "definition": "CREATE TRIGGER products_touch BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION touch_updated_at()",
+      "relname": "products"
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "categories_parent_id_fkey",
+      "definition": "FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL",
+      "relname": "categories"
+    },
+    {
+      "conname": "categories_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "relname": "categories"
+    },
+    {
+      "conname": "categories_slug_key",
+      "definition": "UNIQUE (slug)",
+      "relname": "categories"
+    },
+    {
+      "conname": "product_costs_pkey",
+      "definition": "PRIMARY KEY (product_id)",
+      "relname": "product_costs"
+    },
+    {
+      "conname": "product_costs_product_id_fkey",
+      "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+      "relname": "product_costs"
+    },
+    {
+      "conname": "product_photos_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "relname": "product_photos"
+    },
+    {
+      "conname": "product_photos_product_id_fkey",
+      "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+      "relname": "product_photos"
+    },
+    {
+      "conname": "products_category_id_fkey",
+      "definition": "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL",
+      "relname": "products"
+    },
+    {
+      "conname": "products_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "relname": "products"
+    },
+    {
+      "conname": "products_slug_key",
+      "definition": "UNIQUE (slug)",
+      "relname": "products"
+    },
+    {
+      "conname": "shop_orders_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "relname": "shop_orders"
+    },
+    {
+      "conname": "staff_pkey",
+      "definition": "PRIMARY KEY (telegram_id)",
+      "relname": "staff"
+    },
+    {
+      "conname": "staff_audit_log_pkey",
+      "definition": "PRIMARY KEY (id)",
+      "relname": "staff_audit_log"
+    },
+    {
+      "conname": "telegram_updates_pkey",
+      "definition": "PRIMARY KEY (update_id)",
+      "relname": "telegram_updates"
+    }
+  ],
+  "enums": [
+    {
+      "enumlabel": "draft",
+      "enumsortorder": 1,
+      "typname": "product_status"
+    },
+    {
+      "enumlabel": "published",
+      "enumsortorder": 2,
+      "typname": "product_status"
+    },
+    {
+      "enumlabel": "hidden",
+      "enumsortorder": 3,
+      "typname": "product_status"
+    },
+    {
+      "enumlabel": "admin",
+      "enumsortorder": 1,
+      "typname": "staff_role"
+    },
+    {
+      "enumlabel": "director",
+      "enumsortorder": 2,
+      "typname": "staff_role"
+    },
+    {
+      "enumlabel": "seller",
+      "enumsortorder": 3,
+      "typname": "staff_role"
+    }
+  ],
+  "indexes": [
+    {
+      "indexdef": "CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (telegram_id)",
+      "indexname": "staff_pkey",
+      "tablename": "staff"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX staff_audit_log_pkey ON public.staff_audit_log USING btree (id)",
+      "indexname": "staff_audit_log_pkey",
+      "tablename": "staff_audit_log"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX telegram_updates_pkey ON public.telegram_updates USING btree (update_id)",
+      "indexname": "telegram_updates_pkey",
+      "tablename": "telegram_updates"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX categories_pkey ON public.categories USING btree (id)",
+      "indexname": "categories_pkey",
+      "tablename": "categories"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX categories_slug_key ON public.categories USING btree (slug)",
+      "indexname": "categories_slug_key",
+      "tablename": "categories"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)",
+      "indexname": "products_pkey",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_slug_key ON public.products USING btree (slug)",
+      "indexname": "products_slug_key",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE INDEX products_category_idx ON public.products USING btree (category_id)",
+      "indexname": "products_category_idx",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE INDEX products_match_key_idx ON public.products USING btree (match_key)",
+      "indexname": "products_match_key_idx",
+      "tablename": "products"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_costs_pkey ON public.product_costs USING btree (product_id)",
+      "indexname": "product_costs_pkey",
+      "tablename": "product_costs"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_photos_pkey ON public.product_photos USING btree (id)",
+      "indexname": "product_photos_pkey",
+      "tablename": "product_photos"
+    },
+    {
+      "indexdef": "CREATE INDEX product_photos_product_idx ON public.product_photos USING btree (product_id)",
+      "indexname": "product_photos_product_idx",
+      "tablename": "product_photos"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX shop_orders_pkey ON public.shop_orders USING btree (id)",
+      "indexname": "shop_orders_pkey",
+      "tablename": "shop_orders"
+    }
+  ],
+  "rls": [
+    {
+      "relforcerowsecurity": false,
+      "relname": "staff",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "staff_audit_log",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "telegram_updates",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "categories",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "products",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "product_costs",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "product_photos",
+      "relrowsecurity": true
+    },
+    {
+      "relforcerowsecurity": false,
+      "relname": "shop_orders",
+      "relrowsecurity": true
+    }
+  ],
+  "exact_types": [
+    {
+      "attname": "id",
+      "data_type": "uuid",
+      "relname": "categories"
+    },
+    {
+      "attname": "slug",
+      "data_type": "text",
+      "relname": "categories"
+    },
+    {
+      "attname": "name",
+      "data_type": "text",
+      "relname": "categories"
+    },
+    {
+      "attname": "parent_id",
+      "data_type": "uuid",
+      "relname": "categories"
+    },
+    {
+      "attname": "sort_order",
+      "data_type": "integer",
+      "relname": "categories"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "categories"
+    },
+    {
+      "attname": "product_id",
+      "data_type": "uuid",
+      "relname": "product_costs"
+    },
+    {
+      "attname": "cost_price",
+      "data_type": "numeric(12,2)",
+      "relname": "product_costs"
+    },
+    {
+      "attname": "updated_at",
+      "data_type": "timestamp with time zone",
+      "relname": "product_costs"
+    },
+    {
+      "attname": "id",
+      "data_type": "uuid",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "product_id",
+      "data_type": "uuid",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "url",
+      "data_type": "text",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "sort_order",
+      "data_type": "integer",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "is_main",
+      "data_type": "boolean",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "product_photos"
+    },
+    {
+      "attname": "id",
+      "data_type": "uuid",
+      "relname": "products"
+    },
+    {
+      "attname": "slug",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "title",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "category_id",
+      "data_type": "uuid",
+      "relname": "products"
+    },
+    {
+      "attname": "brand",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "sku",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "match_key",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "price",
+      "data_type": "numeric(12,2)",
+      "relname": "products"
+    },
+    {
+      "attname": "old_price",
+      "data_type": "numeric(12,2)",
+      "relname": "products"
+    },
+    {
+      "attname": "in_stock",
+      "data_type": "boolean",
+      "relname": "products"
+    },
+    {
+      "attname": "stock_qty",
+      "data_type": "integer",
+      "relname": "products"
+    },
+    {
+      "attname": "specs",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "description",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "status",
+      "data_type": "product_status",
+      "relname": "products"
+    },
+    {
+      "attname": "source_url",
+      "data_type": "text",
+      "relname": "products"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "products"
+    },
+    {
+      "attname": "updated_at",
+      "data_type": "timestamp with time zone",
+      "relname": "products"
+    },
+    {
+      "attname": "id",
+      "data_type": "uuid",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "name",
+      "data_type": "text",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "phone",
+      "data_type": "text",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "comment",
+      "data_type": "text",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "items",
+      "data_type": "jsonb",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "total",
+      "data_type": "numeric(12,2)",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "shop_orders"
+    },
+    {
+      "attname": "telegram_id",
+      "data_type": "bigint",
+      "relname": "staff"
+    },
+    {
+      "attname": "name",
+      "data_type": "text",
+      "relname": "staff"
+    },
+    {
+      "attname": "role",
+      "data_type": "staff_role",
+      "relname": "staff"
+    },
+    {
+      "attname": "elevated",
+      "data_type": "boolean",
+      "relname": "staff"
+    },
+    {
+      "attname": "active",
+      "data_type": "boolean",
+      "relname": "staff"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "staff"
+    },
+    {
+      "attname": "id",
+      "data_type": "uuid",
+      "relname": "staff_audit_log"
+    },
+    {
+      "attname": "telegram_id",
+      "data_type": "bigint",
+      "relname": "staff_audit_log"
+    },
+    {
+      "attname": "action",
+      "data_type": "text",
+      "relname": "staff_audit_log"
+    },
+    {
+      "attname": "details",
+      "data_type": "jsonb",
+      "relname": "staff_audit_log"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "staff_audit_log"
+    },
+    {
+      "attname": "update_id",
+      "data_type": "bigint",
+      "relname": "telegram_updates"
+    },
+    {
+      "attname": "created_at",
+      "data_type": "timestamp with time zone",
+      "relname": "telegram_updates"
+    }
+  ],
+  "grants": [
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "categories"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "product_costs"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "product_photos"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "products"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "shop_orders"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "staff"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "staff_audit_log"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "table_name": "telegram_updates"
+    },
+    {
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "table_name": "telegram_updates"
+    }
+  ],
+  "touch_function": "CREATE OR REPLACE FUNCTION public.touch_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN NEW.updated_at = now(); RETURN NEW; END $function$\n"
+}

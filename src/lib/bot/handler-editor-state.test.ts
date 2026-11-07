@@ -1,0 +1,568 @@
+import { beforeEach, expect, it, vi } from "vitest";
+import type { EditorStateRow } from "./editor";
+const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
+  rpc: vi.fn(),
+  tg: vi.fn(),
+  write: vi.fn(),
+  pending: vi.fn(),
+}));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { from: mocks.from, rpc: mocks.rpc },
+}));
+vi.mock("./telegram.server", () => ({ tg: mocks.tg }));
+import { handleUpdate } from "./handler.server";
+const productId = "10000000-0000-4000-8000-000000000001";
+const revision = "20000000-0000-4000-8000-000000000001";
+const oldRevision = "20000000-0000-4000-8000-000000000002";
+let stored: EditorStateRow | null;
+let error: string | null;
+let readError: boolean;
+let role: string;
+let beforeWrite: (() => void) | null;
+let preview: Record<string, unknown> | null;
+const stateRow = (state: string, data = {}): EditorStateRow => ({
+  staff_telegram_id: 101,
+  state,
+  data: { _revision: revision, _prompt_message_id: 200, ...data },
+  product_id: null,
+  expires_at: new Date(Date.now() + 60000).toISOString(),
+  consumed_at: null,
+});
+beforeEach(() => {
+  vi.clearAllMocks();
+  stored = null;
+  error = null;
+  readError = false;
+  role = "admin";
+  beforeWrite = null;
+  preview = null;
+  let delivered = 200;
+  mocks.tg.mockImplementation(async () =>
+    Response.json({ ok: true, result: { message_id: ++delivered } }),
+  );
+  mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_source_fact_review") return { data: { ok: true, idle: true }, error: null };
+    if (name === "bot_editor_preview") {
+      if (beforeWrite) {
+        const f = beforeWrite;
+        beforeWrite = null;
+        f();
+      }
+      if (error) return { data: null, error: { message: error } };
+      if (preview) return { data: preview, error: null };
+      if (args.p_mode === "read") return { data: null, error: { message: "PREVIEW_NOT_FOUND" } };
+      if (
+        !stored ||
+        (stored.data as Record<string, unknown>)?.["_revision"] !== args.p_revision ||
+        stored.consumed_at
+      )
+        return { data: null, error: { message: "PREVIEW_STEP_CHANGED" } };
+      const action = stored.state === "pick_cat" ? "category" : stored.state.slice(5);
+      preview = {
+        id: oldRevision,
+        action,
+        title: "[Учебный] Товар",
+        sku: null,
+        before: { [action]: "До" },
+        after: { [action]: args.p_value },
+        old_category: "Первый",
+        new_category: "Второй",
+        consumed_at: null,
+        outcome: null,
+        expired: false,
+      };
+      mocks.pending(preview);
+      stored = { ...stored, consumed_at: new Date().toISOString() };
+      return { data: preview, error: null };
+    }
+    if (name === "bot_finish_draft") {
+      if (args.p_revision !== revision)
+        return { data: null, error: { message: "DRAFT_STEP_CHANGED" } };
+      return {
+        data: args.p_accept
+          ? { outcome: "created", product_id: productId, slug: "qa", title: "Учебный" }
+          : { outcome: "canceled" },
+        error: null,
+      };
+    }
+    return { data: { ok: true, session: null }, error: null };
+  });
+  mocks.from.mockImplementation((table: string) => {
+    let operation = "read";
+    let patch: Record<string, unknown> = {};
+    const filters: ((row: Record<string, unknown>) => boolean)[] = [];
+    const result = () => {
+      if (table === "bot_editor_states" && operation === "read" && readError)
+        return { data: null, error: { message: "PRIVATE_READ_FAILURE" } };
+      if (table === "bot_editor_states" && operation !== "read") {
+        mocks.write(operation, patch);
+        if (beforeWrite) {
+          const action = beforeWrite;
+          beforeWrite = null;
+          action();
+        }
+        if (error) return { data: null, error: { message: error } };
+        if (operation === "insert" && stored)
+          return { data: null, error: { message: "duplicate" } };
+        if (
+          operation === "update" &&
+          (!stored || !filters.every((f) => f(stored as unknown as Record<string, unknown>)))
+        )
+          return { data: null, error: null };
+        stored = { ...stored, ...patch } as EditorStateRow;
+      }
+      if (table === "pending_actions" && operation === "insert") mocks.pending(patch);
+      return {
+        data:
+          table === "staff"
+            ? { telegram_id: 101, role, name: "QA", active: true, elevated: false }
+            : table === "bot_editor_states"
+              ? structuredClone(stored)
+              : table === "products"
+                ? {
+                    id: productId,
+                    title: "[Учебный] Товар",
+                    price: 100,
+                    status: "draft",
+                    category_id: null,
+                  }
+                : [{ id: productId, name: "Учебный раздел" }],
+        error: null,
+      };
+    };
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn((key, value) => {
+        filters.push((row) =>
+          key === "data" ? JSON.stringify(row[key]) === value : row[key] === value,
+        );
+        return chain;
+      }),
+      is: vi.fn((key, value) => {
+        filters.push((row) => row[key] === value);
+        return chain;
+      }),
+      gt: vi.fn((key, value) => {
+        filters.push((row) => String(row[key]) > value);
+        return chain;
+      }),
+      order: vi.fn(() => chain),
+      update: vi.fn((value) => {
+        operation = "update";
+        patch = value;
+        return chain;
+      }),
+      insert: vi.fn((value) => {
+        operation = "insert";
+        patch = value;
+        return chain;
+      }),
+      maybeSingle: vi.fn(async () => result()),
+      limit: vi.fn(async () => ({ data: [], error: null })),
+      then: (resolve: (v: unknown) => unknown) => resolve(result()),
+    };
+    return chain;
+  });
+});
+function text(value: string, replyTo: number | null = 200) {
+  return handleUpdate({
+    update_id: 1,
+    message: {
+      text: value,
+      from: { id: 101 },
+      chat: { id: 101, type: "private" },
+      ...(replyTo === null ? {} : { reply_to_message: { message_id: replyTo } }),
+    },
+  });
+}
+function callback(value: string) {
+  return handleUpdate({
+    update_id: 2,
+    callback_query: {
+      id: "cb",
+      data: value,
+      from: { id: 101 },
+      message: { message_id: 150, chat: { id: 101, type: "private" } },
+    },
+  });
+}
+const messages = () =>
+  mocks.tg.mock.calls.filter(([method]) => method === "sendMessage").map(([, p]) => p.text);
+const lastButtons = () =>
+  mocks.tg.mock.calls
+    .filter(([method]) => method === "sendMessage")
+    .at(-1)?.[1]
+    .reply_markup?.inline_keyboard?.flat()
+    .map((b: { callback_data: string }) => b.callback_data) ?? [];
+
+it.each(["/input", "/cancel", "/new", "маска"])(
+  "read failure during %s preserves input and gives working recovery buttons",
+  async (command) => {
+    stored = stateRow("new_title");
+    const before = structuredClone(stored);
+    readError = true;
+    await text(command, null);
+    expect(stored).toEqual(before);
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(mocks.pending).not.toHaveBeenCalled();
+    expect(messages().at(-1)).toContain("Не удалось проверить текущий ввод");
+    expect(messages().join(" ")).not.toMatch(
+      /PRIVATE_READ_FAILURE|Активного диалога нет|Ничего не найдено/,
+    );
+    expect(lastButtons()).toContain("guide:input");
+    expect(lastButtons()).toContain("acts:0");
+  },
+);
+
+it("recovery button rebinds a question and rejects an answer to the old one", async () => {
+  stored = stateRow("new_title");
+  await text("Не привязанный ответ", null);
+  expect(lastButtons()).toContain("guide:input");
+  await callback("guide:input");
+  const fresh = structuredClone(stored);
+  expect((fresh.data as Record<string, unknown>)["_prompt_message_id"]).not.toBe(200);
+  await text("Ответ на старый вопрос", 200);
+  expect(stored).toEqual(fresh);
+  expect(mocks.pending).not.toHaveBeenCalled();
+});
+
+it("free-text search runs only outside the editor and ignores replies to old prompts", async () => {
+  await text("маска", null);
+  expect(mocks.from.mock.calls.some(([table]) => table === "products")).toBe(true);
+  expect(messages().at(-1)).toContain("Ничего не найдено");
+  mocks.from.mockClear();
+  await text("маска", 200);
+  expect(mocks.from.mock.calls.some(([table]) => table === "products")).toBe(false);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+
+it.each(["new", "title", "cat"])(
+  "does not open a competing %s prompt when technical editor is active",
+  async (mode) => {
+    error = "EDITOR_TECHNICAL_ACTIVE";
+    if (mode === "new") await text("/new");
+    else await callback("et:" + mode + ":" + productId);
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(stored).toBeNull();
+    expect(messages()).toHaveLength(1);
+    expect(messages()[0]).toContain("Новый ввод не начат");
+    expect(messages()[0]).toContain("/technical");
+    expect(messages()[0]).not.toContain("EDITOR_TECHNICAL_ACTIVE");
+  },
+);
+it.each([
+  ["new_title", "Новое учебное название"],
+  ["new_sku", "-"],
+  ["new_price", "14990"],
+])("does not ask the next question when persisting %s fails", async (state, answer) => {
+  stored = stateRow(state, { title: "Учебный товар", sku: null });
+  const before = structuredClone(stored);
+  error = "PRIVATE DATABASE DETAILS";
+  await text(answer);
+  expect(mocks.write).toHaveBeenCalledTimes(1);
+  expect(stored).toEqual(before);
+  expect(messages()).toHaveLength(1);
+  expect(messages()[0]).toContain("Следующий вопрос не открыт");
+  expect(messages()[0]).not.toContain("PRIVATE");
+});
+it("asks the ordinary first question only after the state was saved", async () => {
+  await text("/new");
+  expect(stored).toMatchObject({ state: "new_title" });
+  expect(messages()).toHaveLength(1);
+  expect(messages()[0]).toContain("Шаг 1 из 3");
+});
+it.each(["/new", "et:title:" + productId, "et:cat:" + productId])(
+  "preserves the active ordinary input on %s",
+  async (action) => {
+    stored = stateRow("new_price", { title: "Первый черновик", sku: "QA" });
+    const before = structuredClone(stored);
+    if (action.startsWith("/")) await text(action);
+    else await callback(action);
+    expect(stored).toEqual(before);
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(messages()[0]).toContain("Текущий ввод сохранён");
+  },
+);
+it("advances a concurrently read draft step only once", async () => {
+  stored = stateRow("new_title");
+  await Promise.all([text("Первое название"), text("Второе название")]);
+  expect(stored?.state).toBe("new_sku");
+  expect(messages().filter((m) => m.includes("Этот шаг уже изменился"))).toHaveLength(1);
+  expect((stored?.data as Record<string, unknown>)["_revision"]).not.toBe(revision);
+});
+it("creates one preview from two concurrent text responses", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  await Promise.all([text("Первое название"), text("Второе название")]);
+  expect(mocks.pending).toHaveBeenCalledTimes(1);
+  expect(stored?.consumed_at).toBeTruthy();
+});
+it("does not consume a replacement state after a stale read", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  const replacement = stateRow("new_title", { _revision: oldRevision });
+  beforeWrite = () => {
+    stored = structuredClone(replacement);
+  };
+  await text("Новое название");
+  expect(stored).toEqual(replacement);
+  expect(mocks.pending).not.toHaveBeenCalled();
+  expect(messages()[0]).toContain("Этот шаг уже изменился");
+});
+it("does not create a preview when claiming input fails", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  error = "PRIVATE";
+  await text("Новое название");
+  expect(mocks.pending).not.toHaveBeenCalled();
+  expect(stored?.consumed_at).toBeNull();
+  expect(messages()[0]).not.toContain("PRIVATE");
+  expect(messages()[0]).toContain("Не удалось проверить сохранение предпросмотра");
+  expect(messages()[0]).not.toContain("уже изменился");
+});
+it.each(["nd:c", "nd:x", "nd:c:" + oldRevision, "nd:x:" + oldRevision])(
+  "rejects old draft button %s",
+  async (action) => {
+    stored = stateRow("new_confirm", { title: "Второй черновик", sku: null, price: 100 });
+    const before = structuredClone(stored);
+    await callback(action);
+    expect(stored).toEqual(before);
+    expect(mocks.rpc.mock.calls.some(([name]) => name === "bot_create_draft")).toBe(false);
+    expect(messages()[0]).toContain("Этот шаг уже изменился");
+  },
+);
+it("delegates both confirmations with the same key without consuming input in the handler", async () => {
+  stored = stateRow("new_confirm", { title: "Учебный товар", sku: null, price: 100 });
+  const before = structuredClone(stored);
+  await Promise.all([callback("nd:c:" + revision), callback("nd:c:" + revision)]);
+  expect(mocks.rpc.mock.calls.filter(([name]) => name === "bot_finish_draft")).toEqual([
+    ["bot_finish_draft", { p_staff_telegram_id: 101, p_revision: revision, p_accept: true }],
+    ["bot_finish_draft", { p_staff_telegram_id: 101, p_revision: revision, p_accept: true }],
+  ]);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+it("recovers the saved result without consuming a later dialog", async () => {
+  stored = stateRow("new_title", { _revision: oldRevision });
+  const before = structuredClone(stored);
+  mocks.rpc.mockResolvedValue({
+    data: {
+      outcome: "created",
+      product_id: productId,
+      slug: "qa",
+      title: "Учебный",
+      replayed: true,
+    },
+    error: null,
+  });
+  await callback("nd:c:" + revision);
+  expect(messages()[0]).toContain("Черновик уже создан");
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+it.each(["c", "x"])(
+  "preserves the exact %s attempt after an unknown RPC outcome",
+  async (action) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "PRIVATE NETWORK RESPONSE" } });
+    await callback("nd:" + action + ":" + revision);
+    expect(messages()[0]).toContain("пока не подтверждён");
+    expect(messages()[0]).not.toContain("PRIVATE");
+    const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+    expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe(
+      "nd:" + action + ":" + revision,
+    );
+    expect(mocks.write).not.toHaveBeenCalled();
+  },
+);
+it("does not retry a known denied creation", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "DRAFT_PERMISSION_DENIED" } });
+  await callback("nd:c:" + revision);
+  expect(messages()[0]).toContain("Недостаточно прав");
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup).toBeUndefined();
+});
+it.each(["ec:0", "ec:0:" + oldRevision])("rejects stale category button %s", async (action) => {
+  stored = stateRow("pick_cat", {
+    product_id: productId,
+    cats: [{ id: productId, name: "Раздел" }],
+  });
+  const before = structuredClone(stored);
+  await callback(action);
+  expect(stored).toEqual(before);
+  expect(mocks.pending).not.toHaveBeenCalled();
+});
+it("creates one category preview from concurrent choices", async () => {
+  stored = stateRow("pick_cat", {
+    product_id: productId,
+    cats: [{ id: productId, name: "Раздел" }],
+  });
+  await Promise.all([callback("ec:0:" + revision), callback("ec:0:" + revision)]);
+  expect(mocks.pending).toHaveBeenCalledTimes(1);
+});
+it("does not report successful cancellation when storage fails", async () => {
+  stored = stateRow("new_title");
+  error = "PRIVATE";
+  await text("/cancel");
+  expect(stored?.consumed_at).toBeNull();
+  expect(messages()[0]).toContain("Не удалось подтвердить отмену");
+  expect(messages()[0]).not.toContain("PRIVATE");
+});
+it.each([null, 199])("rejects text without the current question reference: %s", async (replyTo) => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  const before = structuredClone(stored);
+  await text("Новый текст", replyTo);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(mocks.pending).not.toHaveBeenCalled();
+  expect(messages()[0]).toContain("Это сообщение не изменило");
+});
+it("rejects a late answer after the next question has been sent", async () => {
+  stored = stateRow("new_title");
+  await text("Учебное название", 200);
+  const next = structuredClone(stored);
+  expect(next?.state).toBe("new_sku");
+  const prompt = (next?.data as Record<string, unknown>)["_prompt_message_id"] as number;
+  expect(prompt).not.toBe(200);
+  await text("ЗАПОЗДАЛЫЙ", 200);
+  expect(stored).toEqual(next);
+  await text("-", prompt);
+  expect(stored?.state).toBe("new_price");
+});
+it("resumes a question and invalidates its earlier reply target", async () => {
+  stored = stateRow("new_price", { title: "Учебный", sku: "QA" });
+  await text("✏️ Продолжить ввод", null);
+  const resumed = structuredClone(stored);
+  expect((resumed?.data as Record<string, unknown>)["_revision"]).not.toBe(revision);
+  expect((resumed?.data as Record<string, unknown>)["title"]).toBe("Учебный");
+  await text("100", 200);
+  expect(stored).toEqual(resumed);
+  await text("100", (resumed?.data as Record<string, unknown>)["_prompt_message_id"] as number);
+  expect(stored?.state).toBe("new_confirm");
+});
+it("resends a confirmation without replacing its recovery key", async () => {
+  stored = stateRow("new_confirm", { title: "Учебный", sku: null, price: 100 });
+  const before = structuredClone(stored);
+  await text("/input", null);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe("nd:c:" + revision);
+});
+it.each([
+  ["new_title", "я"],
+  ["new_sku", "invalid sku"],
+  ["new_price", "не цена"],
+])("validation failure repeats and binds the same %s question", async (state, answer) => {
+  stored = stateRow(state, { title: "Учебный", sku: null });
+  await text(answer);
+  expect(stored?.state).toBe(state);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).not.toBe(200);
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.force_reply).toBe(true);
+});
+it("keeps input recoverable when question delivery fails", async () => {
+  mocks.tg.mockRejectedValueOnce(new Error("PRIVATE TRANSPORT"));
+  await text("/new", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeNull();
+  expect(messages().at(-1)).toContain("Продолжить ввод");
+  await text("/input", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeGreaterThan(0);
+});
+it("does not accept an unbound question when its database write fails", async () => {
+  mocks.tg.mockImplementationOnce(async () => {
+    error = "PRIVATE DATABASE";
+    return Response.json({ ok: true, result: { message_id: 500 } });
+  });
+  await text("/new", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeNull();
+  expect(messages().at(-1)).toContain("Не удалось подтвердить");
+  error = null;
+  const before = structuredClone(stored);
+  await text("Не привязанный ответ", 500);
+  expect(stored).toEqual(before);
+  await text("/input", null);
+  expect((stored?.data as Record<string, unknown>)["_prompt_message_id"]).toBeGreaterThan(0);
+});
+it("does not attach a delayed question to a replacement dialog", async () => {
+  const replacement = stateRow("new_sku", { _revision: oldRevision, title: "Другой" });
+  mocks.tg.mockImplementationOnce(async () => {
+    stored = structuredClone(replacement);
+    return Response.json({ ok: true, result: { message_id: 500 } });
+  });
+  await text("/new", null);
+  expect(stored).toEqual(replacement);
+  expect(messages().at(-1)).toContain("Этот шаг уже изменился");
+});
+it("checks category permission again when resuming", async () => {
+  stored = stateRow("pick_cat", { cats: [{ id: productId, name: "QA" }] });
+  role = "seller";
+  const before = structuredClone(stored);
+  await text("/input", null);
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(messages()[0]).toContain("Недостаточно прав");
+});
+it("does not advance input after edit permission is revoked", async () => {
+  stored = stateRow("new_title");
+  role = "viewer";
+  const before = structuredClone(stored);
+  await text("Новое название");
+  expect(stored).toEqual(before);
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+
+it("recovers a consumed input preview through /input without consuming a later step", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  await text("Первое название");
+  const first = structuredClone(preview);
+  mocks.rpc.mockClear();
+  await text("/input");
+  expect(mocks.rpc).toHaveBeenCalledWith("bot_editor_preview", {
+    p_staff_telegram_id: 101,
+    p_revision: revision,
+    p_mode: "read",
+    p_value: null,
+  });
+  expect(preview).toEqual(first);
+  stored = stateRow("new_title", { _revision: oldRevision });
+  const later = structuredClone(stored);
+  await callback("ep:" + revision);
+  expect(stored).toEqual(later);
+  expect(mocks.pending).toHaveBeenCalledTimes(1);
+});
+it.each([
+  [{ outcome: "applied" }, "уже применено"],
+  [{ outcome: "canceled" }, "отменено"],
+  [{ expired: true }, "Срок предпросмотра истёк"],
+])("does not offer confirmation for resolved or expired previews: %s", async (patch, message) => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  await text("Название");
+  preview = { ...preview, ...patch };
+  mocks.tg.mockClear();
+  await text("/input");
+  expect(messages()[0]).toContain(message);
+  expect(lastButtons()).toEqual(["acts:0", "home"]);
+  expect(lastButtons().some((data: string) => /^(pc|ep|nd):/.test(data))).toBe(false);
+});
+it("offers read-only recovery after an uncertain preview response", async () => {
+  stored = { ...stateRow("edit_title"), product_id: productId };
+  error = "PRIVATE DATABASE DETAIL";
+  await text("Название");
+  expect(messages()[0]).not.toContain("PRIVATE");
+  const sent = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")![1];
+  expect(sent.reply_markup.inline_keyboard[0][0].callback_data).toBe("ep:" + revision);
+  mocks.rpc.mockClear();
+  await callback("ep:" + revision);
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "bot_editor_preview",
+    expect.objectContaining({ p_mode: "read" }),
+  );
+});
+it.each(["PREVIEW_NOT_OWNER", "PREVIEW_PERMISSION_DENIED"])(
+  "offers only own history and menu, never foreign preview recovery on %s",
+  async (message) => {
+    error = message;
+    await callback("ep:" + revision);
+    expect(messages()[0]).toContain("Недостаточно прав");
+    expect(lastButtons()).toEqual(["acts:0", "home"]);
+    expect(lastButtons().some((data: string) => data.includes(revision))).toBe(false);
+  },
+);

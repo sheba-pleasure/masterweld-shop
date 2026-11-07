@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tg, TelegramDeliveryError } from "./telegram.server";
 import { processClaimedUpdate } from "./webhook-processing";
 beforeEach(() => {
-  vi.stubEnv("LOVABLE_API_KEY", "mock-secret");
-  vi.stubEnv("TELEGRAM_API_KEY", "mock-token");
+  vi.stubEnv("TELEGRAM_TRANSPORT", "direct");
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "12345:abcdefghijklmnopqrstuvwxyz");
+  vi.stubEnv("TELEGRAM_BOT_ID", "12345");
+  vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "s".repeat(40));
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -12,6 +14,88 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Telegram typed safe failures", () => {
+  it.each([200, 400])(
+    "classifies an unchanged edit without retaining provider text (HTTP %i)",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          Response.json(
+            {
+              ok: false,
+              error_code: 400,
+              description: "Bad Request: message is not modified: PRIVATE_PHONE",
+            },
+            { status },
+          ),
+        ),
+      );
+      await expect(tg("editMessageText", {})).rejects.toMatchObject({
+        status: 400,
+        messageUnchanged: true,
+        message: "TELEGRAM_DELIVERY_FAILED",
+      });
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("PRIVATE_PHONE");
+    },
+  );
+  it.each([
+    ["sendMessage", 400, "Bad Request: message is not modified"],
+    ["editMessageText", 403, "Bad Request: message is not modified"],
+    ["editMessageText", 400, "Bad Request: message to edit not found"],
+    ["editMessageText", 400, "Bad Request: message is not modified but unknown"],
+  ])("keeps other errors as failures (%s, %i)", async (method, code, description) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            ok: false,
+            error_code: code,
+            description,
+          },
+          { status: code },
+        ),
+      ),
+    );
+    await expect(tg(method, {})).rejects.toMatchObject({ messageUnchanged: false });
+  });
+  it("uploads a document with a multipart boundary and DEV caption without mutating input", async () => {
+    vi.stubEnv("APP_ENV", "dev");
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetcher);
+    const form = new FormData();
+    form.set("caption", "Учебный файл");
+    form.set("document", new Blob(["sku;price\nA;10"]), "example.csv");
+    await tg("sendDocument", form);
+    const sent = fetcher.mock.calls[0]![1];
+    expect(sent.headers["Content-Type"]).toBeUndefined();
+    expect(sent.body.get("caption")).toBe("ТЕСТОВЫЙ МАГАЗИН · DEV\nУчебный файл");
+    const content = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(sent.body.get("document"));
+    });
+    expect(content).toBe("sku;price\nA;10");
+    expect(sent.body.get("document").name).toBe("example.csv");
+    expect(form.get("caption")).toBe("Учебный файл");
+  });
+  it.each([200, 429])("retains validated retry_after on HTTP %i", async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { ok: false, error_code: 429, parameters: { retry_after: 300 } },
+            { status },
+          ),
+        ),
+    );
+    await expect(tg("sendMessage", {})).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 300,
+    });
+  });
   it.each([
     [400, false],
     [401, false],
@@ -71,7 +155,7 @@ describe("Telegram typed safe failures", () => {
     });
   });
   it("configuration failure never fetches", async () => {
-    vi.stubEnv("TELEGRAM_API_KEY", "");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
     await expect(tg("sendMessage", {})).rejects.toMatchObject({

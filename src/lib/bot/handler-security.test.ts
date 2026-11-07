@@ -5,8 +5,12 @@ const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), tg: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: mocks.from, rpc: mocks.rpc },
 }));
-vi.mock("./telegram.server", () => ({ tg: mocks.tg }));
+vi.mock("./telegram.server", async (original) => ({
+  ...(await original<typeof import("./telegram.server")>()),
+  tg: mocks.tg,
+}));
 import { handleUpdate } from "./handler.server";
+import { TelegramDeliveryError } from "./telegram.server";
 const actor: StaffMember = {
   telegram_id: 101,
   name: "PRIVATE_NAME",
@@ -19,10 +23,16 @@ let member: StaffMember | null;
 let auditFails: boolean;
 let readsFail: boolean;
 let events: string[];
+let orderStatus: "new" | "processing" | "canceled";
 function callback(data: string, type: string | undefined = "private", id = 101): TgUpdate {
   return {
     update_id: 1,
-    callback_query: { id: "cb", data, from: { id: 101 }, message: { chat: { id, type } } },
+    callback_query: {
+      id: "cb",
+      data,
+      from: { id: 101 },
+      message: { message_id: 41, chat: { id, type } },
+    },
   };
 }
 beforeEach(() => {
@@ -31,8 +41,10 @@ beforeEach(() => {
   auditFails = false;
   readsFail = false;
   events = [];
-  mocks.tg.mockResolvedValue(undefined);
-  mocks.rpc.mockImplementation(async () => {
+  orderStatus = "new";
+  mocks.tg.mockReset().mockResolvedValue(undefined);
+  mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_change_order_status") orderStatus = args.p_next_status;
     events.push("rpc");
     return { data: { ok: true }, error: null };
   });
@@ -51,7 +63,7 @@ beforeEach(() => {
                 items: [],
                 total: 100,
                 created_at: "2026-10-25",
-                status: "new",
+                status: orderStatus,
               }
             : [],
       error: insert && auditFails ? { message: "SECRET_PHONE" } : null,
@@ -80,16 +92,47 @@ beforeEach(() => {
   });
 });
 describe("single service gate", () => {
+  it("dev onboarding returns only the verified sender ID without granting permissions", async () => {
+    member = null;
+    vi.stubEnv("APP_ENV", "dev");
+    try {
+      await handleUpdate({
+        update_id: 1,
+        message: { text: "/start", from: { id: 101 }, chat: { id: 101, type: "private" } },
+      });
+      expect(mocks.tg).toHaveBeenCalledWith(
+        "sendMessage",
+        expect.objectContaining({
+          chat_id: 101,
+          text: expect.stringContaining("Telegram ID: 101"),
+        }),
+      );
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(events).toEqual(["from:staff"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it.each([
+    "shop_versions",
+    "shop_preview",
+    "shop_pro_pending",
     "staff",
     "audit",
     "elevate_on",
     "elevate_off",
+    "deliveries",
+    "ci:home",
+    `ci:apply:${orderId}:1`,
+    "as:home",
+    `as:apply:${orderId}`,
     "orders",
     `st:${orderId}:processing`,
     "cat:0",
     "edit:" + orderId,
     "pc:" + orderId,
+    "pcx:" + orderId,
+    "pcr:" + orderId,
     "b2b:leads:1",
     "import",
     "photos",
@@ -102,21 +145,29 @@ describe("single service gate", () => {
       text: "Нет доступа.",
     });
   });
-  it.each(["/start", "/menu", "/catalog", "/lead", "/new", "/cancel", "/unknown", "plain"])(
-    "group command %s is blocked",
-    async (text) => {
-      await handleUpdate({
-        update_id: 1,
-        message: { text, from: { id: 101 }, chat: { id: -123, type: "group" } },
-      });
-      expect(mocks.from).not.toHaveBeenCalled();
-      expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("sendMessage", {
-        chat_id: -123,
-        text: "Нет доступа.",
-      });
-    },
-  );
+  it.each([
+    "/start",
+    "/menu",
+    "/shops",
+    "/shop",
+    "/catalog",
+    "/lead",
+    "/new",
+    "/cancel",
+    "/unknown",
+    "plain",
+  ])("group command %s is blocked", async (text) => {
+    await handleUpdate({
+      update_id: 1,
+      message: { text, from: { id: 101 }, chat: { id: -123, type: "group" } },
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("sendMessage", {
+      chat_id: -123,
+      text: "Нет доступа.",
+    });
+  });
   it("missing type denies even equal IDs", async () => {
     const u = callback("staff");
     if (u.callback_query?.message?.chat) delete u.callback_query.message.chat.type;
@@ -150,9 +201,32 @@ describe("single service gate", () => {
   );
   it("seller cannot disclose staff/audit or elevate", async () => {
     member = { ...actor, role: "seller" };
-    for (const data of ["staff", "audit", "elevate_on"]) await handleUpdate(callback(data));
+    for (const data of [
+      "staff",
+      "audit",
+      "elevate_on",
+      "deliveries",
+      "ci:home",
+      `ci:apply:${orderId}:1`,
+      "as:home",
+      `as:apply:${orderId}`,
+    ])
+      await handleUpdate(callback(data));
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(events).not.toContain("audit");
+  });
+  it("administrator delivery read is audited; failure does not disclose details", async () => {
+    await handleUpdate(callback("deliveries"));
+    expect(events.indexOf("audit")).toBeLessThan(events.indexOf("from:order_notifications"));
+    expect(mocks.tg).toHaveBeenCalledWith(
+      "sendMessage",
+      expect.objectContaining({ text: expect.stringContaining("Очередь уведомлений пуста") }),
+    );
+    events = [];
+    auditFails = true;
+    await handleUpdate(callback("deliveries"));
+    expect(events).not.toContain("from:order_notifications");
+    expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("SECRET_PHONE");
   });
   it("authorised private start gets menu", async () => {
     await handleUpdate({
@@ -161,6 +235,106 @@ describe("single service gate", () => {
     });
     expect(mocks.tg.mock.calls[0]?.[1].text).toContain("PRIVATE_NAME");
   });
+});
+describe("persistent navigation", () => {
+  function message(text: string, type = "private", chatId = 101): TgUpdate {
+    return { update_id: 2, message: { text, from: { id: 101 }, chat: { id: chatId, type } } };
+  }
+  it("start attaches a persistent keyboard and retains role actions", async () => {
+    await handleUpdate(message("/start"));
+    expect(mocks.tg.mock.calls[0]?.[1].reply_markup).toMatchObject({
+      is_persistent: true,
+      one_time_keyboard: false,
+      resize_keyboard: true,
+    });
+    expect(mocks.tg.mock.calls[1]?.[1].reply_markup.inline_keyboard).toBeDefined();
+  });
+  it.each(["🧾 Заказы", "/orders"])(
+    "orders entry %s opens orders before any editor input",
+    async (text) => {
+      await handleUpdate(message(text));
+      expect(events).toContain("from:shop_orders");
+      expect(events).not.toContain("from:bot_editor_states");
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["🏠 Меню", "❓ Помощь"])("navigation %s never becomes editor text", async (text) => {
+    await handleUpdate(message(text));
+    expect(events).toEqual(["from:staff"]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it.each(["🧾 Заказы", "/orders", "🏠 Меню"])(
+    "group navigation %s cannot reach data",
+    async (text) => {
+      await handleUpdate(message(text, "group", -101));
+      expect(mocks.from).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it("revoked staff cannot use a previously installed keyboard", async () => {
+    member = { ...actor, active: false };
+    await handleUpdate(message("🧾 Заказы"));
+    expect(events).toEqual(["from:staff"]);
+    expect(mocks.tg.mock.calls[0]?.[1].text).toBe("Нет доступа.");
+  });
+});
+describe("staff storefront environments", () => {
+  it.each(["dev", "production"])(
+    "authorised seller opens %s links without data or role mutations",
+    async (env) => {
+      vi.stubEnv("APP_ENV", env);
+      try {
+        member = { ...actor, role: "seller" };
+        await handleUpdate(callback("shop_versions"));
+        const payload = mocks.tg.mock.calls.find(([method]) => method === "sendMessage")?.[1];
+        expect(payload.text).toContain("Корзины и заказы этих магазинов раздельные");
+        expect(payload.reply_markup.inline_keyboard[0][0].web_app.url).toBe(
+          "https://masterweld-dev.138-124-106-211.sslip.io/?miniapp=1",
+        );
+        const pro = payload.reply_markup.inline_keyboard[1][0];
+        if (env === "production")
+          expect(pro.web_app.url).toBe("https://shop.masterweld.ru/?miniapp=1");
+        else {
+          expect(pro.web_app).toBeUndefined();
+          expect(pro.callback_data).toBe("shop_pro_pending");
+        }
+        expect(events).toEqual(["from:staff"]);
+        expect(mocks.rpc).not.toHaveBeenCalled();
+        expect(process.env["APP_ENV"]).toBe(env);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+  it.each(["shop_versions", "shop_preview", "shop_pro_pending"])(
+    "revoked staff cannot access %s through an old message",
+    async (action) => {
+      member = { ...actor, active: false };
+      await handleUpdate(callback(action));
+      expect(mocks.tg).toHaveBeenCalledExactlyOnceWith("answerCallbackQuery", {
+        callback_query_id: "cb",
+        text: "Нет доступа.",
+      });
+      expect(events).toEqual(["from:staff"]);
+    },
+  );
+  it.each(["🧪 DEV · учебный магазин", "🏪 PRO · рабочий магазин", "/shops"])(
+    "shop entry %s cannot become pending product editor input",
+    async (text) => {
+      vi.stubEnv("APP_ENV", "dev");
+      try {
+        await handleUpdate({
+          update_id: 3,
+          message: { text, from: { id: 101 }, chat: { id: 101, type: "private" } },
+        });
+        expect(events).toEqual(["from:staff"]);
+        expect(mocks.rpc).not.toHaveBeenCalled();
+        expect(mocks.tg.mock.calls[0]?.[1].text).toContain("PRO — готовится к запуску");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
 });
 describe("audit-before-disclosure", () => {
   it.each(["staff", "audit"])("%s audits before read", async (data) => {
@@ -182,6 +356,64 @@ describe("audit-before-disclosure", () => {
   });
 });
 describe("RPC only mutations", () => {
+  it("updates the clicked order card and removes its obsolete action", async () => {
+    await handleUpdate(callback(`st:${orderId}:processing`));
+    expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual([
+      "answerCallbackQuery",
+      "editMessageText",
+    ]);
+    const card = mocks.tg.mock.calls.at(-1)![1];
+    expect(card.message_id).toBe(41);
+    expect(card.text).toContain("Статус: в обработке");
+    expect(JSON.stringify(card.reply_markup)).not.toContain(`st:${orderId}:processing`);
+    expect(JSON.stringify(card.reply_markup)).toContain(`st:${orderId}:ready`);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+  it("refreshes an already processed stale card without another mutation", async () => {
+    orderStatus = "processing";
+    await handleUpdate(callback(`st:${orderId}:processing`));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Заказ уже «в обработке»."),
+      }),
+    ]);
+  });
+  it("replaces confirmation and cancel views in the same message without writes", async () => {
+    await handleUpdate(callback(`stc:${orderId}:canceled`));
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Подтвердите"),
+      }),
+    ]);
+    await handleUpdate(callback(`order:${orderId}`));
+    expect(mocks.tg.mock.calls.at(-1)).toEqual([
+      "editMessageText",
+      expect.objectContaining({
+        message_id: 41,
+        text: expect.stringContaining("Статус: новый"),
+      }),
+    ]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("a Telegram timeout after commit never repeats the status write or sends another card", async () => {
+    mocks.tg.mockImplementation(async (method) => {
+      if (method === "editMessageText") throw new TelegramDeliveryError("network", true);
+    });
+    await expect(handleUpdate(callback(`st:${orderId}:processing`))).rejects.toThrow(
+      "TELEGRAM_DELIVERY_FAILED",
+    );
+    expect(orderStatus).toBe("processing");
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual([
+      "answerCallbackQuery",
+      "editMessageText",
+    ]);
+  });
   it("status uses expected value and no separate writes", async () => {
     await handleUpdate(callback(`st:${orderId}:processing`));
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_change_order_status", {

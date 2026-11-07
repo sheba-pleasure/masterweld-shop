@@ -1,0 +1,57 @@
+name: deploy-production
+on:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: masterweld-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Exact-SHA approval is enforced on the server; no paid GitHub environment required.
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      DEPLOY_HOST: ${{ vars.MW_DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.MW_DEPLOY_USER }}
+      PUBLIC_ORIGIN: ${{ vars.MW_PRODUCTION_ORIGIN }}
+      VITE_SUPABASE_URL: ${{ vars.MW_PRODUCTION_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.MW_PRODUCTION_PUBLIC_KEY }}
+      VITE_SUPABASE_PROJECT_ID: ${{ vars.MW_PRODUCTION_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Require configured production
+        env:
+          DEPLOY_KEY: ${{ secrets.MW_DEPLOY_SSH_KEY }}
+          HOST_KEYS: ${{ secrets.MW_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          for name in DEPLOY_HOST DEPLOY_USER PUBLIC_ORIGIN VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_SUPABASE_PROJECT_ID DEPLOY_KEY HOST_KEYS; do
+            test -n "${!name}" || { echo "::error::Production setup missing: $name"; exit 1; }
+          done
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/mw_deploy"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/mw_deploy" "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/mw_deploy" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" "check $RELEASE_SHA"
+      - name: Build production image for exact verified SHA
+        run: |
+          docker build --build-arg "GIT_SHA=$RELEASE_SHA" --build-arg VITE_APP_ENV=production \
+            --build-arg "PUBLIC_ORIGIN=$PUBLIC_ORIGIN" --build-arg "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" \
+            --build-arg "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" \
+            --build-arg "VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID" -t "masterweld-shop:$RELEASE_SHA" .
+      - name: Deploy through restricted receiver
+        run: |
+          set -o pipefail
+          docker save "masterweld-shop:$RELEASE_SHA" |
+            ssh -i "$HOME/.ssh/mw_deploy" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" "deploy $RELEASE_SHA"
+      - name: Check public production URL
+        run: curl --fail --silent --show-error --max-time 30 "$PUBLIC_ORIGIN/" > /dev/null

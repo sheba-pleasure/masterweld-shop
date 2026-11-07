@@ -13,10 +13,36 @@ export const ORDER_STATUSES: OrderStatus[] = [
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   new: "новый",
-  processing: "в работе",
+  processing: "в обработке",
   ready: "готов",
   completed: "выдан",
   canceled: "отменён",
+};
+
+export const STATUS_ACTION: Record<OrderStatus, string> = {
+  new: "Новый заказ",
+  processing: "Начать обработку",
+  ready: "Заказ собран — готов к выдаче",
+  completed: "Подтвердить выдачу покупателю",
+  canceled: "Отменить заказ",
+};
+
+const NEXT_STEP: Record<OrderStatus, string> = {
+  new: "«Начать обработку» сразу отметит, что вы занялись заказом. Свяжитесь с покупателем и проверьте наличие.",
+  processing:
+    "Когда товары собраны, нажмите «Заказ собран — готов к выдаче». Статус сразу станет «готов». Сообщите покупателю о готовности самостоятельно.",
+  ready:
+    "После передачи товаров покупателю нажмите «Подтвердить выдачу покупателю». Бот попросит подтверждение, затем закроет заказ.",
+  completed: "Заказ выдан. Данные сохранены в истории.",
+  canceled: "Заказ отменён. Данные сохранены в истории.",
+};
+
+export const STATUS_ICON: Record<OrderStatus, string> = {
+  new: "🆕",
+  processing: "🛠",
+  ready: "📦",
+  completed: "✅",
+  canceled: "🚫",
 };
 
 /** Переходы статусов: из текущего — в какие можно. */
@@ -81,7 +107,7 @@ export function buildOrdersList(
   const lines = slice.map((o) => {
     const st = o.status ? STATUS_LABEL[o.status] : "?";
     const sum = Math.round(Number(o.total) || 0);
-    return `#${o.id.slice(0, 8)} · ${o.name} · ${sum.toLocaleString("ru-RU")} ₽ · ${st}`;
+    return `${o.status ? STATUS_ICON[o.status] : "📋"} #${o.id.slice(0, 8)} · ${st}\n👤 ${o.name} · ${sum.toLocaleString("ru-RU")} ₽`;
   });
 
   const rows: { text: string; callback_data: string }[][] = slice.map((o) => [
@@ -97,11 +123,29 @@ export function buildOrdersList(
   rows.push(nav);
 
   const text =
-    orders.length === 0 ? "Заказов пока нет." : `Заказы (${orders.length}):\n${lines.join("\n")}`;
+    orders.length === 0
+      ? "📭 Заказов пока нет."
+      : `📋 Заказы (${orders.length})\n\n${lines.join("\n\n")}\n\n👇 Выберите заказ, чтобы открыть состав и действия.`;
   return { text, rows };
 }
 
 /** Карточка заказа: состав, сумма, статус, кнопки смены статуса. */
+export function orderDateMoscow(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "дата недоступна";
+  return (
+    new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(date) + " МСК"
+  );
+}
+
 export function buildOrderCard(
   order: OrderRow,
   staffName: string,
@@ -116,16 +160,21 @@ export function buildOrderCard(
   const status = order.status ?? null;
   const st = status ? STATUS_LABEL[status] : "статус не подключён";
   const text = [
-    `Заказ #${order.id.slice(0, 8)} · ${st}`,
-    `Дата: ${order.created_at.slice(0, 16).replace("T", " ")}`,
-    `Имя: ${order.name}`,
-    `Телефон: ${order.phone}`,
-    order.comment ? `Комментарий: ${order.comment}` : null,
-    `Состав:\n${lines.join("\n") || "—"}`,
-    `Итого: ${Math.round(Number(order.total) || 0).toLocaleString("ru-RU")} ₽`,
+    `📋 Заказ #${order.id.slice(0, 8)}\n${status ? STATUS_ICON[status] : "ℹ️"} Статус: ${st}\n🕒 ${orderDateMoscow(order.created_at)}`,
+    `👤 Покупатель: ${order.name}\n📞 Телефон: ${order.phone}`,
+    order.comment ? `💬 Комментарий: ${order.comment}` : null,
+    `🛒 Состав:\n${lines.join("\n") || "—"}`,
+    `💰 Итого: ${Math.round(Number(order.total) || 0).toLocaleString("ru-RU")} ₽`,
+    status
+      ? ALLOWED_TRANSITIONS[status].length
+        ? "👇 " +
+          NEXT_STEP[status] +
+          "\n\n«Отменить заказ» попросит подтверждение. Отмена заказа не выполняет возврат денег."
+        : "🏁 Заказ закрыт. Данные сохранены в истории."
+      : "ℹ️ Статус пока не подключён. Доступен только просмотр.",
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
   const rows: { text: string; callback_data: string }[][] = [];
   if (status) {
@@ -133,13 +182,14 @@ export function buildOrderCard(
       const confirm = CONFIRM_REQUIRED.includes(next);
       rows.push([
         {
-          text: `→ ${STATUS_LABEL[next]}${confirm ? " (подтвердить)" : ""}`,
+          text: `${STATUS_ICON[next]} ${STATUS_ACTION[next]}`,
           callback_data: confirm ? `stc:${order.id}:${next}` : `st:${order.id}:${next}`,
         },
       ]);
     }
   }
-  rows.push([{ text: "⬅️ К списку", callback_data: "orders:0" }]);
+  rows.push([{ text: "⬅️ К списку заказов", callback_data: "orders:0" }]);
+  rows.push([{ text: "🏠 Главное меню", callback_data: "home" }]);
   return { text, rows };
 }
 

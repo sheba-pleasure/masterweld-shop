@@ -7,6 +7,8 @@ import {
   parsePhotoDetailCallback,
   PHOTO_UPLOAD_NOT_CONNECTED_MSG,
   photoAddCallback,
+  photoActionCallback,
+  parsePhotoActionCallback,
   photoDeletePreviewText,
   photoDetailCallback,
   photoDetailText,
@@ -128,16 +130,21 @@ describe("callback фото: лимит 64 байта и парсинг", () => 
     for (const cb of [
       photoMenuCallback(UUID_A),
       photoAddCallback(UUID_A),
-      photoDetailCallback(UUID_A, 0),
-      photoDetailCallback(UUID_A, 99),
+      photoDetailCallback(UUID_A),
+      ...(["m", "u", "n", "x"] as const).map((action) => photoActionCallback(action, UUID_A)),
     ])
       expect(callbackBytes(cb)).toBeLessThanOrEqual(64);
   });
   it("parsePhotoDetailCallback: валидный и битый ввод", () => {
-    expect(parsePhotoDetailCallback(photoDetailCallback(UUID_A, 7))).toEqual({
-      productId: UUID_A,
-      index: 7,
-    });
+    expect(parsePhotoDetailCallback(photoDetailCallback(UUID_A))).toEqual({ photoId: UUID_A });
+    for (const action of ["m", "u", "n", "x"] as const)
+      expect(parsePhotoActionCallback(photoActionCallback(action, UUID_A))).toEqual({
+        action,
+        photoId: UUID_A,
+      });
+    expect(parsePhotoActionCallback(`phx:${UUID_A}:1`)).toBeNull();
+    expect(parsePhotoActionCallback("pfx:" + "-".repeat(36))).toBeNull();
+    expect(parsePhotoDetailCallback("pfd:" + "-".repeat(36))).toBeNull();
     expect(parsePhotoDetailCallback("phd:not-a-uuid:1")).toBeNull();
     expect(parsePhotoDetailCallback("phd:11111111-1111-1111-1111-111111111111:1000")).toBeNull();
     expect(parsePhotoDetailCallback("phd:11111111-1111-1111-1111-111111111111")).toBeNull();
@@ -164,11 +171,15 @@ describe("отображение галереи: без URL и токенов", 
   });
   it("кнопки: по 4 в ряд, «добавить» только при праве, назад к карточке", () => {
     const photos = Array.from({ length: 6 }, (_, i) =>
-      PH({ id: `${i}`.repeat(8), is_main: i === 0 }),
+      PH({ id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`, is_main: i === 0 }),
     );
     const withRights = photoRows(UUID_A, photos, true);
     const flat = withRights.flat();
     expect(flat.some((b) => b.text.includes("Добавить"))).toBe(true);
+    expect(flat[0]!.callback_data).toBe(photoDetailCallback(photos[0]!.id));
+    const moved = photoRows(UUID_A, [...photos].reverse(), true).flat();
+    expect(moved[0]!.callback_data).toBe(photoDetailCallback(photos.at(-1)!.id));
+    expect(moved.some((button) => button.callback_data === flat[0]!.callback_data)).toBe(true);
     expect(flat[flat.length - 1]!.callback_data).toBe(`prd:${UUID_A}`);
     const noRights = photoRows(UUID_A, photos, false);
     expect(noRights.flat().some((b) => b.text.includes("Добавить"))).toBe(false);

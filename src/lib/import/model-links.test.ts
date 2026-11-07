@@ -1,0 +1,420 @@
+import { beforeEach, expect, it, vi } from "vitest";
+import {
+  modelLinkState,
+  parseProductModelCallback,
+  renderProductModelLinks,
+  type DocumentModelLink,
+  type ProductModelLinks,
+} from "./model-links-view";
+import { parseImportCallback, renderImport, type ImportView } from "./catalog-view";
+import { buildProductCardBot } from "@/lib/bot/catalog";
+import type { StaffMember } from "@/lib/bot/permissions";
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), tg: vi.fn() }));
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { rpc: mocks.rpc } }));
+vi.mock("@/lib/bot/telegram.server", async (original) => ({
+  ...(await original<typeof import("@/lib/bot/telegram.server")>()),
+  tg: mocks.tg,
+}));
+import { showProductModelLinks } from "./model-links.server";
+import { showCatalogImport } from "./catalog.server";
+const id = "11111111-1111-4111-8111-111111111111";
+const admin: StaffMember = {
+  telegram_id: 101,
+  name: "QA",
+  active: true,
+  role: "admin",
+  elevated: false,
+};
+const chat = { id: 101, type: "private" };
+const link: DocumentModelLink = {
+  review_id: id,
+  row: 4999,
+  model_revision: 2,
+  decision_id: id,
+  identity: { manufacturer: "Изготовитель", model: "aB-220", variant_mode: "none", variant: "" },
+  state: "linked",
+  product_id: id,
+  document_id: id,
+  file_name: "Прайс.tsv",
+  linked_at: "2026-11-07T01:00:00Z",
+  import_id: id,
+  line: 2,
+};
+const product: ProductModelLinks = {
+  ok: true,
+  product_id: id,
+  title: "Аппарат",
+  sku: "aB-001",
+  items: [link],
+  page: 0,
+  pages: 1,
+  conflicting: false,
+  excluded: false,
+};
+const batch: ImportView = {
+  ok: true,
+  id,
+  file: "Прайс.tsv",
+  state: "preview",
+  revision: 3,
+  header: ["sku", "price"],
+  sample: ["aB-001", "10"],
+  mapping: {
+    sku: 0,
+    price: 1,
+    title: -1,
+    brand: -1,
+    cost_price: -1,
+    category_slug: -1,
+    in_stock: -1,
+    stock_qty: -1,
+  },
+  decimal: "comma",
+  fileRows: 1,
+  counts: { new: 0, update: 0, unchanged: 1, error: 0, excluded: 0 },
+  page: 0,
+  pages: 1,
+  model_count: 1,
+  document_review_id: id,
+  items: [
+    {
+      line: 2,
+      sku: "aB-001",
+      kind: "unchanged",
+      errors: [],
+      patch: { price: 10 },
+      before_product: { title: "Аппарат", price: 10 },
+      after_product: { title: "Аппарат", price: 10 },
+      before_cost: null,
+      after_cost: null,
+      document_model: link,
+    },
+  ],
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.rpc.mockResolvedValue({ data: product, error: null });
+  mocks.tg.mockResolvedValue({});
+});
+it("reads only after private actor and import rights checks", async () => {
+  for (const [m, c] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 202, type: "private" }],
+    [admin, { id: 101, type: "group" }],
+  ] as const)
+    await showProductModelLinks(m, c, `mp:${id}:0`);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.tg).not.toHaveBeenCalled();
+  await showProductModelLinks(admin, chat, `mp:${id}:0`);
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_product_document_models", {
+    p_actor: 101,
+    p_product: id,
+    p_page: 0,
+  });
+});
+it("distinguishes failed source reads from an empty source list and never replays writes", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "PRIVATE_DB_DETAILS" } });
+  await showProductModelLinks(admin, chat, `mp:${id}:0`);
+  const text = mocks.tg.mock.calls[0]![1].text;
+  expect(text).toContain("Это не означает, что их нет");
+  expect(text).not.toContain("PRIVATE_DB_DETAILS");
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  expect(renderProductModelLinks({ ...product, items: [] }).text).toContain(
+    "Связей с вашими документами пока нет",
+  );
+});
+it("shows conflicts, exclusion and historical decisions without automatic model selection", () => {
+  const r = {
+    ...product,
+    conflicting: true,
+    excluded: true,
+    items: [link, { ...link, state: "undone" }, { ...link, state: "model_changed" }],
+  };
+  const v = renderProductModelLinks(r);
+  expect(v.text).toContain("подтверждены разные модели");
+  expect(v.text).toContain("Товар исключён");
+  expect(v.text).toContain(modelLinkState["undone"]);
+  expect(v.text).toContain(modelLinkState["model_changed"]);
+  expect(v.text).toContain("aB-220");
+  expect(v.rows.flat().every((b) => Buffer.byteLength(b.callback_data) <= 64)).toBe(true);
+  expect(v.rows.flat().some((b) => /apply|confirm|publish/.test(b.callback_data))).toBe(false);
+});
+it("allows explicit model-only confirmation, with separate source and refresh buttons", () => {
+  const v = renderImport(batch);
+  expect(v.rows.flat().some((b) => b.text === "✅ Сохранить связи с моделями")).toBe(true);
+  expect(v.rows.flat().some((b) => b.callback_data === `dm:${id}:0:get:4999`)).toBe(true);
+  expect(v.rows.flat().some((b) => b.callback_data === `ci:preview:${id}:3`)).toBe(true);
+  expect(v.text).toContain("Автопоиск и публикация не запускаются");
+  for (const r of [
+    { ...batch, model_count: 0 },
+    { ...batch, counts: { ...batch.counts, error: 1 } },
+  ])
+    expect(
+      renderImport(r)
+        .rows.flat()
+        .some((b) => b.callback_data.includes("ci:apply:")),
+    ).toBe(false);
+});
+it("does not invent model provenance for historical imports", () => {
+  const v = renderImport({ ...batch, model_capture_ready: false, model_count: 0 });
+  expect(v.text).toContain("Обновите предпросмотр");
+  expect(v.rows.flat().some((b) => b.callback_data.includes("ci:apply:"))).toBe(false);
+  expect(renderImport({ ...batch, state: "applied", model_capture_ready: false }).text).toContain(
+    "История не дополняется задним числом",
+  );
+});
+it("recovers a changed model through read-only import navigation", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "IMPORT_MODEL_CHANGED" } });
+  await showCatalogImport(admin, chat, { op: "apply", id, revision: 3 });
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  expect(mocks.tg.mock.calls[0]![1].text).toContain("обновите предпросмотр");
+  expect(mocks.tg.mock.calls[0]![1].reply_markup.inline_keyboard[0][0].callback_data).toBe(
+    `ci:get:${id}:0`,
+  );
+});
+it("delivers long import/model evidence in bounded messages with buttons on the final part", async () => {
+  const long = {
+    ...link,
+    identity: {
+      manufacturer: "И".repeat(100),
+      model: "М".repeat(150),
+      variant_mode: "specified",
+      variant: "В".repeat(150),
+    },
+    file_name: "Ф".repeat(200),
+  };
+  mocks.rpc.mockResolvedValue({ data: { ...product, items: [long, long, long] }, error: null });
+  await showProductModelLinks(admin, chat, `mp:${id}:0`);
+  expect(mocks.tg.mock.calls.every((c) => Array.from(c[1].text).length <= 3500)).toBe(true);
+  mocks.tg.mockClear();
+  const huge = {
+    ...batch,
+    items: Array.from({ length: 3 }, () => ({
+      ...batch.items[0]!,
+      sku: "S".repeat(60),
+      document_model: long,
+      before_product: { title: "П".repeat(200), brand: "Д".repeat(100), price: 100000 },
+      before_cost: { cost_price: 20 },
+      after_cost: { cost_price: 11 },
+      after_product: { title: "Т".repeat(200), price: 10 },
+      patch: {
+        price: 10,
+        brand: "Б".repeat(100),
+        title: "Т".repeat(200),
+        category_slug: "К".repeat(120),
+        stock_qty: 100,
+        in_stock: true,
+        cost_price: 9,
+      },
+    })),
+  };
+  mocks.rpc.mockResolvedValue({ data: huge, error: null });
+  await showCatalogImport(admin, chat, { op: "get", id }, 700);
+  const calls = mocks.tg.mock.calls;
+  expect(calls.length).toBeGreaterThan(1);
+  expect(calls.every((c) => c[0] === "sendMessage" && Array.from(c[1].text).length <= 3500)).toBe(
+    true,
+  );
+  expect(calls.at(-1)![1].reply_markup.inline_keyboard.length).toBeGreaterThan(0);
+  expect(calls.slice(0, -1).every((c) => !c[1].reply_markup)).toBe(true);
+  expect(calls.map((c) => c[1].text).join("")).toContain("М".repeat(150));
+});
+it("only offers source documents to users with the explicit card capability", () => {
+  const p = {
+    id,
+    slug: "a",
+    title: "Аппарат",
+    brand: null,
+    sku: null,
+    price: 10,
+    old_price: null,
+    in_stock: false,
+    stock_qty: null,
+    status: "draft",
+    category_id: null,
+  };
+  expect(
+    buildProductCardBot(p)
+      .rows.flat()
+      .some((b) => b.callback_data.startsWith("mp:")),
+  ).toBe(false);
+  expect(
+    buildProductCardBot(p, { canReviewDocuments: true })
+      .rows.flat()
+      .some((b) => b.callback_data === `mp:${id}:0`),
+  ).toBe(true);
+});
+it("blocks the whole preview and makes the first unresolved row reachable across pages", () => {
+  const v = renderImport({ ...batch, model_blocked: 1, model_first_blocked: 5001 });
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+  expect(v.rows.flat().some((b) => b.callback_data === `ci:mc:${id}:3:5001:0`)).toBe(true);
+  expect(v.text).toContain("Импорт целиком остановлен");
+});
+it("shows complete old/new identities and separates the decision from actual import", () => {
+  const comparison = {
+    line: 2,
+    sku: "aB-001",
+    incoming: link.identity,
+    previous: [{ ...link.identity!, model: "Old-380" }],
+    page: 0,
+    pages: 1,
+    conflict: true,
+    accepted: false,
+    review_id: id,
+    row: 0,
+  };
+  const v = renderImport({ ...batch, model_comparison: comparison });
+  const correction = renderImport({
+    ...batch,
+    model_comparison: comparison,
+    document_can_return: true,
+  });
+  expect(correction.rows.flat().some((b) => b.callback_data === `ci:rp:${id}:3`)).toBe(true);
+  expect(correction.text).toContain("без повторной загрузки");
+  expect(v.text).toContain("Old-380");
+  expect(v.text).toContain("aB-220");
+  expect(v.text).toContain("После этого отдельно подтвердите импорт");
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+  expect(v.rows.flat().some((b) => b.callback_data === `ci:ma:${id}:3:2`)).toBe(true);
+  for (const c of [
+    { ...comparison, incoming: null },
+    { ...comparison, accepted: true },
+    { ...comparison, pages: 2 },
+  ])
+    expect(
+      renderImport({ ...batch, model_comparison: c })
+        .rows.flat()
+        .some((b) => b.callback_data.startsWith("ci:ma:")),
+    ).toBe(false);
+});
+it("routes a human model decision once, with actor, revision and exact row", async () => {
+  mocks.rpc.mockResolvedValue({ data: { ...batch, model_blocked: 0 }, error: null });
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:ma:${id}:3:2`));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_catalog_import", {
+    p_actor: 101,
+    p_op: "model_accept",
+    p_id: id,
+    p_page: 0,
+    p_revision: 3,
+    p_payload: { line: 2 },
+  });
+});
+it("rejects malformed conflict decisions and respects Telegram callback length", () => {
+  const value = `ci:mc:${id}:9999999:5001:9999`;
+  expect(Buffer.byteLength(value)).toBeLessThanOrEqual(64);
+  expect(parseImportCallback(value)?.line).toBe(5001);
+  for (const suffix of ["mc:3:1:0", "mc:3:5002:0", "ma:3:2:0", "ma:3:-1", "mc:3:2:10000"]) {
+    const [op, ...parts] = suffix.split(":");
+    expect(parseImportCallback(`ci:${op}:${id}:${parts.join(":")}`)).toBeNull();
+  }
+});
+it("rejects injected product/source callbacks and bounds pagination", () => {
+  expect(parseProductModelCallback(`mp:${id}:1666`)?.page).toBe(1666);
+  for (const value of [`mp:${id}:1667`, `mp:${id}:0:1`, "mp:../secret:0"])
+    expect(parseProductModelCallback(value)).toBeNull();
+});
+
+it("offers a separate document-return confirmation with both versions, never an import", () => {
+  const prepared = {
+    ...batch,
+    document_can_return: true,
+    document_return_prepare: true,
+    document_review_revision: 17,
+  };
+  const v = renderImport(prepared);
+  expect(v.text).toContain("Текущий предпросмотр будет отменён");
+  expect(v.text).toContain("Повторно загружать файл не нужно");
+  expect(v.rows.flat().map((b) => b.callback_data)).toEqual([`ci:rr:${id}:3:17`, `ci:get:${id}:0`]);
+  expect(parseImportCallback(v.rows[0]![0]!.callback_data)).toEqual({
+    op: "return_confirm",
+    id,
+    revision: 3,
+    reviewRevision: 17,
+  });
+  for (const state of ["config", "preview", "canceled"]) {
+    const current = renderImport({ ...batch, state, document_can_return: true });
+    expect(current.rows.flat().some((b) => b.callback_data === `ci:rp:${id}:3`)).toBe(true);
+  }
+  for (const state of ["applied", "undone", "preview"]) {
+    const current = renderImport({ ...batch, state, document_can_return: false });
+    expect(current.rows.flat().some((b) => b.callback_data.startsWith("ci:rp:"))).toBe(false);
+  }
+});
+it("recovers a returned import through the current document without another confirmation", () => {
+  const v = renderImport({ ...batch, state: "canceled", document_returned: true });
+  expect(v.text).toContain("Повторное нажатие старой кнопки его не отменяет");
+  expect(v.rows.flat().map((b) => b.callback_data)).toEqual([`dr:${id}:0:get:0`, "ci:home"]);
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:rr:"))).toBe(false);
+});
+it("opens the editable review immediately after a successful return", () => {
+  const v = renderImport({
+    ...batch,
+    state: "canceled",
+    document_returned: true,
+    document_return_review: {
+      ok: true,
+      id,
+      document_id: id,
+      revision: 18,
+      file_name: "Прайс.tsv",
+      table_label: "Лист 1",
+      header: ["sku", "price"],
+      row: 0,
+      cells: ["aB-001", "10"],
+      original: ["aB-001", "10"],
+      decision: "approved",
+      counts: { total: 1, approved: 1, pending: 0, excluded: 0 },
+      warnings: [],
+    },
+  });
+  expect(v.text).toContain("Ниже — текущий разбор документа");
+  expect(v.text).toContain("aB-001");
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith(`dr:${id}:18:`))).toBe(true);
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+});
+it("routes return once with actual actor and both exact versions", async () => {
+  mocks.rpc.mockResolvedValue({
+    data: { ...batch, state: "canceled", document_returned: true },
+    error: null,
+  });
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_catalog_import", {
+    p_actor: 101,
+    p_op: "return_confirm",
+    p_id: id,
+    p_page: 0,
+    p_revision: 3,
+    p_payload: { review_revision: 17 },
+  });
+  expect(mocks.tg.mock.calls[0]![1].text).toContain("Оригинал и история сохранены");
+});
+it("denies return for sellers, inactive staff, another sender and groups before RPC", async () => {
+  for (const [m, c] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { id: 101, type: "group" }],
+  ] as const)
+    await showCatalogImport(m, c, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("offers read-only recovery after an uncertain return without replaying the mutation", async () => {
+  mocks.rpc.mockRejectedValue(new Error("unknown private failure"));
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  const body = mocks.tg.mock.calls[0]![1];
+  expect(body.text).toContain("Результат не подтверждён");
+  expect(body.reply_markup.inline_keyboard[0][0].callback_data).toBe(`ci:get:${id}:0`);
+  expect(body.text).not.toContain("private failure");
+});
+it("bounds return callback fields and requires a review version only for confirmation", () => {
+  const value = `ci:rr:${id}:9999999:9999999`;
+  expect(Buffer.byteLength(value)).toBeLessThanOrEqual(64);
+  expect(parseImportCallback(value)?.reviewRevision).toBe(9999999);
+  expect(parseImportCallback(`ci:rp:${id}:3`)?.op).toBe("return_prepare");
+  for (const suffix of ["rp:3:17", "rr:3", "rr:3:-1", "rr:3:10000000", "rr:3:17:1"]) {
+    const [op, ...parts] = suffix.split(":");
+    expect(parseImportCallback(`ci:${op}:${id}:${parts.join(":")}`)).toBeNull();
+  }
+});

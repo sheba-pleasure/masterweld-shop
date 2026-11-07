@@ -1,0 +1,16 @@
+.git
+node_modules
+dist
+.output
+.nitro
+.tanstack
+.wrangler
+.env
+.env.*
+!.env.example
+.secrets
+ops/.state
+ops/.secrets
+*.log
+.lovable
+reports

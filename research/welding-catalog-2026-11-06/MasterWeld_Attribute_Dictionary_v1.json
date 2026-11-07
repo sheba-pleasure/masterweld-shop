@@ -1,0 +1,4220 @@
+{
+  "metadata": {
+    "name": "Мастер Сварщик — исследование рынка и матрица атрибутов",
+    "date": "2026-11-06",
+    "version": "v1.0 research / proposed, NOT deployed",
+    "status": "Схема и поля — проектное предложение, не действующая БД. Фактические значения SKU требуют проверки первоисточника.",
+    "taxonomy_breadth": 48,
+    "family_attribute_rows": 411,
+    "common_attributes": 15,
+    "canonical_project_path": "/home/codex/projects/masterweld.ru",
+    "catalog_snapshot": "Cloud snapshot 2026-11-06: 39 categories, 1038 products, 1029 published, 323 of published without specs; not live production data"
+  },
+  "common_attributes": [
+    {
+      "key": "brand",
+      "label": "Бренд/производитель",
+      "type": "text",
+      "unit": "",
+      "filter": "primary",
+      "priority": "P0"
+    },
+    {
+      "key": "manufacturer_article",
+      "label": "Артикул производителя",
+      "type": "text",
+      "unit": "",
+      "filter": "none",
+      "priority": "P0"
+    },
+    {
+      "key": "supplier_sku",
+      "label": "Артикул поставщика",
+      "type": "text",
+      "unit": "",
+      "filter": "none",
+      "priority": "P0"
+    },
+    {
+      "key": "model",
+      "label": "Модель/серия",
+      "type": "text",
+      "unit": "",
+      "filter": "primary",
+      "priority": "P0"
+    },
+    {
+      "key": "country_origin",
+      "label": "Страна происхождения (по документации)",
+      "type": "text",
+      "unit": "",
+      "filter": "advanced",
+      "priority": "P2"
+    },
+    {
+      "key": "warranty_months",
+      "label": "Гарантия",
+      "type": "integer",
+      "unit": "мес",
+      "filter": "advanced",
+      "priority": "P1"
+    },
+    {
+      "key": "availability",
+      "label": "Наличие",
+      "type": "enum",
+      "unit": "",
+      "filter": "primary",
+      "priority": "P0"
+    },
+    {
+      "key": "price_rub",
+      "label": "Розничная цена",
+      "type": "decimal",
+      "unit": "RUB",
+      "filter": "primary",
+      "priority": "P0"
+    },
+    {
+      "key": "package_weight_kg",
+      "label": "Вес брутто",
+      "type": "decimal",
+      "unit": "кг",
+      "filter": "none",
+      "priority": "P1"
+    },
+    {
+      "key": "package_length_mm",
+      "label": "Длина упаковки",
+      "type": "decimal",
+      "unit": "мм",
+      "filter": "none",
+      "priority": "P1"
+    },
+    {
+      "key": "package_width_mm",
+      "label": "Ширина упаковки",
+      "type": "decimal",
+      "unit": "мм",
+      "filter": "none",
+      "priority": "P1"
+    },
+    {
+      "key": "package_height_mm",
+      "label": "Высота упаковки",
+      "type": "decimal",
+      "unit": "мм",
+      "filter": "none",
+      "priority": "P1"
+    },
+    {
+      "key": "unit_count",
+      "label": "Количество единиц в упаковке",
+      "type": "decimal",
+      "unit": "шт",
+      "filter": "advanced",
+      "priority": "P1"
+    },
+    {
+      "key": "manual_url",
+      "label": "Инструкция изготовителя",
+      "type": "url",
+      "unit": "",
+      "filter": "none",
+      "priority": "P1"
+    },
+    {
+      "key": "certificate_url",
+      "label": "Документ о соответствии (если применим)",
+      "type": "url",
+      "unit": "",
+      "filter": "none",
+      "priority": "P2"
+    }
+  ],
+  "families": [
+    {
+      "code": "power_mma",
+      "name": "Сварочные инверторы MMA",
+      "root_section": "Сварочные аппараты",
+      "process": "MMA / РДС",
+      "attributes": [
+        {
+          "key": "mains_phases",
+          "label": "Число фаз",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Номинальное напряжение сети",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_work_min_v",
+          "label": "Нижняя граница рабочего напряжения",
+          "type": "number",
+          "unit": "В",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_work_max_v",
+          "label": "Верхняя граница рабочего напряжения",
+          "type": "number",
+          "unit": "В",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_current_min_a",
+          "label": "Минимальный ток MMA",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_current_max_a",
+          "label": "Максимальный ток MMA",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_electrode_diameters_mm",
+          "label": "Диаметры MMA-электродов",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_duty_cycle_pct",
+          "label": "ПН MMA (при указанном токе)",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_duty_current_a",
+          "label": "Ток при указанной ПН MMA",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_duty_temp_c",
+          "label": "Температура испытания ПН MMA",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_continuous_current_a",
+          "label": "Ток MMA при ПН 100%",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "hot_start",
+          "label": "Hot Start",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "arc_force",
+          "label": "Arc Force",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "anti_stick",
+          "label": "Anti Stick",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "vrd",
+          "label": "VRD",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "output_connector",
+          "label": "Силовой разъём",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "source_net_weight_kg",
+          "label": "Вес источника без упаковки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "power_mig",
+      "name": "Полуавтоматы MIG/MAG и FCAW",
+      "root_section": "Сварочные аппараты",
+      "process": "MIG/MAG / FCAW",
+      "attributes": [
+        {
+          "key": "mains_phases",
+          "label": "Число фаз",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Номинальная сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_work_min_v",
+          "label": "Минимальное рабочее напряжение сети",
+          "type": "number",
+          "unit": "В",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_current_min_a",
+          "label": "Ток MIG/MAG минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_current_max_a",
+          "label": "Ток MIG/MAG максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_duty_cycle_pct",
+          "label": "ПН MIG (условия указаны отдельно)",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_duty_current_a",
+          "label": "Ток MIG при ПН",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_continuous_current_a",
+          "label": "Ток MIG при ПН 100%",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_duty_temp_c",
+          "label": "Температура ПН",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_wire_diameters_mm",
+          "label": "Поддерживаемые диаметры проволоки MIG",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_solid_wire",
+          "label": "Работа со сплошной проволокой",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_selfshield_flux",
+          "label": "Работа с самозащитной порошковой проволокой",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_gas_shielded_flux",
+          "label": "Работа с газозащитной порошковой проволокой",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_aluminum",
+          "label": "Возможность MIG сварки алюминия",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_pulse",
+          "label": "Импульс MIG/MAG",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_double_pulse",
+          "label": "Двойной импульс MIG/MAG",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_synergy",
+          "label": "Синергетические программы",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "feed_rollers_count",
+          "label": "Число роликов подачи",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "spool_mass_max_kg",
+          "label": "Максимальная масса катушки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "spool_formats",
+          "label": "Форматы катушек",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_torch_connector",
+          "label": "Разъём горелки",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "polarity_change",
+          "label": "Переключение полярности",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "welding_processes",
+          "label": "Режимы MMA/MIG/TIG/CUT",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_feed_speed_min_m_min",
+          "label": "Минимальная подача проволоки",
+          "type": "number",
+          "unit": "м/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "wire_feed_speed_max_m_min",
+          "label": "Максимальная подача проволоки",
+          "type": "number",
+          "unit": "м/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "power_tig_dc",
+      "name": "Аргонодуговые аппараты TIG DC",
+      "root_section": "Сварочные аппараты",
+      "process": "TIG DC",
+      "attributes": [
+        {
+          "key": "tig_polarity_modes",
+          "label": "Род тока TIG",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_min_a",
+          "label": "Ток TIG минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_max_a",
+          "label": "Ток TIG максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_start_modes",
+          "label": "Поджиг дуги HF/Lift/касанием",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_pulse",
+          "label": "Импульсный режим TIG",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_2t_4t",
+          "label": "Режимы 2T/4T",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_gas_preflow_s",
+          "label": "Продувка газа до сварки",
+          "type": "number",
+          "unit": "с",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_gas_postflow_s",
+          "label": "Продувка газа после сварки",
+          "type": "number",
+          "unit": "с",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_downslope_s",
+          "label": "Спад тока",
+          "type": "number",
+          "unit": "с",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_remote_pedal",
+          "label": "Подключение педали/ДУ",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_duty_cycle_pct",
+          "label": "ПН TIG",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_duty_current_a",
+          "label": "Ток TIG при ПН",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_duty_temp_c",
+          "label": "Температура ПН",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_connector",
+          "label": "Разъём TIG-горелки",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Номинальная сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_tig_acdc",
+      "name": "Аргонодуговые аппараты TIG AC/DC",
+      "root_section": "Сварочные аппараты",
+      "process": "TIG AC/DC",
+      "attributes": [
+        {
+          "key": "tig_polarity_modes",
+          "label": "Род тока TIG (AC/DC)",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_min_a",
+          "label": "Ток TIG минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_max_a",
+          "label": "Ток TIG максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_ac_frequency_min_hz",
+          "label": "Частота AC TIG минимум",
+          "type": "number",
+          "unit": "Гц",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_ac_frequency_max_hz",
+          "label": "Частота AC TIG максимум",
+          "type": "number",
+          "unit": "Гц",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_ac_balance_adjustable",
+          "label": "Регулировка баланса AC",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_start_modes",
+          "label": "Поджиг HF/Lift",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_pulse",
+          "label": "Импульсный TIG",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_pulse_freq_max_hz",
+          "label": "Максимальная частота импульсов",
+          "type": "number",
+          "unit": "Гц",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_2t_4t",
+          "label": "Режимы 2T/4T",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_remote_pedal",
+          "label": "Подключение педали",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_water_cooler_support",
+          "label": "Подключение охлаждения",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_duty_cycle_pct",
+          "label": "ПН TIG",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_duty_current_a",
+          "label": "Ток при ПН TIG",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_duty_temp_c",
+          "label": "Температура ПН",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_phases",
+          "label": "Число фаз",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_multiprocess",
+      "name": "Многопроцессные аппараты MMA/MIG/TIG",
+      "root_section": "Сварочные аппараты",
+      "process": "MMA / MIG / TIG",
+      "attributes": [
+        {
+          "key": "welding_processes",
+          "label": "Фактические режимы сварки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_current_min_a",
+          "label": "Ток MMA минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_current_max_a",
+          "label": "Ток MMA максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_current_min_a",
+          "label": "Ток MIG минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_current_max_a",
+          "label": "Ток MIG максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_min_a",
+          "label": "Ток TIG минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_current_max_a",
+          "label": "Ток TIG максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_polarity_modes",
+          "label": "Род тока TIG",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_start_modes",
+          "label": "Поджиг TIG",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_wire_diameters_mm",
+          "label": "Диаметры MIG-проволоки",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_duty_cycle_pct",
+          "label": "ПН MIG",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mma_duty_cycle_pct",
+          "label": "ПН MMA",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_duty_cycle_pct",
+          "label": "ПН TIG",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "duty_test_temp_c",
+          "label": "Температура испытания",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "power_consumption_by_mode_kva",
+          "label": "Полная мощность отдельно по режимам",
+          "type": "mode_map",
+          "unit": "кВА",
+          "filter": "none",
+          "priority": "P1"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Напряжение сети",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_cut",
+      "name": "Аппараты воздушно-плазменной резки CUT",
+      "root_section": "Плазменная резка",
+      "process": "CUT",
+      "attributes": [
+        {
+          "key": "mains_nominal_v",
+          "label": "Номинальная сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_current_min_a",
+          "label": "Ток CUT минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_current_max_a",
+          "label": "Ток CUT максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_recommended_thickness_mm",
+          "label": "Рекомендуемая толщина реза",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_severance_thickness_mm",
+          "label": "Предельный разделительный рез",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_piercing_thickness_mm",
+          "label": "Толщина прожига",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "cut_material",
+          "label": "Металл, к которому относится толщина",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_speed_at_thickness_mm_min",
+          "label": "Скорость реза при указанной толщине",
+          "type": "number",
+          "unit": "мм/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "cut_max_thickness_marketing_mm",
+          "label": "Неуточнённая максимальная толщина (не для фасета)",
+          "type": "number",
+          "unit": "мм",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "compressed_air_flow_l_min",
+          "label": "Требуемый расход воздуха",
+          "type": "number",
+          "unit": "л/мин",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "compressed_air_pressure_bar",
+          "label": "Требуемое давление воздуха",
+          "type": "number",
+          "unit": "бар",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "integrated_compressor",
+          "label": "Встроенный компрессор",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P1"
+        },
+        {
+          "key": "pilot_arc",
+          "label": "Пилотная дуга",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "cut_torch_series",
+          "label": "Серия плазмотрона",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_duty_cycle_pct",
+          "label": "ПН CUT",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_duty_current_a",
+          "label": "Ток при ПН CUT",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_duty_temp_c",
+          "label": "Температура ПН",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_saw",
+      "name": "Источники сварки под флюсом SAW",
+      "root_section": "Сварка под флюсом",
+      "process": "SAW",
+      "attributes": [
+        {
+          "key": "saw_current_min_a",
+          "label": "Ток SAW минимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_current_max_a",
+          "label": "Ток SAW максимум",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_polarity_modes",
+          "label": "Род тока AC/DC",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_duty_cycle_pct",
+          "label": "ПН при токе SAW",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_wire_diameters_mm",
+          "label": "Диаметры SAW-проволоки",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_feed_speed_m_min",
+          "label": "Скорость подачи",
+          "type": "number",
+          "unit": "м/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "saw_travel_speed_mm_min",
+          "label": "Скорость перемещения",
+          "type": "number",
+          "unit": "мм/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "saw_control_compatibility",
+          "label": "Совместимые головки/тракторы",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Питающая сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_spot",
+      "name": "Контактная точечная и шовная сварка",
+      "root_section": "Контактная сварка",
+      "process": "RSW",
+      "attributes": [
+        {
+          "key": "spot_method",
+          "label": "Тип (точечная/шовная/стыковая)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "spot_rated_power_kva",
+          "label": "Номинальная полная мощность",
+          "type": "number",
+          "unit": "кВА",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "spot_max_power_kva",
+          "label": "Максимальная полная мощность",
+          "type": "number",
+          "unit": "кВА",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "spot_weld_thickness_pair_mm",
+          "label": "Толщина каждого из двух листов (условия)",
+          "type": "text",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "spot_electrode_force_n",
+          "label": "Усилие электродов",
+          "type": "number",
+          "unit": "Н",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "spot_electrode_stroke_mm",
+          "label": "Ход электродов",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "spot_throat_depth_mm",
+          "label": "Вылет электродов",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "spot_water_cooling",
+          "label": "Водяное охлаждение",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mains_phases",
+          "label": "Число фаз",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_stud",
+      "name": "Аппараты приварки шпилек",
+      "root_section": "Сварочные аппараты",
+      "process": "Stud welding",
+      "attributes": [
+        {
+          "key": "stud_method",
+          "label": "Процесс (дуговая/конденсаторная)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "stud_diameter_min_mm",
+          "label": "Минимальный диаметр шпильки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "stud_diameter_max_mm",
+          "label": "Максимальный диаметр шпильки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "stud_materials",
+          "label": "Материалы шпилек",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "stud_weld_time_ms",
+          "label": "Продолжительность импульса",
+          "type": "number",
+          "unit": "мс",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "stud_energy_j",
+          "label": "Энергия импульса",
+          "type": "number",
+          "unit": "Дж",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Питающая сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "power_laser",
+      "name": "Лазерная ручная сварка",
+      "root_section": "Сварочные аппараты",
+      "process": "Laser",
+      "attributes": [
+        {
+          "key": "laser_source_power_w",
+          "label": "Мощность лазера",
+          "type": "number",
+          "unit": "Вт",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "laser_wavelength_nm",
+          "label": "Длина волны",
+          "type": "number",
+          "unit": "нм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "laser_process_modes",
+          "label": "Сварка/очистка/резка",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "laser_cooling",
+          "label": "Охлаждение",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "laser_fiber_length_m",
+          "label": "Длина оптоволокна",
+          "type": "number",
+          "unit": "м",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "laser_materials",
+          "label": "Рекомендованные материалы",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "laser_max_thickness_by_material",
+          "label": "Толщина по материалу и условиям",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        },
+        {
+          "key": "laser_safety_class",
+          "label": "Класс лазерной опасности по документации",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Питающая сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "pipe_socket",
+      "name": "Паяльники для раструбной сварки пластиковых труб",
+      "root_section": "Сварка пластиковых труб",
+      "process": "Polyfusion",
+      "attributes": [
+        {
+          "key": "pipe_materials",
+          "label": "Материал труб (PP-R и др.)",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "pipe_socket_diameters_mm",
+          "label": "Диаметры насадок",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "pipe_heater_power_w",
+          "label": "Мощность нагревателя",
+          "type": "number",
+          "unit": "Вт",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "pipe_temperature_control",
+          "label": "Терморегулятор",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "pipe_temperature_range_c",
+          "label": "Диапазон температуры нагрева",
+          "type": "text",
+          "unit": "°C",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "pipe_nozzles_included",
+          "label": "Насадки в комплекте",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "pipe_electrofusion",
+      "name": "Аппараты электромуфтовой сварки",
+      "root_section": "Сварка пластиковых труб",
+      "process": "Electrofusion",
+      "attributes": [
+        {
+          "key": "electrofusion_pipe_material",
+          "label": "Материал труб (PE и др.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrofusion_voltage_range_v",
+          "label": "Выходное напряжение сварки",
+          "type": "text",
+          "unit": "В",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "electrofusion_fitting_diameters_mm",
+          "label": "Диаметры фитингов",
+          "type": "text",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrofusion_barcode",
+          "label": "Сканер штрихкодов",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "electrofusion_trace_logging",
+          "label": "Протоколирование швов",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "electrofusion_connector_type",
+          "label": "Разъём фитинга",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mains_nominal_v",
+          "label": "Питающая сеть",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "weld_generator",
+      "name": "Сварочные электрогенераторы",
+      "root_section": "Генераторы и компрессоры",
+      "process": "Generator welding",
+      "attributes": [
+        {
+          "key": "generator_fuel",
+          "label": "Топливо",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_rated_power_kw",
+          "label": "Номинальная активная мощность",
+          "type": "number",
+          "unit": "кВт",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_rated_power_kva",
+          "label": "Номинальная полная мощность",
+          "type": "number",
+          "unit": "кВА",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_voltage_v",
+          "label": "Выходное напряжение",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_phase",
+          "label": "Число фаз",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_inverter_compatible",
+          "label": "Совместимость с инверторами, подтверждённая производителем",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mma_current_max_a",
+          "label": "Ток MMA встроенного поста (если есть)",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "generator_run_time_h",
+          "label": "Автономность при нагрузке",
+          "type": "number",
+          "unit": "ч",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "generator_fuel_tank_l",
+          "label": "Бак",
+          "type": "number",
+          "unit": "л",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "consumable_mma_electrodes",
+      "name": "Покрытые электроды MMA",
+      "root_section": "Расходники для электросварки",
+      "process": "SMAW consumable",
+      "attributes": [
+        {
+          "key": "electrode_standard_class",
+          "label": "Классификация AWS/ISO/ГОСТ (дословно)",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_coating",
+          "label": "Тип покрытия (рутиловое/основное/целлюлозное)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_diameter_mm",
+          "label": "Диаметр электрода",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_length_mm",
+          "label": "Длина электрода",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "electrode_welding_positions",
+          "label": "Пространственные положения",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "electrode_polarity",
+          "label": "Полярность и AC/DC",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_current_min_a",
+          "label": "Ток, нижняя граница для этого диаметра",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_current_max_a",
+          "label": "Ток, верхняя граница для этого диаметра",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_deposited_metal",
+          "label": "Класс наплавленного металла",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "package_net_mass_kg",
+          "label": "Масса электродов в упаковке",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "electrode_baking",
+          "label": "Требования к прокалке по изготовителю",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "consumable_mig_wire_solid",
+      "name": "Сплошная проволока MIG/MAG",
+      "root_section": "Расходники для электросварки",
+      "process": "GMAW wire",
+      "attributes": [
+        {
+          "key": "wire_standard_class",
+          "label": "Класс проволоки AWS/ISO/ГОСТ",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_material",
+          "label": "Материал/назначение (сталь, нержавейка, алюминий)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_diameter_mm",
+          "label": "Диаметр проволоки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_coating",
+          "label": "Омеднение/без покрытия",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_gas_groups",
+          "label": "Защитный газ/смесь по данным изготовителя",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_spool_type",
+          "label": "Формат катушки (D100/D200/D300 и т.п.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_spool_net_mass_kg",
+          "label": "Масса проволоки на катушке",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_polarity",
+          "label": "Полярность",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "wire_welding_positions",
+          "label": "Положения сварки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P2"
+        },
+        {
+          "key": "wire_standard_notes",
+          "label": "Ограничения классификации",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "consumable_flux_wire",
+      "name": "Порошковая сварочная проволока FCAW",
+      "root_section": "Расходники для электросварки",
+      "process": "FCAW wire",
+      "attributes": [
+        {
+          "key": "wire_standard_class",
+          "label": "Марка/классификация",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_diameter_mm",
+          "label": "Диаметр",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "flux_wire_gas_mode",
+          "label": "Самозащитная или под газом",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_polarity",
+          "label": "Необходимая полярность",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_welding_positions",
+          "label": "Пространственные положения",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "wire_spool_type",
+          "label": "Тип катушки",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_spool_net_mass_kg",
+          "label": "Масса проволоки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "wire_base_metals",
+          "label": "Материал сварки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "consumable_tig_rod",
+      "name": "Присадочные прутки TIG",
+      "root_section": "Расходники для электросварки",
+      "process": "GTAW filler",
+      "attributes": [
+        {
+          "key": "filler_rod_class",
+          "label": "Марка/классификация AWS/ISO",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "filler_rod_alloy",
+          "label": "Сплав/назначение",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "filler_rod_diameter_mm",
+          "label": "Диаметр прутка",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "filler_rod_length_mm",
+          "label": "Длина прутка",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "filler_rod_package_weight_kg",
+          "label": "Масса упаковки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "filler_rod_gas",
+          "label": "Рекомендованный газ",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P2"
+        }
+      ]
+    },
+    {
+      "code": "consumable_saw_wire",
+      "name": "Проволока SAW",
+      "root_section": "Сварка под флюсом",
+      "process": "SAW wire",
+      "attributes": [
+        {
+          "key": "saw_wire_class",
+          "label": "Марка проволоки/класс",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_wire_diameter_mm",
+          "label": "Диаметр проволоки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_wire_package_mass_kg",
+          "label": "Вес бухты/кассеты",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_wire_flux_pair",
+          "label": "Совместимые флюсы по рекомендациям",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "saw_wire_base_metal",
+          "label": "Материал сварки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "consumable_saw_flux",
+      "name": "Флюс для сварки SAW",
+      "root_section": "Сварка под флюсом",
+      "process": "SAW flux",
+      "attributes": [
+        {
+          "key": "saw_flux_class",
+          "label": "Классификация флюса",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_flux_type",
+          "label": "Агломерированный/плавленый",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_flux_grain_min_mm",
+          "label": "Размер зерна минимум",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_flux_grain_max_mm",
+          "label": "Размер зерна максимум",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_flux_wire_pairs",
+          "label": "Рекомендованные пары с проволокой",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "saw_flux_drying",
+          "label": "Правила хранения/сушки",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        },
+        {
+          "key": "package_net_mass_kg",
+          "label": "Масса упаковки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "consumable_tungsten",
+      "name": "Вольфрамовые неплавящиеся электроды TIG",
+      "root_section": "Расходники для электросварки",
+      "process": "TIG tungsten",
+      "attributes": [
+        {
+          "key": "tungsten_type_iso",
+          "label": "Маркировка ISO/изготовителя",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tungsten_additive",
+          "label": "Легирование (лантан, церий и др.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tungsten_diameter_mm",
+          "label": "Диаметр",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tungsten_length_mm",
+          "label": "Длина",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tungsten_ac_dc_usage",
+          "label": "Применение AC/DC по изготовителю",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tungsten_tip_color",
+          "label": "Цвет маркировки (если стандартизован)",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tungsten_qty_pack",
+          "label": "Штук в упаковке",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mig_torch",
+      "name": "Сварочные горелки MIG/MAG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "MIG torch",
+      "attributes": [
+        {
+          "key": "mig_torch_series",
+          "label": "Серия (MB15/24/36 и т. п.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_length_m",
+          "label": "Длина рукава",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_cooling",
+          "label": "Воздушное/жидкостное охлаждение",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_connector",
+          "label": "Разъём (EURO и прочее)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_amp_co2_a",
+          "label": "Номинальный ток в CO₂",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_amp_m21_a",
+          "label": "Номинальный ток в смеси M21",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_duty_pct",
+          "label": "ПН горелки",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_wire_diameters_mm",
+          "label": "Поддерживаемые диаметры проволоки",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_torch_replacement_family",
+          "label": "Совместимые семейства расходников",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "tig_torch",
+      "name": "Сварочные горелки TIG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "TIG torch",
+      "attributes": [
+        {
+          "key": "tig_torch_series",
+          "label": "Серия (9/17/18/26 и пр.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_length_m",
+          "label": "Длина",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_cooling",
+          "label": "Воздушное/жидкостное охлаждение",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_max_dc_a",
+          "label": "Ток DC при заявленной ПН",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_max_ac_a",
+          "label": "Ток AC при заявленной ПН",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_duty_pct",
+          "label": "ПН горелки",
+          "type": "number",
+          "unit": "%",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_power_connector",
+          "label": "Силовой разъём",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_gas_connector",
+          "label": "Газовый разъём",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_control_connector",
+          "label": "Разъём кнопки управления",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_tungsten_diameters_mm",
+          "label": "Диаметры вольфрама",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "cut_torch",
+      "name": "Плазмотроны CUT",
+      "root_section": "Плазменная резка",
+      "process": "Plasma torch",
+      "attributes": [
+        {
+          "key": "cut_torch_series",
+          "label": "Серия (PT31/P80/и др.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_current_max_a",
+          "label": "Допустимый ток горелки",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_length_m",
+          "label": "Длина рукава",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_ignition",
+          "label": "Тип поджига",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_connector",
+          "label": "Тип соединения",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_cooling",
+          "label": "Тип охлаждения",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "cut_torch_consumable_family",
+          "label": "Семейство расходников",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_air_flow_l_min",
+          "label": "Потребность в воздухе",
+          "type": "number",
+          "unit": "л/мин",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mig_contact_tip",
+      "name": "Контактные наконечники MIG/MAG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "MIG tip",
+      "attributes": [
+        {
+          "key": "mig_tip_wire_diameter_mm",
+          "label": "Диаметр проволоки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_tip_thread",
+          "label": "Резьба наконечника (М6/М8/иное)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_tip_length_mm",
+          "label": "Длина наконечника",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_tip_material",
+          "label": "Материал наконечника",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_tip_torch_family",
+          "label": "Серия совместимых горелок",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_tip_holder_family",
+          "label": "Совместимый держатель",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "quantity_pack",
+          "label": "Штук в упаковке",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mig_gas_nozzle",
+      "name": "Газовые сопла MIG/MAG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "MIG nozzle",
+      "attributes": [
+        {
+          "key": "mig_nozzle_torch_family",
+          "label": "Серия горелки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_nozzle_shape",
+          "label": "Форма сопла",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_nozzle_inner_diameter_mm",
+          "label": "Диаметр выходного отверстия",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_nozzle_length_mm",
+          "label": "Длина сопла",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mig_nozzle_attachment",
+          "label": "Способ крепления",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "quantity_pack",
+          "label": "Штук в упаковке",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mig_liner",
+      "name": "Каналы/направляющие проволоки MIG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "MIG liner",
+      "attributes": [
+        {
+          "key": "mig_liner_wire_diameter_min_mm",
+          "label": "Минимальный диаметр проволоки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_liner_wire_diameter_max_mm",
+          "label": "Максимальный диаметр проволоки",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_liner_length_m",
+          "label": "Длина канала",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_liner_material",
+          "label": "Материал (сталь/PTFE и др.)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_liner_torch_family",
+          "label": "Серия горелки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mig_liner_end_fitting",
+          "label": "Тип окончания/фиксатора",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "feed_rollers",
+      "name": "Ролики подачи сварочной проволоки",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Feeder roll",
+      "attributes": [
+        {
+          "key": "roller_wire_diameters_mm",
+          "label": "Диаметры проволоки",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "roller_groove",
+          "label": "Профиль канавки V/U/насечка",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "roller_outer_diameter_mm",
+          "label": "Внешний диаметр ролика",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "roller_inner_diameter_mm",
+          "label": "Посадочный диаметр",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "roller_width_mm",
+          "label": "Ширина ролика",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "roller_feeder_models",
+          "label": "Совместимые подачи/аппараты",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "tig_kit_parts",
+      "name": "Цанги, линзы, керамические сопла TIG",
+      "root_section": "Оборудование и аксессуары",
+      "process": "TIG parts",
+      "attributes": [
+        {
+          "key": "tig_part_type",
+          "label": "Тип (цанга/корпус/линза/сопло)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_torch_series",
+          "label": "Серия TIG-горелки",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_tungsten_diameter_mm",
+          "label": "Под какой диаметр вольфрама",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_cup_size",
+          "label": "Размер керамического сопла №",
+          "type": "integer",
+          "unit": "№",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "tig_gas_lens",
+          "label": "Газовая линза",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "tig_part_length_mm",
+          "label": "Длина",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "quantity_pack",
+          "label": "Количество",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "cut_parts",
+      "name": "Сопла, электроды, защитные колпачки CUT",
+      "root_section": "Плазменная резка",
+      "process": "CUT consumables",
+      "attributes": [
+        {
+          "key": "cut_part_type",
+          "label": "Тип (сопло/электрод/завихритель/щиток)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_torch_series",
+          "label": "Серия плазмотрона",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_part_nominal_current_a",
+          "label": "Ток/номинал сопла (если применим)",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_nozzle_orifice_mm",
+          "label": "Диаметр отверстия сопла",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cut_part_process",
+          "label": "Ручная/механизированная резка",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "cut_part_manufacturer_code",
+          "label": "Код производителя для совместимости",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "quantity_pack",
+          "label": "Количество",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mma_holder",
+      "name": "Электрододержатели MMA",
+      "root_section": "Оборудование и аксессуары",
+      "process": "MMA holder",
+      "attributes": [
+        {
+          "key": "holder_nominal_current_a",
+          "label": "Номинальный ток",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "holder_electrode_diameter_min_mm",
+          "label": "Диаметр электрода минимум",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "holder_electrode_diameter_max_mm",
+          "label": "Диаметр электрода максимум",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "holder_cable_connection",
+          "label": "Присоединение сварочного кабеля",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "holder_model",
+          "label": "Конструкция/тип",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "ground_clamp",
+      "name": "Зажимы массы сварочные",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Ground clamp",
+      "attributes": [
+        {
+          "key": "clamp_nominal_current_a",
+          "label": "Номинальный ток",
+          "type": "number",
+          "unit": "А",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "clamp_jaw_opening_mm",
+          "label": "Раскрытие губок",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "clamp_cable_connection",
+          "label": "Подключение кабеля",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "clamp_material",
+          "label": "Материал контактов",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "welding_cable",
+      "name": "Сварочные кабели и соединения",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Welding cable",
+      "attributes": [
+        {
+          "key": "cable_conductor_cross_section_mm2",
+          "label": "Сечение токопроводящей жилы",
+          "type": "number",
+          "unit": "мм²",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cable_conductor_material",
+          "label": "Материал жилы",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cable_length_m",
+          "label": "Длина",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cable_insulation_type",
+          "label": "Тип изоляции/марка",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cable_connector_type",
+          "label": "Разъём/оконцевание",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cable_current_limit_a",
+          "label": "Допустимый ток при указанных условиях",
+          "type": "number",
+          "unit": "А",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "mask_adf",
+      "name": "Маски сварщика с автозатемнением",
+      "root_section": "Защита сварщика",
+      "process": "ADF mask",
+      "attributes": [
+        {
+          "key": "mask_optical_class",
+          "label": "Оптический класс (четыре цифры)",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_light_shade_din",
+          "label": "Светлое состояние DIN",
+          "type": "number",
+          "unit": "DIN",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_dark_shade_min_din",
+          "label": "Нижний предел затемнения DIN",
+          "type": "number",
+          "unit": "DIN",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_dark_shade_max_din",
+          "label": "Верхний предел затемнения DIN",
+          "type": "number",
+          "unit": "DIN",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_view_width_mm",
+          "label": "Ширина зоны обзора",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_view_height_mm",
+          "label": "Высота зоны обзора",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_sensors",
+          "label": "Количество датчиков",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_switching_time_ms",
+          "label": "Время затемнения при заданной t",
+          "type": "number",
+          "unit": "мс",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_switching_temp_c",
+          "label": "Температура замера времени затемнения",
+          "type": "number",
+          "unit": "°C",
+          "filter": "none",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_grinding_mode",
+          "label": "Режим шлифовки",
+          "type": "boolean",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_cut_mode",
+          "label": "Режим резки",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_tig_lowamp",
+          "label": "Заявленная пригодность для TIG на малых токах",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_power_type",
+          "label": "Солнечный элемент/батарея",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_filter_replaceable",
+          "label": "Сменный фильтр",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_papr_compatibility",
+          "label": "Совместимость с блоком подачи воздуха",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P2"
+        }
+      ]
+    },
+    {
+      "code": "mask_passive",
+      "name": "Маски и щитки с постоянным фильтром",
+      "root_section": "Защита сварщика",
+      "process": "Passive mask",
+      "attributes": [
+        {
+          "key": "mask_fixed_shade_din",
+          "label": "Постоянная степень затемнения",
+          "type": "number",
+          "unit": "DIN",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_filter_width_mm",
+          "label": "Ширина стекла",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_filter_height_mm",
+          "label": "Высота стекла",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "mask_filter_replaceable",
+          "label": "Сменный светофильтр",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_body_material",
+          "label": "Материал корпуса",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "mask_helmet_attachment",
+          "label": "Крепление к каске",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "welding_gloves",
+      "name": "Краги и перчатки сварщика",
+      "root_section": "Защита сварщика",
+      "process": "Welding gloves",
+      "attributes": [
+        {
+          "key": "gloves_standard",
+          "label": "Маркировка стандарта по документации",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "gloves_size",
+          "label": "Размер",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "gloves_material",
+          "label": "Материал (спилок/кожа)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "gloves_length_cm",
+          "label": "Длина",
+          "type": "number",
+          "unit": "см",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "gloves_welding_process",
+          "label": "Назначение TIG/MIG/MMA",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "gloves_heat_resistance",
+          "label": "Подтверждённый уровень защиты",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "workwear",
+      "name": "Костюмы, куртки, нарукавники сварщика",
+      "root_section": "Защита сварщика",
+      "process": "Welding PPE",
+      "attributes": [
+        {
+          "key": "ppe_type",
+          "label": "Вид СИЗ",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "ppe_size",
+          "label": "Размер/рост",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "ppe_material",
+          "label": "Материал",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "ppe_protection_standard",
+          "label": "Маркировка защитного стандарта",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "ppe_protection_class",
+          "label": "Класс защиты (если есть)",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "ppe_fastener",
+          "label": "Тип застёжки",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "fume_extraction",
+      "name": "Вытяжки сварочных аэрозолей",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Fume extraction",
+      "attributes": [
+        {
+          "key": "extractor_airflow_m3_h",
+          "label": "Расход воздуха",
+          "type": "number",
+          "unit": "м³/ч",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "extractor_filtration_class",
+          "label": "Класс фильтра",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "extractor_arm_length_m",
+          "label": "Длина рукава",
+          "type": "number",
+          "unit": "м",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "extractor_power_w",
+          "label": "Потребляемая мощность",
+          "type": "number",
+          "unit": "Вт",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "extractor_filter_area_m2",
+          "label": "Площадь фильтра",
+          "type": "number",
+          "unit": "м²",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "extractor_capture_type",
+          "label": "Тип улавливания",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "wire_feeder",
+      "name": "Выносные подающие механизмы",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Wire feeder",
+      "attributes": [
+        {
+          "key": "feeder_rollers",
+          "label": "Число роликов",
+          "type": "integer",
+          "unit": "шт",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_wire_diameters_mm",
+          "label": "Диаметры проволоки",
+          "type": "number_list",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_speed_min_m_min",
+          "label": "Мин. скорость",
+          "type": "number",
+          "unit": "м/мин",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_speed_max_m_min",
+          "label": "Макс. скорость",
+          "type": "number",
+          "unit": "м/мин",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_spool_mass_kg",
+          "label": "Максимальная катушка",
+          "type": "number",
+          "unit": "кг",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_source_compatibility",
+          "label": "Совместимые источники",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "feeder_cooling",
+          "label": "Поддержка охлаждения горелки",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "feeder_connector",
+          "label": "Соединение со сварочным источником",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "water_cooler",
+      "name": "Блоки водяного охлаждения горелок",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Water cooler",
+      "attributes": [
+        {
+          "key": "cooler_capacity_kw",
+          "label": "Мощность охлаждения",
+          "type": "number",
+          "unit": "кВт",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_flow_l_min",
+          "label": "Расход жидкости",
+          "type": "number",
+          "unit": "л/мин",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_tank_l",
+          "label": "Объём бака",
+          "type": "number",
+          "unit": "л",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_pressure_bar",
+          "label": "Рабочее давление",
+          "type": "number",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_power_v",
+          "label": "Напряжение питания",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_connectors",
+          "label": "Типы разъёмов",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_equipment_compatibility",
+          "label": "Совместимые источники/горелки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cooler_fluid_type",
+          "label": "Допустимая охлаждающая жидкость",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "welding_magnets",
+      "name": "Магнитные угольники, держатели",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Fixture magnet",
+      "attributes": [
+        {
+          "key": "magnet_holding_force_kgf",
+          "label": "Усилие удержания по изготовителю",
+          "type": "number",
+          "unit": "кгс",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "magnet_angles_deg",
+          "label": "Углы позиционирования",
+          "type": "number_list",
+          "unit": "°",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "magnet_switchable",
+          "label": "Отключаемый магнит",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "magnet_dimensions_mm",
+          "label": "Габариты",
+          "type": "text",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "welding_table",
+      "name": "Сварочные столы и оснастка",
+      "root_section": "Оборудование и аксессуары",
+      "process": "Welding table",
+      "attributes": [
+        {
+          "key": "table_length_mm",
+          "label": "Длина рабочей поверхности",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "table_width_mm",
+          "label": "Ширина поверхности",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "table_height_mm",
+          "label": "Высота стола",
+          "type": "number",
+          "unit": "мм",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "table_hole_diameter_mm",
+          "label": "Диаметр системных отверстий",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "table_hole_pitch_mm",
+          "label": "Шаг отверстий",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "table_load_kg",
+          "label": "Допустимая нагрузка",
+          "type": "number",
+          "unit": "кг",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "table_flatness",
+          "label": "Допуск плоскостности",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "oxy_torch",
+      "name": "Газовые сварочные горелки и резаки",
+      "root_section": "Газовая сварка и резка",
+      "process": "Oxy-fuel",
+      "attributes": [
+        {
+          "key": "oxy_tool_type",
+          "label": "Горелка/резак",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_fuel_gases",
+          "label": "Допустимый горючий газ (ацетилен/пропан и др.)",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_oxygen_pressure_bar",
+          "label": "Диапазон давления O₂",
+          "type": "text",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_fuel_pressure_bar",
+          "label": "Давление горючего газа",
+          "type": "text",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_cut_thickness_range_mm",
+          "label": "Диапазон толщин с указанным соплом",
+          "type": "text",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_connector_o2",
+          "label": "Присоединение кислорода",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_connector_fuel",
+          "label": "Присоединение горючего газа",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_tip_compatibility",
+          "label": "Серии совместимых мундштуков",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "oxy_cut_nozzle",
+      "name": "Газовые мундштуки и сопла резаков",
+      "root_section": "Газовая сварка и резка",
+      "process": "Oxy nozzle",
+      "attributes": [
+        {
+          "key": "oxy_nozzle_fuel",
+          "label": "Для какого горючего газа",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_nozzle_torch_family",
+          "label": "Совместимые резаки",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_nozzle_cut_min_mm",
+          "label": "Минимальная толщина реза",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_nozzle_cut_max_mm",
+          "label": "Максимальная толщина реза",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_nozzle_part_code",
+          "label": "Код производителя",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "oxy_nozzle_attachment",
+          "label": "Присоединительный размер",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "gas_regulator",
+      "name": "Редукторы/расходомеры/подогреватели газа",
+      "root_section": "Газовая сварка и резка",
+      "process": "Gas regulator",
+      "attributes": [
+        {
+          "key": "regulator_gas",
+          "label": "Назначение по газу (O₂/Ar/CO₂/топливо)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_inlet_pressure_max_bar",
+          "label": "Макс. давление на входе",
+          "type": "number",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_outlet_pressure_range_bar",
+          "label": "Диапазон давления на выходе",
+          "type": "text",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_flow_range_l_min",
+          "label": "Диапазон расхода газа",
+          "type": "text",
+          "unit": "л/мин",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_cylinder_thread",
+          "label": "Подключение баллона",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_hose_fitting",
+          "label": "Подключение шланга",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "regulator_heater_power_w",
+          "label": "Потребляемая мощность подогревателя",
+          "type": "number",
+          "unit": "Вт",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "regulator_heater_voltage_v",
+          "label": "Напряжение питания подогревателя",
+          "type": "number",
+          "unit": "В",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "gas_hose",
+      "name": "Газовые рукава и соединители",
+      "root_section": "Газовая сварка и резка",
+      "process": "Gas hose",
+      "attributes": [
+        {
+          "key": "hose_gas",
+          "label": "Назначение по газу",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "hose_inner_diameter_mm",
+          "label": "Внутренний диаметр",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "hose_length_m",
+          "label": "Длина",
+          "type": "number",
+          "unit": "м",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "hose_work_pressure_bar",
+          "label": "Рабочее давление",
+          "type": "number",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "hose_standard_marking",
+          "label": "Нормативная маркировка",
+          "type": "text",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "hose_fittings",
+          "label": "Фитинги/резьба",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "air_compressor",
+      "name": "Воздушные компрессоры для плазморезов",
+      "root_section": "Генераторы и компрессоры",
+      "process": "Air compressor",
+      "attributes": [
+        {
+          "key": "compressor_delivered_air_l_min",
+          "label": "Фактическая производительность на выходе",
+          "type": "number",
+          "unit": "л/мин",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "compressor_pressure_bar",
+          "label": "Рабочее давление",
+          "type": "number",
+          "unit": "бар",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "compressor_receiver_l",
+          "label": "Объём ресивера",
+          "type": "number",
+          "unit": "л",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "compressor_motor_power_kw",
+          "label": "Мощность двигателя",
+          "type": "number",
+          "unit": "кВт",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "compressor_oil_free",
+          "label": "Безмасляный",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "compressor_dryer_filter",
+          "label": "Осушитель/фильтр",
+          "type": "boolean",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P1"
+        },
+        {
+          "key": "compressor_mains_v",
+          "label": "Напряжение питания",
+          "type": "number",
+          "unit": "В",
+          "filter": "primary",
+          "priority": "P0"
+        }
+      ]
+    },
+    {
+      "code": "gas_cylinder",
+      "name": "Газовые баллоны, переходники, тележки",
+      "root_section": "Газовая сварка и резка",
+      "process": "Gas cylinders",
+      "attributes": [
+        {
+          "key": "cylinder_gas_type",
+          "label": "Тип газа (не взаимозаменять подключения)",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cylinder_capacity_l",
+          "label": "Водяной объём баллона",
+          "type": "number",
+          "unit": "л",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cylinder_pressure_bar",
+          "label": "Рабочее давление (если задано)",
+          "type": "number",
+          "unit": "бар",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "cylinder_valve_thread",
+          "label": "Тип вентиля/резьбы",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "cylinder_service_status",
+          "label": "Сведения о поверке/освидетельствовании (для конкретного экземпляра)",
+          "type": "text",
+          "unit": "",
+          "filter": "none",
+          "priority": "P1"
+        },
+        {
+          "key": "cylinder_empty_weight_kg",
+          "label": "Масса пустого баллона",
+          "type": "number",
+          "unit": "кг",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    },
+    {
+      "code": "brazing_solder",
+      "name": "Припои и флюсы для пайки",
+      "root_section": "Другие товары для сварки и резки",
+      "process": "Brazing",
+      "attributes": [
+        {
+          "key": "brazing_alloy",
+          "label": "Класс/состав припоя",
+          "type": "text",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "brazing_product_form",
+          "label": "Пруток/проволока/паста",
+          "type": "enum",
+          "unit": "",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "brazing_diameter_mm",
+          "label": "Диаметр/размер",
+          "type": "number",
+          "unit": "мм",
+          "filter": "primary",
+          "priority": "P0"
+        },
+        {
+          "key": "brazing_melting_range_c",
+          "label": "Интервал плавления",
+          "type": "text",
+          "unit": "°C",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "brazing_flux_type",
+          "label": "Тип флюса",
+          "type": "enum",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "brazing_base_materials",
+          "label": "Назначение по материалам",
+          "type": "enum_list",
+          "unit": "",
+          "filter": "advanced",
+          "priority": "P0"
+        },
+        {
+          "key": "package_net_mass_kg",
+          "label": "Масса упаковки",
+          "type": "number",
+          "unit": "кг",
+          "filter": "advanced",
+          "priority": "P1"
+        }
+      ]
+    }
+  ],
+  "benchmark_sites": [
+    {
+      "name": "ВсеИнструменты",
+      "class": "Инструментальный ритейлер",
+      "sampled_sections": "MMA; MIG/MAG; TIG; проволока",
+      "observed_pattern": "Много технических фасетов: напряжение, ток, диапазон проволоки, функции, наличие",
+      "adaptation": "Основные фильтры группировать по семейству; показывать только применимые",
+      "url": "https://www.vseinstrumenti.ru/category/svarochnye-poluavtomaty-463/",
+      "limitation": "Структура/фильтры по открытой странице; не весь каталог"
+    },
+    {
+      "name": "Ozon",
+      "class": "Маркетплейс",
+      "sampled_sections": "Оборудование; расходники; СИЗ",
+      "observed_pattern": "Удобные варианты размера/веса/диаметра, поиск по продавцам, отзывы, вопросы",
+      "adaptation": "Переключение варианта SKU + отзывы, не импортировать характеристики без проверки",
+      "url": "https://www.ozon.ru/category/svarochnoe-oborudovanie-10046/",
+      "limitation": "Массовая разметка неоднородна; примеры неоднозначных характеристик"
+    },
+    {
+      "name": "АССВАР",
+      "class": "Отраслевой магазин",
+      "sampled_sections": "Горелки; расходники; TIG/MIG/CUT/SAW",
+      "observed_pattern": "Глубокое дерево категорий и модели семейств горелок",
+      "adaptation": "Разделять расходники по семейству/модели/диаметрам",
+      "url": "https://assvar.ru/products/category/1927873",
+      "limitation": "Выборочная проверка дерева каталога"
+    },
+    {
+      "name": "Сварочник",
+      "class": "Специализированный магазин",
+      "sampled_sections": "Полуавтоматы",
+      "observed_pattern": "Быстрый выбор процесса + функциональные фильтры",
+      "adaptation": "Отдельный быстрый вход по MMA/MIG/TIG/CUT",
+      "url": "https://svarochnik.ru/svarochnyj-poluavtomat",
+      "limitation": "Выборочный просмотр"
+    },
+    {
+      "name": "Сварог",
+      "class": "Производитель",
+      "sampled_sections": "Полуавтоматы; TIG; MMA; CUT",
+      "observed_pattern": "Подробные режимные спецификации, документация, связанные расходники",
+      "adaptation": "Канонический источник по модели, ПН и по режимам",
+      "url": "https://svarog-rf.ru/products/real-smart-mig-200/specs",
+      "limitation": "Первичный источник: конкретная модель REAL SMART MIG 200"
+    },
+    {
+      "name": "Miller",
+      "class": "Производитель",
+      "sampled_sections": "Сварочное оборудование",
+      "observed_pattern": "Свойства для задачи: weldable metals, процесс, серии",
+      "adaptation": "Поиск по металлу/работе поверх технических фасетов",
+      "url": "https://www.millerwelds.com/en-us/equipment?CatID=Equipment",
+      "limitation": "Доступность отдельных интерактивных элементов не подтверждена"
+    },
+    {
+      "name": "Hypertherm",
+      "class": "Производитель",
+      "sampled_sections": "Воздушно-плазменная резка",
+      "observed_pattern": "Разделение Recommended / Severance / Pierce + скорость реза",
+      "adaptation": "Три различных поля реза и материал",
+      "url": "https://www.hypertherm.com/resources/resources-by-product/?ProductCode=POWERMAX45+SYNC",
+      "limitation": "Первичный источник конкретной модели"
+    },
+    {
+      "name": "ABICOR BINZEL",
+      "class": "Производитель",
+      "sampled_sections": "MIG/MAG горелки",
+      "observed_pattern": "Ток и ПН зависят от CO₂/смеси; серии расходников",
+      "adaptation": "Совместимость не по одному слову EURO",
+      "url": "https://www.binzel-abicor.com/DE/eng/products/manual/migmag-torches/welding-torch-mb-grip/",
+      "limitation": "Первичный источник горелок"
+    },
+    {
+      "name": "GCE",
+      "class": "Производитель",
+      "sampled_sections": "Газовые редукторы",
+      "observed_pattern": "Газ, расход, давление, резьбы, подогреватель",
+      "adaptation": "Сертифицированное газовое назначение как обязательный фильтр",
+      "url": "https://www.gcegroup.com/en/products/basecontrol-flow",
+      "limitation": "Первичный источник конкретной серии"
+    },
+    {
+      "name": "3M Speedglas",
+      "class": "Производитель",
+      "sampled_sections": "Маски АСФ",
+      "observed_pattern": "Отдельно optical class, light/dark DIN, время при температуре, сенсоры",
+      "adaptation": "Полная карточка фильтра плюс параметры совместимых защитных стёкол",
+      "url": "https://multimedia.3m.com/mws/media/1798406O/pdf-3m-speedglas-welding-filter-series-g5-01-technical-datasheet.pdf",
+      "limitation": "Технический документ 3M, Rev 2022-06-22"
+    }
+  ],
+  "verified_examples": [
+    {
+      "model": "Сварог REAL SMART MIG 200 N2A5",
+      "documented_characteristics": "MIG 30–200A; MMA 20–160A; TIG DC 20–180A; 220V; рабочий диапазон 120–270V; ПН 60% при 40°C; ток ПН100% MIG 155A, MMA 140A, TIG 150A; проволока 0,6/0,8/1,0мм; катушка до 5кг",
+      "takeaway": "Вывод: нельзя хранить одно общее max_current для всех процессов; 100% ток не равен максимальному",
+      "url": "https://svarog-rf.ru/products/real-smart-mig-200/specs",
+      "source_quality": "Производитель / подтверждено опубликованной спецификацией"
+    },
+    {
+      "model": "Сварог REAL TIG 200 P AC/DC E20101",
+      "documented_characteristics": "TIG 5–200A; MMA 10–160A; AC/DC; высокочастотный поджиг; ПН 60% при 40°C",
+      "takeaway": "Показать TIG AC/DC как отдельную характеристику, а не вывод из слова TIG",
+      "url": "https://svarog-rf.ru/products/real-tig-200-p-acdc/specs",
+      "source_quality": "Производитель / предварительно подтверждено спецификацией"
+    },
+    {
+      "model": "Сварог REAL ARC 200 Z2K6",
+      "documented_characteristics": "MMA 20–200A; ПН 60% при 40°C; непрерывный ток 160A; электроды 1,6–4мм",
+      "takeaway": "Для токового фильтра отличать максимальный и непрерывный ток",
+      "url": "https://svarog-rf.ru/products/real-arc-200-z2k6/specs",
+      "source_quality": "Производитель / предварительно подтверждено спецификацией"
+    },
+    {
+      "model": "Сварог REAL CUT 45 L2A1",
+      "documented_characteristics": "Ток CUT 20–45A; воздух 100 л/мин при 0,4МПа; заявлена макс. толщина 12мм",
+      "takeaway": "Не подменять рекомендованную толщину максимальной и наоборот",
+      "url": "https://svarog-rf.ru/products/real-cut-45-l2a1/specs",
+      "source_quality": "Производитель / предварительно подтверждено спецификацией"
+    },
+    {
+      "model": "Hypertherm Powermax45 SYNC",
+      "documented_characteristics": "Рекомендованный рез 16мм при 500 мм/мин; предельный разделительный 29мм при 125 мм/мин; прожиг 12мм",
+      "takeaway": "Три несводимые характеристики: recommended, severance, pierce; плюс скорость",
+      "url": "https://www.hypertherm.com/resources/resources-by-product/?ProductCode=POWERMAX45+SYNC",
+      "source_quality": "Производитель / подтверждено опубликованной спецификацией"
+    },
+    {
+      "model": "BINZEL MB GRIP 15 AK",
+      "documented_characteristics": "Ток горелки CO₂ 180A и смесь M21 150A при ПН60%; проволока 0,6–1,0мм",
+      "takeaway": "Ток горелки зависит от защитного газа и ПН; отдельно от тока источника",
+      "url": "https://www.binzel-abicor.com/DE/eng/products/manual/migmag-torches/welding-torch-mb-grip/",
+      "source_quality": "Производитель / опубликованная спецификация"
+    },
+    {
+      "model": "ESAB OK 46.00 E6013",
+      "documented_characteristics": "Рутилово-целлюлозное покрытие; рекомендуемые токи зависят от диаметра: для 2,5мм 60–100A, 3,2мм 80–150A",
+      "takeaway": "Электрод — не сварочный источник; токовые диапазоны привязаны к конкретному диаметру",
+      "url": "https://esab.com/ie/eur_en/products-solutions/product/filler-metals/mild-steel/stick-electrodes-smaw/ok-46-00/",
+      "source_quality": "Производитель / опубликованная продуктовая спецификация"
+    },
+    {
+      "model": "3M Speedglas G5-01TW 61 00 20",
+      "documented_characteristics": "Светлое состояние DIN3; затемнение DIN8–13; оптический класс 1/1/1/1; 4 сенсора; время 0,1мс при +23°C",
+      "takeaway": "Оптический класс — 4 позиции; время реакции требует температуры измерения",
+      "url": "https://multimedia.3m.com/mws/media/1798406O/pdf-3m-speedglas-welding-filter-series-g5-01-technical-datasheet.pdf",
+      "source_quality": "Производитель / технический документ Rev 2022-06-22"
+    }
+  ],
+  "qa_checks": [
+    {
+      "id": "R01",
+      "rule": "Разные процессы не объединять",
+      "check": "Нет общего «максимального тока» для MMA/MIG/TIG/CUT: отдельные значения, диапазоны, ПН, режимы."
+    },
+    {
+      "id": "R02",
+      "rule": "ПН с условиями",
+      "check": "ПН в % без номинального тока и температуры не является сопоставимой характеристикой. Не выводить 100% ток расчётом."
+    },
+    {
+      "id": "R03",
+      "rule": "Токи и входная сеть",
+      "check": "Номинальные 220/230/380/400 В, фазность, рабочие границы, требуемый сетевой ток и автомат — разные параметры."
+    },
+    {
+      "id": "R04",
+      "rule": "Мощность",
+      "check": "кВт (активная) и кВА (полная) — разные размерности; не переименовывать одну в другую."
+    },
+    {
+      "id": "R05",
+      "rule": "TIG и алюминий",
+      "check": "TIG DC и TIG AC/DC не равнозначны для обычной сварки алюминия; не выводить AC только из названия TIG."
+    },
+    {
+      "id": "R06",
+      "rule": "MIG алюминий",
+      "check": "Возможность MIG сварки Al зависит от аппарата, проволоки, подающей системы/канала, горелки, газа и настроек."
+    },
+    {
+      "id": "R07",
+      "rule": "FCAW газ",
+      "check": "Порошковая самозащитная и газозащитная проволока — разные классы; «без газа» нельзя присваивать всей FCAW."
+    },
+    {
+      "id": "R08",
+      "rule": "Плазморез",
+      "check": "Рекомендуемый/качественный, предельный, прожиг и скорость реза — разные параметры; сохранять материал/условия."
+    },
+    {
+      "id": "R09",
+      "rule": "Воздух CUT",
+      "check": "Воздушный расход и давление совместно; компрессор выбирать по фактической отдаче при давлении, не по объёму ресивера."
+    },
+    {
+      "id": "R10",
+      "rule": "Горелка MIG",
+      "check": "Номинальный ток горелки указывать с газом (CO₂/смесь), охлаждением и ПН; соединение EURO не обеспечивает универсальность расходников."
+    },
+    {
+      "id": "R11",
+      "rule": "Расходники",
+      "check": "Наконечник М6/М8, диаметр отверстия, длина, серия горелки и держатель имеют разные значения; не угадывать совместимость."
+    },
+    {
+      "id": "R12",
+      "rule": "Электроды",
+      "check": "Классификация, тип покрытия, диаметр, полярность и токовый диапазон конкретного диаметра — отдельные поля."
+    },
+    {
+      "id": "R13",
+      "rule": "Проволока",
+      "check": "Марка, диаметр, формат катушки и масса являются вариантными SKU; «максимальный сварочный ток» на маркетплейсе не обязательное свойство проволоки."
+    },
+    {
+      "id": "R14",
+      "rule": "Маски",
+      "check": "Светлый DIN, тёмный диапазон, оптический класс, зона обзора и сенсоры — различные свойства; время срабатывания с температурой."
+    },
+    {
+      "id": "R15",
+      "rule": "Газ",
+      "check": "Кислородные, аргоновые, CO₂ и горючие редукторы/разъёмы не считать взаимозаменяемыми без документов."
+    },
+    {
+      "id": "R16",
+      "rule": "Типоразмеры",
+      "check": "Диаметр электрода/проволоки (мм), сечение кабеля (мм²), расход газа (л/мин), сжатый воздух (л/мин, бар) — разные сущности."
+    },
+    {
+      "id": "R17",
+      "rule": "Неизвестно ≠ нет",
+      "check": "Отсутствующее значение параметра = unknown; false только после проверки; запрещать вывод по отсутствию поля."
+    },
+    {
+      "id": "R18",
+      "rule": "Пруф на SKU",
+      "check": "У каждого подтверждённого значения источник URL/PDF, точная ревизия/артикул, дата проверки, статус и (для PDF) страница."
+    },
+    {
+      "id": "R19",
+      "rule": "Список совместимости",
+      "check": "Предлагаемая связка аппарат→горелка→ролик→проволока→наконечник и пр. требует подтверждённой модели/разъёмов."
+    },
+    {
+      "id": "R20",
+      "rule": "Маркетплейс не первоисточник",
+      "check": "Ozon/отзывы полезны для UX и обнаружения полей, но спорные технические сведения сверять с производителем."
+    },
+    {
+      "id": "R21",
+      "rule": "Модификации",
+      "check": "Проверять, меняется ли не только стоимость, но и номер изделия, катушка/диаметр/упаковка/комплектность."
+    },
+    {
+      "id": "R22",
+      "rule": "Не продавать ложную точность",
+      "check": "Не вычислять пригодность материала/толщины без подтверждённой таблицы технологических режимов."
+    },
+    {
+      "id": "R23",
+      "rule": "Безопасность",
+      "check": "В фильтрах СИЗ использовать только документированную маркировку соответствия; избегать обещаний защиты вне условий производителя."
+    },
+    {
+      "id": "R24",
+      "rule": "Нет скрытой автоматической публикации",
+      "check": "Импорт прайсов не должен менять published и решение «продаём/не продаём» без аудируемого подтверждения."
+    },
+    {
+      "id": "R25",
+      "rule": "Данные сторонних сайтов",
+      "check": "Собирать доступные характеристики с учётом законных ограничений, robots/terms; не копировать фотографии/тексты без оценки прав."
+    }
+  ],
+  "sources": [
+    {
+      "id": "S01",
+      "name": "ВсеИнструменты: полуавтоматы",
+      "type": "Ритейлер, фильтры",
+      "url": "https://www.vseinstrumenti.ru/category/svarochnye-poluavtomaty-463/"
+    },
+    {
+      "id": "S02",
+      "name": "ВсеИнструменты: инверторы",
+      "type": "Ритейлер, фильтры",
+      "url": "https://www.vseinstrumenti.ru/category/svarochnye-apparaty-invertory-465/"
+    },
+    {
+      "id": "S03",
+      "name": "ВсеИнструменты: TIG",
+      "type": "Ритейлер, фильтры",
+      "url": "https://www.vseinstrumenti.ru/category/argonovaya-argonnaya-svarka-tig-1294/"
+    },
+    {
+      "id": "S04",
+      "name": "ВсеИнструменты: проволока",
+      "type": "Ритейлер, фильтры",
+      "url": "https://www.vseinstrumenti.ru/category/svarochnaya-provoloka-3855/"
+    },
+    {
+      "id": "S05",
+      "name": "Ozon: сварочное оборудование",
+      "type": "Маркетплейс, категории и варианты",
+      "url": "https://www.ozon.ru/category/svarochnoe-oborudovanie-10046/"
+    },
+    {
+      "id": "S06",
+      "name": "Ozon: DEKA ER70S-6",
+      "type": "Маркетплейс, вариативность диаметра и массы",
+      "url": "https://www.ozon.ru/product/omednennaya-svarochnaya-provoloka-deka-er70s-6-sv-08g2s-o-1-mm-5-kg-dlya-poluavtomatov-pri-rabote-s-335291976/"
+    },
+    {
+      "id": "S07",
+      "name": "АССВАР: горелки и комплектующие",
+      "type": "Ритейлер, дерево",
+      "url": "https://assvar.ru/products/category/1927873"
+    },
+    {
+      "id": "S08",
+      "name": "Сварочник: полуавтоматы",
+      "type": "Ритейлер, навигация",
+      "url": "https://svarochnik.ru/svarochnyj-poluavtomat"
+    },
+    {
+      "id": "S09",
+      "name": "Сварог REAL SMART MIG200",
+      "type": "Производитель, первичная спецификация",
+      "url": "https://svarog-rf.ru/products/real-smart-mig-200/specs"
+    },
+    {
+      "id": "S10",
+      "name": "Сварог REAL TIG200 AC/DC",
+      "type": "Производитель, первичная спецификация",
+      "url": "https://svarog-rf.ru/products/real-tig-200-p-acdc/specs"
+    },
+    {
+      "id": "S11",
+      "name": "Сварог REAL ARC200",
+      "type": "Производитель, первичная спецификация",
+      "url": "https://svarog-rf.ru/products/real-arc-200-z2k6/specs"
+    },
+    {
+      "id": "S12",
+      "name": "Сварог REAL CUT45",
+      "type": "Производитель, первичная спецификация",
+      "url": "https://svarog-rf.ru/products/real-cut-45-l2a1/specs"
+    },
+    {
+      "id": "S13",
+      "name": "Hypertherm Powermax45 SYNC",
+      "type": "Производитель, типы реза и скорости",
+      "url": "https://www.hypertherm.com/resources/resources-by-product/?ProductCode=POWERMAX45+SYNC"
+    },
+    {
+      "id": "S14",
+      "name": "Binzel MB GRIP",
+      "type": "Производитель, MIG горелки",
+      "url": "https://www.binzel-abicor.com/DE/eng/products/manual/migmag-torches/welding-torch-mb-grip/"
+    },
+    {
+      "id": "S15",
+      "name": "Binzel ABITIG GRIP",
+      "type": "Производитель, TIG горелки",
+      "url": "https://www.binzel-abicor.com/DE/eng/products/manual/tig-welding-torches/welding-torch-abitig-grip-9-26/"
+    },
+    {
+      "id": "S16",
+      "name": "GCE BASECONTROL",
+      "type": "Производитель, газовые редукторы",
+      "url": "https://www.gcegroup.com/en/products/basecontrol-flow"
+    },
+    {
+      "id": "S17",
+      "name": "ESAB OK 46.00",
+      "type": "Производитель, электроды и классы",
+      "url": "https://esab.com/ie/eur_en/products-solutions/product/filler-metals/mild-steel/stick-electrodes-smaw/ok-46-00/"
+    },
+    {
+      "id": "S18",
+      "name": "3M Speedglas G5-01",
+      "type": "Производитель, PDF Rev 2022-06-22",
+      "url": "https://multimedia.3m.com/mws/media/1798406O/pdf-3m-speedglas-welding-filter-series-g5-01-technical-datasheet.pdf"
+    },
+    {
+      "id": "S19",
+      "name": "Miller: equipment",
+      "type": "Производитель, выбор по материалу",
+      "url": "https://www.millerwelds.com/en-us/equipment?CatID=Equipment"
+    },
+    {
+      "id": "S20",
+      "name": "IEC 60974-1:2021",
+      "type": "Международный стандарт на источники",
+      "url": "https://webstore.iec.ch/en/publication/64782"
+    },
+    {
+      "id": "S21",
+      "name": "ISO 14175:2008",
+      "type": "Стандарт классификации защитных газов",
+      "url": "https://www.iso.org/standard/39569.html"
+    },
+    {
+      "id": "S22",
+      "name": "ISO 2560:2020",
+      "type": "Стандарт на электроды для сварки",
+      "url": "https://www.iso.org/standard/79320.html"
+    }
+  ]
+}

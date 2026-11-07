@@ -131,7 +131,7 @@ describe("callback редактора: лимит 64 байта", () => {
       editStatusCallback(UUID_A),
       statusChoiceCallback(UUID_A, "published"),
       setChoiceCallback("description", UUID_A),
-      categoryChoiceCallback(39),
+      categoryChoiceCallback(39, "10000000-0000-4000-8000-000000000001"),
       rollbackCallback(UUID_A),
     ];
     for (const cb of cbs) expect(callbackBytes(cb)).toBeLessThanOrEqual(64);
@@ -240,14 +240,11 @@ describe("диалог нового черновика", () => {
       expect(text).toContain("/cancel");
     }
   });
-  it("предпросмотр: только черновик, slug и предупреждение о source_url", () => {
-    const text = draftPreviewText(
-      { title: "Новая горелка", sku: "MW-999", price: 14990 },
-      "novaya-gorelka",
-    );
+  it("предпросмотр объясняет черновик и следующий шаг без технических полей", () => {
+    const text = draftPreviewText({ title: "Новая горелка", sku: "MW-999", price: 14990 });
     expect(text).toContain("черновик");
-    expect(text).toContain("novaya-gorelka");
-    expect(text).toContain("source_url");
+    expect(text).not.toMatch(/slug|source_url/);
+    expect(text).toContain("Покупатели его пока не увидят");
     expect(text).toContain("Подтвердите создание");
   });
 });

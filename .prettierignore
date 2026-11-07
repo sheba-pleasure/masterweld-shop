@@ -6,3 +6,6 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+# Supplied research originals: hashes are recorded in the intake report.
+research/welding-catalog-2026-11-06/
+docs/research/2026-11-06-catalog-handoff.txt

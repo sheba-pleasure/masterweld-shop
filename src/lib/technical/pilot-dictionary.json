@@ -1,0 +1,1241 @@
+{
+  "version": 1,
+  "scope": "P0 pilot definitions; no actual SKU facts or automatic family assignment",
+  "units": [
+    {
+      "code": "none",
+      "label": "—",
+      "dimension": "dimensionless"
+    },
+    {
+      "code": "a",
+      "label": "А",
+      "dimension": "current"
+    },
+    {
+      "code": "pct",
+      "label": "%",
+      "dimension": "ratio"
+    },
+    {
+      "code": "mm",
+      "label": "мм",
+      "dimension": "length"
+    },
+    {
+      "code": "v",
+      "label": "В",
+      "dimension": "voltage"
+    },
+    {
+      "code": "l_min",
+      "label": "л/мин",
+      "dimension": "volume_flow"
+    },
+    {
+      "code": "kg",
+      "label": "кг",
+      "dimension": "mass"
+    },
+    {
+      "code": "din",
+      "label": "DIN",
+      "dimension": "shade"
+    },
+    {
+      "code": "ms",
+      "label": "мс",
+      "dimension": "time"
+    },
+    {
+      "code": "c",
+      "label": "°C",
+      "dimension": "temperature"
+    },
+    {
+      "code": "bar",
+      "label": "бар",
+      "dimension": "pressure"
+    },
+    {
+      "code": "kw",
+      "label": "кВт",
+      "dimension": "active_power"
+    },
+    {
+      "code": "kva",
+      "label": "кВА",
+      "dimension": "apparent_power"
+    },
+    {
+      "code": "count",
+      "label": "шт",
+      "dimension": "count"
+    }
+  ],
+  "families": [
+    {
+      "code": "power_mma",
+      "label": "Сварочные инверторы MMA"
+    },
+    {
+      "code": "power_mig",
+      "label": "Полуавтоматы MIG/MAG и FCAW"
+    },
+    {
+      "code": "power_tig_dc",
+      "label": "Аргонодуговые аппараты TIG DC"
+    },
+    {
+      "code": "power_tig_acdc",
+      "label": "Аргонодуговые аппараты TIG AC/DC"
+    },
+    {
+      "code": "power_multiprocess",
+      "label": "Многопроцессные аппараты MMA/MIG/TIG"
+    },
+    {
+      "code": "power_cut",
+      "label": "Аппараты воздушно-плазменной резки CUT"
+    },
+    {
+      "code": "power_saw",
+      "label": "Источники сварки под флюсом SAW"
+    },
+    {
+      "code": "power_spot",
+      "label": "Контактная точечная и шовная сварка"
+    },
+    {
+      "code": "power_stud",
+      "label": "Аппараты приварки шпилек"
+    },
+    {
+      "code": "power_laser",
+      "label": "Лазерная ручная сварка"
+    },
+    {
+      "code": "pipe_socket",
+      "label": "Паяльники для раструбной сварки пластиковых труб"
+    },
+    {
+      "code": "pipe_electrofusion",
+      "label": "Аппараты электромуфтовой сварки"
+    },
+    {
+      "code": "weld_generator",
+      "label": "Сварочные электрогенераторы"
+    },
+    {
+      "code": "consumable_mma_electrodes",
+      "label": "Покрытые электроды MMA"
+    },
+    {
+      "code": "consumable_mig_wire_solid",
+      "label": "Сплошная проволока MIG/MAG"
+    },
+    {
+      "code": "consumable_flux_wire",
+      "label": "Порошковая сварочная проволока FCAW"
+    },
+    {
+      "code": "consumable_tig_rod",
+      "label": "Присадочные прутки TIG"
+    },
+    {
+      "code": "consumable_saw_wire",
+      "label": "Проволока SAW"
+    },
+    {
+      "code": "consumable_saw_flux",
+      "label": "Флюс для сварки SAW"
+    },
+    {
+      "code": "consumable_tungsten",
+      "label": "Вольфрамовые неплавящиеся электроды TIG"
+    },
+    {
+      "code": "mig_torch",
+      "label": "Сварочные горелки MIG/MAG"
+    },
+    {
+      "code": "tig_torch",
+      "label": "Сварочные горелки TIG"
+    },
+    {
+      "code": "cut_torch",
+      "label": "Плазмотроны CUT"
+    },
+    {
+      "code": "mig_contact_tip",
+      "label": "Контактные наконечники MIG/MAG"
+    },
+    {
+      "code": "mig_gas_nozzle",
+      "label": "Газовые сопла MIG/MAG"
+    },
+    {
+      "code": "mig_liner",
+      "label": "Каналы/направляющие проволоки MIG"
+    },
+    {
+      "code": "feed_rollers",
+      "label": "Ролики подачи сварочной проволоки"
+    },
+    {
+      "code": "tig_kit_parts",
+      "label": "Цанги, линзы, керамические сопла TIG"
+    },
+    {
+      "code": "cut_parts",
+      "label": "Сопла, электроды, защитные колпачки CUT"
+    },
+    {
+      "code": "mma_holder",
+      "label": "Электрододержатели MMA"
+    },
+    {
+      "code": "ground_clamp",
+      "label": "Зажимы массы сварочные"
+    },
+    {
+      "code": "welding_cable",
+      "label": "Сварочные кабели и соединения"
+    },
+    {
+      "code": "mask_adf",
+      "label": "Маски сварщика с автозатемнением"
+    },
+    {
+      "code": "mask_passive",
+      "label": "Маски и щитки с постоянным фильтром"
+    },
+    {
+      "code": "welding_gloves",
+      "label": "Краги и перчатки сварщика"
+    },
+    {
+      "code": "workwear",
+      "label": "Костюмы, куртки, нарукавники сварщика"
+    },
+    {
+      "code": "fume_extraction",
+      "label": "Вытяжки сварочных аэрозолей"
+    },
+    {
+      "code": "wire_feeder",
+      "label": "Выносные подающие механизмы"
+    },
+    {
+      "code": "water_cooler",
+      "label": "Блоки водяного охлаждения горелок"
+    },
+    {
+      "code": "welding_magnets",
+      "label": "Магнитные угольники, держатели"
+    },
+    {
+      "code": "welding_table",
+      "label": "Сварочные столы и оснастка"
+    },
+    {
+      "code": "oxy_torch",
+      "label": "Газовые сварочные горелки и резаки"
+    },
+    {
+      "code": "oxy_cut_nozzle",
+      "label": "Газовые мундштуки и сопла резаков"
+    },
+    {
+      "code": "gas_regulator",
+      "label": "Редукторы/расходомеры/подогреватели газа"
+    },
+    {
+      "code": "gas_hose",
+      "label": "Газовые рукава и соединители"
+    },
+    {
+      "code": "air_compressor",
+      "label": "Воздушные компрессоры для плазморезов"
+    },
+    {
+      "code": "gas_cylinder",
+      "label": "Газовые баллоны, переходники, тележки"
+    },
+    {
+      "code": "brazing_solder",
+      "label": "Припои и флюсы для пайки"
+    }
+  ],
+  "attributes": [
+    {
+      "code": "mains_nominal_v",
+      "label": "Номинальное напряжение сети",
+      "kind": "number",
+      "unit_code": "v",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mma_current_min_a",
+      "label": "Минимальный ток MMA",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mma_current_max_a",
+      "label": "Максимальный ток MMA",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mma_duty_cycle_pct",
+      "label": "ПН MMA (при указанном токе)",
+      "kind": "number",
+      "unit_code": "pct",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": ["current_a", "temperature_c"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "code": "hot_start",
+      "label": "Hot Start",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "mig_current_min_a",
+      "label": "Ток MIG/MAG минимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_current_max_a",
+      "label": "Ток MIG/MAG максимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_duty_cycle_pct",
+      "label": "ПН MIG (условия указаны отдельно)",
+      "kind": "number",
+      "unit_code": "pct",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": ["current_a", "temperature_c"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "code": "mig_wire_diameters_mm",
+      "label": "Поддерживаемые диаметры проволоки MIG",
+      "kind": "number_list",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_polarity_modes",
+      "label": "Род тока TIG",
+      "kind": "enum_list",
+      "unit_code": "none",
+      "options": ["dc", "ac"],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_current_min_a",
+      "label": "Ток TIG минимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_current_max_a",
+      "label": "Ток TIG максимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_start_modes",
+      "label": "Поджиг дуги HF/Lift/касанием",
+      "kind": "enum_list",
+      "unit_code": "none",
+      "options": ["hf", "lift", "contact"],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_pulse",
+      "label": "Импульсный режим TIG",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_duty_cycle_pct",
+      "label": "ПН TIG",
+      "kind": "number",
+      "unit_code": "pct",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": ["current_a", "temperature_c"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "code": "cut_current_min_a",
+      "label": "Ток CUT минимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_current_max_a",
+      "label": "Ток CUT максимум",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_recommended_thickness_mm",
+      "label": "Рекомендуемая толщина реза",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["material"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_severance_thickness_mm",
+      "label": "Предельный разделительный рез",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["material"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_piercing_thickness_mm",
+      "label": "Толщина прожига",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["material"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "compressed_air_flow_l_min",
+      "label": "Требуемый расход воздуха",
+      "kind": "number",
+      "unit_code": "l_min",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["pressure_bar"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "integrated_compressor",
+      "label": "Встроенный компрессор",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "pilot_arc",
+      "label": "Пилотная дуга",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_duty_cycle_pct",
+      "label": "ПН CUT",
+      "kind": "number",
+      "unit_code": "pct",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["current_a", "temperature_c"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "code": "electrode_diameter_mm",
+      "label": "Диаметр электрода",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "electrode_current_min_a",
+      "label": "Ток, нижняя граница для этого диаметра",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": ["diameter_mm"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "electrode_current_max_a",
+      "label": "Ток, верхняя граница для этого диаметра",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": ["diameter_mm"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "wire_spool_net_mass_kg",
+      "label": "Масса проволоки на катушке",
+      "kind": "number",
+      "unit_code": "kg",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "flux_wire_gas_mode",
+      "label": "Самозащитная или под газом",
+      "kind": "enum",
+      "unit_code": "none",
+      "options": ["self_shielded", "gas_shielded"],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "mig_torch_amp_co2_a",
+      "label": "Номинальный ток в CO₂",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": ["gas", "cooling", "duty_pct", "temperature_c"],
+      "fixed_context": {
+        "gas": "CO2"
+      },
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_torch_amp_m21_a",
+      "label": "Номинальный ток в смеси M21",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": ["gas", "cooling", "duty_pct", "temperature_c"],
+      "fixed_context": {
+        "gas": "M21"
+      },
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_torch_wire_diameters_mm",
+      "label": "Поддерживаемые диаметры проволоки",
+      "kind": "number_list",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["mig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mask_optical_class",
+      "label": "Оптический класс (четыре цифры)",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "mask_dark_shade_min_din",
+      "label": "Нижний предел затемнения DIN",
+      "kind": "number",
+      "unit_code": "din",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mask_dark_shade_max_din",
+      "label": "Верхний предел затемнения DIN",
+      "kind": "number",
+      "unit_code": "din",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mask_sensors",
+      "label": "Количество датчиков",
+      "kind": "integer",
+      "unit_code": "count",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mask_switching_time_ms",
+      "label": "Время затемнения при заданной t",
+      "kind": "number",
+      "unit_code": "ms",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["temperature_c"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mask_grinding_mode",
+      "label": "Режим шлифовки",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "power_consumption_kva",
+      "label": "Полная мощность в указанном режиме",
+      "kind": "number",
+      "unit_code": "kva",
+      "options": [],
+      "processes": ["mma", "mig", "tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    }
+  ],
+  "bindings": [
+    {
+      "family_code": "power_mma",
+      "attribute_code": "mains_nominal_v",
+      "label": "Номинальное напряжение сети",
+      "sort_order": 0,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mma",
+      "attribute_code": "mma_current_min_a",
+      "label": "Минимальный ток MMA",
+      "sort_order": 1,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mma",
+      "attribute_code": "mma_current_max_a",
+      "label": "Максимальный ток MMA",
+      "sort_order": 2,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mma",
+      "attribute_code": "mma_duty_cycle_pct",
+      "label": "ПН MMA (при указанном токе)",
+      "sort_order": 3,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mma",
+      "attribute_code": "hot_start",
+      "label": "Hot Start",
+      "sort_order": 4,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mig",
+      "attribute_code": "mains_nominal_v",
+      "label": "Номинальная сеть",
+      "sort_order": 5,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mig",
+      "attribute_code": "mig_current_min_a",
+      "label": "Ток MIG/MAG минимум",
+      "sort_order": 6,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mig",
+      "attribute_code": "mig_current_max_a",
+      "label": "Ток MIG/MAG максимум",
+      "sort_order": 7,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mig",
+      "attribute_code": "mig_duty_cycle_pct",
+      "label": "ПН MIG (условия указаны отдельно)",
+      "sort_order": 8,
+      "options_override": null
+    },
+    {
+      "family_code": "power_mig",
+      "attribute_code": "mig_wire_diameters_mm",
+      "label": "Поддерживаемые диаметры проволоки MIG",
+      "sort_order": 9,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_polarity_modes",
+      "label": "Род тока TIG",
+      "sort_order": 10,
+      "options_override": ["dc"]
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_current_min_a",
+      "label": "Ток TIG минимум",
+      "sort_order": 11,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_current_max_a",
+      "label": "Ток TIG максимум",
+      "sort_order": 12,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_start_modes",
+      "label": "Поджиг дуги HF/Lift/касанием",
+      "sort_order": 13,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_pulse",
+      "label": "Импульсный режим TIG",
+      "sort_order": 14,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "tig_duty_cycle_pct",
+      "label": "ПН TIG",
+      "sort_order": 15,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_dc",
+      "attribute_code": "mains_nominal_v",
+      "label": "Номинальная сеть",
+      "sort_order": 16,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_polarity_modes",
+      "label": "Род тока TIG (AC/DC)",
+      "sort_order": 17,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_current_min_a",
+      "label": "Ток TIG минимум",
+      "sort_order": 18,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_current_max_a",
+      "label": "Ток TIG максимум",
+      "sort_order": 19,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_start_modes",
+      "label": "Поджиг HF/Lift",
+      "sort_order": 20,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_pulse",
+      "label": "Импульсный TIG",
+      "sort_order": 21,
+      "options_override": null
+    },
+    {
+      "family_code": "power_tig_acdc",
+      "attribute_code": "tig_duty_cycle_pct",
+      "label": "ПН TIG",
+      "sort_order": 22,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mma_current_min_a",
+      "label": "Ток MMA минимум",
+      "sort_order": 23,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mma_current_max_a",
+      "label": "Ток MMA максимум",
+      "sort_order": 24,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mig_current_min_a",
+      "label": "Ток MIG минимум",
+      "sort_order": 25,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mig_current_max_a",
+      "label": "Ток MIG максимум",
+      "sort_order": 26,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "tig_current_min_a",
+      "label": "Ток TIG минимум",
+      "sort_order": 27,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "tig_current_max_a",
+      "label": "Ток TIG максимум",
+      "sort_order": 28,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "tig_polarity_modes",
+      "label": "Род тока TIG",
+      "sort_order": 29,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "tig_start_modes",
+      "label": "Поджиг TIG",
+      "sort_order": 30,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mig_wire_diameters_mm",
+      "label": "Диаметры MIG-проволоки",
+      "sort_order": 31,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mig_duty_cycle_pct",
+      "label": "ПН MIG",
+      "sort_order": 32,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mma_duty_cycle_pct",
+      "label": "ПН MMA",
+      "sort_order": 33,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "tig_duty_cycle_pct",
+      "label": "ПН TIG",
+      "sort_order": 34,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "mains_nominal_v",
+      "label": "Напряжение сети",
+      "sort_order": 35,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "mains_nominal_v",
+      "label": "Номинальная сеть",
+      "sort_order": 36,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_current_min_a",
+      "label": "Ток CUT минимум",
+      "sort_order": 37,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_current_max_a",
+      "label": "Ток CUT максимум",
+      "sort_order": 38,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_recommended_thickness_mm",
+      "label": "Рекомендуемая толщина реза",
+      "sort_order": 39,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_severance_thickness_mm",
+      "label": "Предельный разделительный рез",
+      "sort_order": 40,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_piercing_thickness_mm",
+      "label": "Толщина прожига",
+      "sort_order": 41,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "compressed_air_flow_l_min",
+      "label": "Требуемый расход воздуха",
+      "sort_order": 42,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "integrated_compressor",
+      "label": "Встроенный компрессор",
+      "sort_order": 43,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "pilot_arc",
+      "label": "Пилотная дуга",
+      "sort_order": 44,
+      "options_override": null
+    },
+    {
+      "family_code": "power_cut",
+      "attribute_code": "cut_duty_cycle_pct",
+      "label": "ПН CUT",
+      "sort_order": 45,
+      "options_override": null
+    },
+    {
+      "family_code": "power_saw",
+      "attribute_code": "mains_nominal_v",
+      "label": "Питающая сеть",
+      "sort_order": 46,
+      "options_override": null
+    },
+    {
+      "family_code": "power_stud",
+      "attribute_code": "mains_nominal_v",
+      "label": "Питающая сеть",
+      "sort_order": 47,
+      "options_override": null
+    },
+    {
+      "family_code": "power_laser",
+      "attribute_code": "mains_nominal_v",
+      "label": "Питающая сеть",
+      "sort_order": 48,
+      "options_override": null
+    },
+    {
+      "family_code": "pipe_electrofusion",
+      "attribute_code": "mains_nominal_v",
+      "label": "Питающая сеть",
+      "sort_order": 49,
+      "options_override": null
+    },
+    {
+      "family_code": "weld_generator",
+      "attribute_code": "mma_current_max_a",
+      "label": "Ток MMA встроенного поста (если есть)",
+      "sort_order": 50,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_diameter_mm",
+      "label": "Диаметр электрода",
+      "sort_order": 51,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_current_min_a",
+      "label": "Ток, нижняя граница для этого диаметра",
+      "sort_order": 52,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_current_max_a",
+      "label": "Ток, верхняя граница для этого диаметра",
+      "sort_order": 53,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mig_wire_solid",
+      "attribute_code": "wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "sort_order": 54,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mig_wire_solid",
+      "attribute_code": "wire_spool_net_mass_kg",
+      "label": "Масса проволоки на катушке",
+      "sort_order": 55,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_flux_wire",
+      "attribute_code": "wire_diameter_mm",
+      "label": "Диаметр",
+      "sort_order": 56,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_flux_wire",
+      "attribute_code": "flux_wire_gas_mode",
+      "label": "Самозащитная или под газом",
+      "sort_order": 57,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_flux_wire",
+      "attribute_code": "wire_spool_net_mass_kg",
+      "label": "Масса проволоки",
+      "sort_order": 58,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_torch",
+      "attribute_code": "mig_torch_amp_co2_a",
+      "label": "Номинальный ток в CO₂",
+      "sort_order": 59,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_torch",
+      "attribute_code": "mig_torch_amp_m21_a",
+      "label": "Номинальный ток в смеси M21",
+      "sort_order": 60,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_torch",
+      "attribute_code": "mig_torch_wire_diameters_mm",
+      "label": "Поддерживаемые диаметры проволоки",
+      "sort_order": 61,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_optical_class",
+      "label": "Оптический класс (четыре цифры)",
+      "sort_order": 62,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_dark_shade_min_din",
+      "label": "Нижний предел затемнения DIN",
+      "sort_order": 63,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_dark_shade_max_din",
+      "label": "Верхний предел затемнения DIN",
+      "sort_order": 64,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_sensors",
+      "label": "Количество датчиков",
+      "sort_order": 65,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_switching_time_ms",
+      "label": "Время затемнения при заданной t",
+      "sort_order": 66,
+      "options_override": null
+    },
+    {
+      "family_code": "mask_adf",
+      "attribute_code": "mask_grinding_mode",
+      "label": "Режим шлифовки",
+      "sort_order": 67,
+      "options_override": null
+    },
+    {
+      "family_code": "power_multiprocess",
+      "attribute_code": "power_consumption_kva",
+      "label": "Полная мощность по режиму",
+      "sort_order": 100,
+      "options_override": null
+    }
+  ]
+}

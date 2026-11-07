@@ -1,0 +1,147 @@
+name: verify
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Media backup decoder (pinned wheel hashes)
+        run: |
+          python3 -m pip install --require-hashes --only-binary=:all: -r ops/standalone/requirements-media.txt
+      - name: Install (lockfile)
+        run: bun install --frozen-lockfile
+      - name: TypeScript strict check (обязательно)
+        run: npm run typecheck
+      - name: Environment and release gates
+        run: |
+          node --test ops/runtime/environment.test.mjs
+          python3 -m unittest discover -s ops/production -p 'test_*.py'
+          python3 -m unittest discover -s ops/standalone -p 'test_*.py'
+      - name: Independent source and dependency graph
+        run: node ops/check-independence.mjs
+      - name: Research dictionary coverage stays current
+        run: python3 ops/catalog-research-coverage.py --summary --check docs/research/catalog-coverage-20261107.json
+      - name: Assortment transactions (isolated PostgreSQL)
+        run: python3 ops/tests/assortment.py
+      - name: Catalog import transactions (isolated PostgreSQL)
+        run: python3 ops/tests/catalog-import.py
+      - name: Direct preview request recovery (isolated PostgreSQL)
+        run: python3 ops/tests/preview-requests.py
+      - name: Pending result recovery (isolated PostgreSQL)
+        run: python3 ops/tests/pending-recovery.py
+      - name: Catalog preview recovery (isolated PostgreSQL)
+        run: python3 ops/tests/catalog-previews.py
+      - name: Catalog draft recovery (isolated PostgreSQL)
+        run: python3 ops/tests/catalog-drafts.py
+      - name: Document intake and seller enrollment (isolated PostgreSQL)
+        run: python3 ops/tests/document-intake.py
+      - name: Human table structure correction (isolated PostgreSQL)
+        run: python3 ops/tests/document-structure.py
+      - name: Human document model confirmation (isolated PostgreSQL)
+        run: python3 ops/tests/document-model.py
+      - name: Document model import provenance (isolated PostgreSQL)
+        run: python3 ops/tests/document-model-import.py
+      - name: Model conflicts require an explicit human decision
+        run: python3 ops/tests/document-model-conflicts.py
+      - name: Document import return
+        run: python3 ops/tests/document-import-return.py
+      - name: Explicit product model choice
+        run: python3 ops/tests/product-model-choice.py
+      - name: Document upgrade and restore probe (isolated PostgreSQL)
+        run: python3 ops/tests/document-upgrade.py
+      - name: Production-shaped schema upgrade without live snapshots
+        run: python3 ops/tests/production-schema.py
+      - name: Production migration plan and uncertain commit recovery
+        run: python3 ops/tests/production-migration-plan.py
+      - name: Offline document extraction and real OCR
+        run: |
+          docker build --target qa --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --memory 1g --cpus 1 -v "$PWD/ops/intake:/tests:ro" mw-document-qa /usr/bin/python3 /tests/test_extract.py
+      - name: DEV application compatibility and rollback guards
+        run: |
+          python3 -m unittest discover -s ops/dev -p test_app_restart.py
+          python3 ops/tests/dev-app-restart.py
+      - name: DEV parser replacement and rollback guards
+        run: python3 -m unittest discover -s ops/dev -p test_document_parser_update.py
+      - name: Database backup snapshot and restore (isolated PostgreSQL)
+        run: python3 ops/tests/database-backup.py
+      - name: Technical catalog transactions (isolated PostgreSQL)
+        run: python3 ops/tests/technical-catalog.py
+      - name: Consumable dictionary and reviewed values (isolated PostgreSQL)
+        run: python3 ops/tests/consumable-characteristics.py
+      - name: Technical facts require recheck after product identity changes
+        run: python3 ops/tests/technical-identity-review.py
+      - name: Technical facts bound to the reviewed model
+        run: python3 ops/tests/technical-model-binding.py
+      - name: Human document-to-model confirmation
+        run: python3 ops/tests/primary-source-review.py
+      - name: Distinct technical measurement conditions
+        run: python3 ops/tests/technical-measurement-conditions.py
+      - name: Atomic source fact installation guards
+        run: python3 ops/tests/source-facts-installation.py
+      - name: Source fact review transactions
+        run: python3 ops/tests/source-fact-review.py --accessory-characteristics
+      - name: Combined accessory installation
+        run: python3 ops/tests/accessory-installation.py
+      - name: Documentary conditions transition
+        run: |
+          python3 -m unittest discover -s ops/dev -p test_documentary_transition.py
+          python3 ops/tests/documentary-transition.py
+      - name: Telegram bot receipts (isolated PostgreSQL)
+        run: python3 ops/tests/telegram-bots.py
+      - name: Order notification claims and restart (isolated PostgreSQL)
+        run: python3 ops/tests/order-notifications.py
+      - name: Shared checkout attempts and explicit repeat (isolated PostgreSQL)
+        run: python3 ops/tests/checkout-submissions.py
+      - name: Tests (обязательно)
+        run: npm test
+      - name: Build default preset (обязательно)
+        run: npm run build
+      - name: Build node-server + проверка точки входа (обязательно)
+        run: |
+          rm -rf .output
+          NITRO_PRESET=node-server npx vite build
+          test -f .output/server/index.mjs
+          node ops/check-independence.mjs --built
+      - name: Ops shell syntax + synthetic release tests (обязательно)
+        run: |
+          for f in ops/*.sh ops/tests/*.sh; do bash -n "$f"; done
+          bash ops/tests/release-synthetic.sh
+      - name: Real Docker gateway release and rollback (synthetic application)
+        run: |
+          docker pull node:22-bookworm-slim
+          docker pull nginx:1.27-alpine
+          docker pull postgres:17.6-alpine
+          python3 ops/tests/production-compatibility.py
+          python3 ops/tests/release-containers.py
+      - name: ESLint изменённых файлов (advisory)
+        continue-on-error: true
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          FILES=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- '*.ts' '*.tsx' '*.js' 2>/dev/null || true)
+          if [ -z "$FILES" ]; then echo "нет изменённых JS/TS файлов"; exit 0; fi
+          npx eslint $FILES
+      - name: Полный lint (advisory, известный долг ~407 ошибок)
+        continue-on-error: true
+        run: npm run lint

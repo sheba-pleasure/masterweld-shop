@@ -10,7 +10,11 @@ const m = (role: StaffMember["role"], elevated = false): StaffMember => ({
 });
 
 describe("bot permissions", () => {
-  it("seller cannot see costs", () => expect(can(m("seller"), "view_costs")).toBe(false));
+  it("unknown runtime role fails closed", () =>
+    expect(can(m("viewer" as StaffMember["role"]), "manage_orders")).toBe(false));
+  it("seller can read purchase costs", () => expect(can(m("seller"), "view_costs")).toBe(true));
+  it("inactive seller cannot read costs", () =>
+    expect(can({ ...m("seller"), active: false }, "view_costs")).toBe(false));
   it("seller cannot edit sale prices", () => expect(can(m("seller"), "edit_prices")).toBe(false));
   it("seller cannot delete items", () => expect(can(m("seller"), "delete_items")).toBe(false));
   it("seller can edit products", () => expect(can(m("seller"), "edit_products")).toBe(true));

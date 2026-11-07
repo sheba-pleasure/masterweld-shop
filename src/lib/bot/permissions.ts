@@ -16,6 +16,7 @@ export type Permission =
   | "view_costs"
   | "edit_prices"
   | "delete_items"
+  | "manage_assortment"
   | "manage_categories"
   | "publish_products"
   | "import_prices"
@@ -32,6 +33,7 @@ const ADMIN: Permission[] = [
   "view_costs",
   "edit_prices",
   "delete_items",
+  "manage_assortment",
   "manage_categories",
   "publish_products",
   "import_prices",
@@ -46,7 +48,13 @@ const DIRECTOR: Permission[] = [
   "edit_stock",
   "toggle_full_access",
 ];
-const SELLER: Permission[] = ["edit_products", "upload_photos", "edit_stock", "manage_orders"];
+const SELLER: Permission[] = [
+  "edit_products",
+  "upload_photos",
+  "edit_stock",
+  "manage_orders",
+  "view_costs",
+];
 
 /** Типы действий с фото: все требуют upload_photos; права продавца не расширяются. */
 export const PENDING_PERMISSION_PHOTO_KINDS = {
@@ -60,7 +68,7 @@ export function permissionsFor(m: StaffMember | null | undefined): Set<Permissio
   if (m.role === "admin") return new Set(ADMIN);
   if (m.role === "director")
     return new Set(m.elevated ? [...ADMIN, "toggle_full_access"] : DIRECTOR);
-  return new Set(SELLER);
+  return new Set(m.role === "seller" ? SELLER : []);
 }
 
 export function can(m: StaffMember | null | undefined, p: Permission): boolean {

@@ -1,0 +1,3 @@
+# Preserve supplied research originals byte-for-byte, including CRLF.
+/research/welding-catalog-2026-11-06/* -text whitespace=cr-at-eol
+/docs/research/2026-11-06-catalog-handoff.txt -text whitespace=cr-at-eol

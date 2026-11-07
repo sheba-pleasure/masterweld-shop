@@ -1,0 +1,14 @@
+# Internal gateway. Only this gateway joins the Caddy edge network.
+:8080 {
+    header X-Robots-Tag "noindex, nofollow"
+    header Cache-Control "no-store"
+    handle_path /backend/rest/v1/* {
+        reverse_proxy mw-dev-rest:3000
+    }
+    handle_path /rest/v1/* {
+        reverse_proxy mw-dev-rest:3000
+    }
+    handle {
+        reverse_proxy mw-dev-app:3000
+    }
+}

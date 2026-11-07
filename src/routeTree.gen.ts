@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as ApiPublicWebmasterDiagnosticsRouteImport } from './routes/api/public/webmaster-diagnostics'
 import { Route as ApiPublicB2bIngestRouteImport } from './routes/api/public/b2b/ingest'
+import { Route as ApiPublicTelegramCustomerRouteImport } from './routes/api/public/telegram/customer'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -36,6 +37,12 @@ const ApiPublicB2bIngestRoute = ApiPublicB2bIngestRouteImport.update({
   path: '/api/public/b2b/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTelegramCustomerRoute =
+  ApiPublicTelegramCustomerRouteImport.update({
+    id: '/api/public/telegram/customer',
+    path: '/api/public/telegram/customer',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTelegramWebhookRoute =
   ApiPublicTelegramWebhookRouteImport.update({
     id: '/api/public/telegram/webhook',
@@ -48,6 +55,7 @@ export interface FileRoutesByFullPath {
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
+  '/api/public/telegram/customer': typeof ApiPublicTelegramCustomerRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -55,6 +63,7 @@ export interface FileRoutesByTo {
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
+  '/api/public/telegram/customer': typeof ApiPublicTelegramCustomerRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
@@ -63,6 +72,7 @@ export interface FileRoutesById {
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
+  '/api/public/telegram/customer': typeof ApiPublicTelegramCustomerRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
@@ -72,6 +82,7 @@ export interface FileRouteTypes {
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
+    | '/api/public/telegram/customer'
     | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -79,6 +90,7 @@ export interface FileRouteTypes {
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
+    | '/api/public/telegram/customer'
     | '/api/public/telegram/webhook'
   id:
     | '__root__'
@@ -86,6 +98,7 @@ export interface FileRouteTypes {
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
+    | '/api/public/telegram/customer'
     | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -94,6 +107,7 @@ export interface RootRouteChildren {
   ProductSlugRoute: typeof ProductSlugRoute
   ApiPublicWebmasterDiagnosticsRoute: typeof ApiPublicWebmasterDiagnosticsRoute
   ApiPublicB2bIngestRoute: typeof ApiPublicB2bIngestRoute
+  ApiPublicTelegramCustomerRoute: typeof ApiPublicTelegramCustomerRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
 
@@ -127,6 +141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicB2bIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/telegram/customer': {
+      id: '/api/public/telegram/customer'
+      path: '/api/public/telegram/customer'
+      fullPath: '/api/public/telegram/customer'
+      preLoaderRoute: typeof ApiPublicTelegramCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/webhook': {
       id: '/api/public/telegram/webhook'
       path: '/api/public/telegram/webhook'
@@ -142,6 +163,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductSlugRoute: ProductSlugRoute,
   ApiPublicWebmasterDiagnosticsRoute: ApiPublicWebmasterDiagnosticsRoute,
   ApiPublicB2bIngestRoute: ApiPublicB2bIngestRoute,
+  ApiPublicTelegramCustomerRoute: ApiPublicTelegramCustomerRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
 export const routeTree = rootRouteImport

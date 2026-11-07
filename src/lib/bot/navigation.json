@@ -1,0 +1,37 @@
+[
+  {
+    "command": "menu",
+    "description": "Главное меню",
+    "button": "🏠 Меню"
+  },
+  {
+    "command": "orders",
+    "description": "Заказы",
+    "button": "🧾 Заказы"
+  },
+  {
+    "command": "catalog",
+    "description": "Каталог товаров",
+    "button": "🗂 Каталог"
+  },
+  {
+    "command": "help",
+    "description": "Как работать с ботом",
+    "button": "❓ Помощь"
+  },
+  {
+    "command": "input",
+    "description": "Продолжить ввод товара",
+    "button": "✏️ Продолжить ввод"
+  },
+  {
+    "command": "actions",
+    "description": "Мои предпросмотры и результаты",
+    "button": "📝 Мои правки"
+  },
+  {
+    "command": "cancel",
+    "description": "Отменить текущий ввод",
+    "button": "✖️ Отмена ввода"
+  }
+]

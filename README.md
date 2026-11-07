@@ -1,29 +1,30 @@
-# Welcome to your Lovable project
+# Мастер Сварщик
 
-This project was built with [Lovable](https://lovable.dev).
+Независимый интернет-магазин на собственном сервере. Lovable используется только для дизайна.
+Два режима: учебный магазин для изменений и рабочий магазин для покупателей.
 
-## Build with Lovable
+[Что уже отделено от Lovable и что осталось перенести](docs/INDEPENDENT-SHOP.md).
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+- **DEV:** https://masterweld-dev.138-124-106-211.sslip.io
+- **Тестовый Telegram:** [@testmw639bot](https://t.me/testmw639bot) — подключён к отдельной DEV-базе; владелец назначен администратором.
+- **Рабочий магазин:** планируемый shop.masterweld.ru; production этим этапом не выпущен.
+- **Старый сайт:** masterweld.ru — самостоятельный сайт; его данные и маршруты не менялись.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+Все изменения сначала проверяются в DEV. Команда владельца **«обнови main»** запускает проверку готовности. При блокере main не обновляется. После успешной проверки и merge автоматический выпуск допускает только заранее утверждённый точный SHA.
 
-## Development
+| Кому | Что читать |
+|---|---|
+| Владельцу | [Управление и выпуск](docs/OWNER.md), [Что осталось до запуска](docs/LAUNCH-CHECKLIST.md) |
+| Сотруднику | [Работа с магазином](docs/STAFF.md) |
+| Администратору | [Документы → товары](docs/DOCUMENT-PIPELINE.md), [Массовый импорт](docs/CATALOG-IMPORT.md), [Среды и обслуживание](docs/ENVIRONMENTS.md) |
+| Разработчику | [Порядок работы](docs/WORKFLOW.md), [Архитектура](docs/ARCHITECTURE.md) |
+| Всем | [Что работает и что осталось](STATUS.md) |
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+[Документы → товары: распознавание, проверка и границы автоматизации](docs/DOCUMENT-PIPELINE.md).
+[Два Telegram-бота и магазин внутри Telegram](docs/TELEGRAM-SHOP.md).
+[Технические характеристики: основа P0 и границы готовности](docs/TECHNICAL-CATALOG-P0.md).
+[Характеристики на сайте и в Mini App: режимы, условия, источники](docs/TECHNICAL-CARD-UI.md).
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+[Следующие шаги](roadmap.md). [GitHub](https://github.com/sheba-pleasure/masterweld-shop).
 
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
+Документация пересобрана 06.11.2026; актуальная сводка обновлена 07.11.2026. Текущие версии и ограничения — в [STATUS.md](STATUS.md). Прежние этапы — в [истории состояния](STATUS-HISTORY-20261107.md), старые инструкции — в [архиве](docs/archive/2026-11-06/). История не подтверждает текущее состояние сервера. Новые работы по резервированию остановлены по указанию владельца.

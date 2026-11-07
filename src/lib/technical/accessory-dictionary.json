@@ -1,0 +1,1026 @@
+{
+  "version": 1,
+  "scope": "Six accessory families: all 41 research fields plus three literal/unit alternatives. No product facts, automatic compatibility or inferred enum vocabulary.",
+  "units": [
+    {
+      "code": "mm2",
+      "label": "мм²",
+      "dimension": "area"
+    },
+    {
+      "code": "l",
+      "label": "л",
+      "dimension": "volume"
+    },
+    {
+      "code": "w",
+      "label": "Вт",
+      "dimension": "active_power"
+    }
+  ],
+  "attributes": [
+    {
+      "code": "tig_torch_series",
+      "label": "Серия и исполнение горелки",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_length_m",
+      "label": "Длина",
+      "kind": "number",
+      "unit_code": "m",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_cooling",
+      "label": "Охлаждение по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_max_dc_a",
+      "label": "Допустимый постоянный ток (DC)",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": ["duty_pct", "test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_max_ac_a",
+      "label": "Допустимый переменный ток (AC)",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": ["duty_pct", "test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_duty_pct",
+      "label": "Продолжительность нагрузки (ПН)",
+      "kind": "number",
+      "unit_code": "pct",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": ["current_a", "test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": 100
+    },
+    {
+      "code": "tig_torch_power_connector",
+      "label": "Силовой разъём",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_gas_connector",
+      "label": "Газовый разъём",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_control_connector",
+      "label": "Разъём кнопки управления",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_tungsten_diameters_mm",
+      "label": "Перечень диаметров вольфрама",
+      "kind": "number_list",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_series",
+      "label": "Серия и исполнение плазмотрона",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_current_max_a",
+      "label": "Допустимый ток с условиями",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_length_m",
+      "label": "Длина рукава",
+      "kind": "number",
+      "unit_code": "m",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_ignition",
+      "label": "Поджиг по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_connector",
+      "label": "Соединение с аппаратом",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_cooling",
+      "label": "Охлаждение по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_consumable_family",
+      "label": "Подходящие расходники по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cut_torch_air_flow_l_min",
+      "label": "Потребность в воздухе",
+      "kind": "number",
+      "unit_code": "l_min",
+      "options": [],
+      "processes": ["cut"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "holder_nominal_current_a",
+      "label": "Номинальный ток с условиями",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "holder_electrode_diameter_min_mm",
+      "label": "Диаметр электрода минимум",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "holder_electrode_diameter_max_mm",
+      "label": "Диаметр электрода максимум",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "holder_cable_connection",
+      "label": "Присоединение сварочного кабеля",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "holder_model",
+      "label": "Конструкция электрододержателя",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["mma"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "clamp_nominal_current_a",
+      "label": "Номинальный ток с условиями",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "clamp_jaw_opening_mm",
+      "label": "Раскрытие губок",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "clamp_cable_connection",
+      "label": "Подключение кабеля",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "clamp_material",
+      "label": "Материал контактов по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cable_conductor_cross_section_mm2",
+      "label": "Сечение токопроводящей жилы",
+      "kind": "number",
+      "unit_code": "mm2",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cable_conductor_material",
+      "label": "Материал жилы",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cable_length_m",
+      "label": "Длина",
+      "kind": "number",
+      "unit_code": "m",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cable_insulation_type",
+      "label": "Тип изоляции/марка",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cable_connector_type",
+      "label": "Разъём/оконцевание",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cable_current_limit_a",
+      "label": "Допустимый ток с условиями",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_capacity_kw",
+      "label": "Мощность охлаждения, кВт",
+      "kind": "number",
+      "unit_code": "kw",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_flow_l_min",
+      "label": "Расход жидкости",
+      "kind": "number",
+      "unit_code": "l_min",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_tank_l",
+      "label": "Объём бака",
+      "kind": "number",
+      "unit_code": "l",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_pressure_bar",
+      "label": "Рабочее давление",
+      "kind": "number",
+      "unit_code": "bar",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_power_v",
+      "label": "Одно значение напряжения питания",
+      "kind": "number",
+      "unit_code": "v",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_connectors",
+      "label": "Разъёмы и соединения по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cooler_equipment_compatibility",
+      "label": "Подходящее оборудование по документу",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cooler_fluid_type",
+      "label": "Допустимая охлаждающая жидкость",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_torch_tungsten_range",
+      "label": "Диапазон диаметров вольфрама (дословно)",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["tig"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "cooler_capacity_w",
+      "label": "Мощность охлаждения, Вт",
+      "kind": "number",
+      "unit_code": "w",
+      "options": [],
+      "processes": ["general"],
+      "required_context": ["test_conditions"],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cooler_power_supply_text",
+      "label": "Питание по документу (целиком)",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    }
+  ],
+  "bindings": [
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_series",
+      "label": "Серия и исполнение горелки",
+      "sort_order": 201,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_length_m",
+      "label": "Длина",
+      "sort_order": 202,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_cooling",
+      "label": "Охлаждение по документу",
+      "sort_order": 203,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_max_dc_a",
+      "label": "Допустимый постоянный ток (DC)",
+      "sort_order": 204,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_max_ac_a",
+      "label": "Допустимый переменный ток (AC)",
+      "sort_order": 205,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_duty_pct",
+      "label": "Продолжительность нагрузки (ПН)",
+      "sort_order": 206,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_power_connector",
+      "label": "Силовой разъём",
+      "sort_order": 207,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_gas_connector",
+      "label": "Газовый разъём",
+      "sort_order": 208,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_control_connector",
+      "label": "Разъём кнопки управления",
+      "sort_order": 209,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_tungsten_diameters_mm",
+      "label": "Перечень диаметров вольфрама",
+      "sort_order": 210,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_series",
+      "label": "Серия и исполнение плазмотрона",
+      "sort_order": 211,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_current_max_a",
+      "label": "Допустимый ток с условиями",
+      "sort_order": 212,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_length_m",
+      "label": "Длина рукава",
+      "sort_order": 213,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_ignition",
+      "label": "Поджиг по документу",
+      "sort_order": 214,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_connector",
+      "label": "Соединение с аппаратом",
+      "sort_order": 215,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_cooling",
+      "label": "Охлаждение по документу",
+      "sort_order": 216,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_consumable_family",
+      "label": "Подходящие расходники по документу",
+      "sort_order": 217,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_torch",
+      "attribute_code": "cut_torch_air_flow_l_min",
+      "label": "Потребность в воздухе",
+      "sort_order": 218,
+      "options_override": null
+    },
+    {
+      "family_code": "mma_holder",
+      "attribute_code": "holder_nominal_current_a",
+      "label": "Номинальный ток с условиями",
+      "sort_order": 219,
+      "options_override": null
+    },
+    {
+      "family_code": "mma_holder",
+      "attribute_code": "holder_electrode_diameter_min_mm",
+      "label": "Диаметр электрода минимум",
+      "sort_order": 220,
+      "options_override": null
+    },
+    {
+      "family_code": "mma_holder",
+      "attribute_code": "holder_electrode_diameter_max_mm",
+      "label": "Диаметр электрода максимум",
+      "sort_order": 221,
+      "options_override": null
+    },
+    {
+      "family_code": "mma_holder",
+      "attribute_code": "holder_cable_connection",
+      "label": "Присоединение сварочного кабеля",
+      "sort_order": 222,
+      "options_override": null
+    },
+    {
+      "family_code": "mma_holder",
+      "attribute_code": "holder_model",
+      "label": "Конструкция электрододержателя",
+      "sort_order": 223,
+      "options_override": null
+    },
+    {
+      "family_code": "ground_clamp",
+      "attribute_code": "clamp_nominal_current_a",
+      "label": "Номинальный ток с условиями",
+      "sort_order": 224,
+      "options_override": null
+    },
+    {
+      "family_code": "ground_clamp",
+      "attribute_code": "clamp_jaw_opening_mm",
+      "label": "Раскрытие губок",
+      "sort_order": 225,
+      "options_override": null
+    },
+    {
+      "family_code": "ground_clamp",
+      "attribute_code": "clamp_cable_connection",
+      "label": "Подключение кабеля",
+      "sort_order": 226,
+      "options_override": null
+    },
+    {
+      "family_code": "ground_clamp",
+      "attribute_code": "clamp_material",
+      "label": "Материал контактов по документу",
+      "sort_order": 227,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_conductor_cross_section_mm2",
+      "label": "Сечение токопроводящей жилы",
+      "sort_order": 228,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_conductor_material",
+      "label": "Материал жилы",
+      "sort_order": 229,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_length_m",
+      "label": "Длина",
+      "sort_order": 230,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_insulation_type",
+      "label": "Тип изоляции/марка",
+      "sort_order": 231,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_connector_type",
+      "label": "Разъём/оконцевание",
+      "sort_order": 232,
+      "options_override": null
+    },
+    {
+      "family_code": "welding_cable",
+      "attribute_code": "cable_current_limit_a",
+      "label": "Допустимый ток с условиями",
+      "sort_order": 233,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_capacity_kw",
+      "label": "Мощность охлаждения, кВт",
+      "sort_order": 234,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_flow_l_min",
+      "label": "Расход жидкости",
+      "sort_order": 235,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_tank_l",
+      "label": "Объём бака",
+      "sort_order": 236,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_pressure_bar",
+      "label": "Рабочее давление",
+      "sort_order": 237,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_power_v",
+      "label": "Одно значение напряжения питания",
+      "sort_order": 238,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_connectors",
+      "label": "Разъёмы и соединения по документу",
+      "sort_order": 239,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_equipment_compatibility",
+      "label": "Подходящее оборудование по документу",
+      "sort_order": 240,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_fluid_type",
+      "label": "Допустимая охлаждающая жидкость",
+      "sort_order": 241,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_torch",
+      "attribute_code": "tig_torch_tungsten_range",
+      "label": "Диапазон диаметров вольфрама (дословно)",
+      "sort_order": 242,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_capacity_w",
+      "label": "Мощность охлаждения, Вт",
+      "sort_order": 243,
+      "options_override": null
+    },
+    {
+      "family_code": "water_cooler",
+      "attribute_code": "cooler_power_supply_text",
+      "label": "Питание по документу (целиком)",
+      "sort_order": 244,
+      "options_override": null
+    }
+  ],
+  "research_text_fields": [
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_series",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_cooling",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_power_connector",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_gas_connector",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_control_connector",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "cut_torch",
+      "attribute": "cut_torch_series",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "cut_torch",
+      "attribute": "cut_torch_ignition",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "cut_torch",
+      "attribute": "cut_torch_connector",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "cut_torch",
+      "attribute": "cut_torch_cooling",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "cut_torch",
+      "attribute": "cut_torch_consumable_family",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "mma_holder",
+      "attribute": "holder_cable_connection",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "mma_holder",
+      "attribute": "holder_model",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "ground_clamp",
+      "attribute": "clamp_cable_connection",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "ground_clamp",
+      "attribute": "clamp_material",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "welding_cable",
+      "attribute": "cable_conductor_material",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "welding_cable",
+      "attribute": "cable_connector_type",
+      "research_kind": "enum",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "water_cooler",
+      "attribute": "cooler_connectors",
+      "research_kind": "enum_list",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    },
+    {
+      "family": "water_cooler",
+      "attribute": "cooler_equipment_compatibility",
+      "research_kind": "enum_list",
+      "representation": "Literal source text; controlled vocabulary and enum facets are not inferred"
+    }
+  ],
+  "additional_fields": [
+    {
+      "family": "tig_torch",
+      "attribute": "tig_torch_tungsten_range",
+      "reason": "Preserve a manufacturer's range without inventing a list of intermediate diameters"
+    },
+    {
+      "family": "water_cooler",
+      "attribute": "cooler_capacity_w",
+      "reason": "Preserve watt ratings without automatic conversion to kW"
+    },
+    {
+      "family": "water_cooler",
+      "attribute": "cooler_power_supply_text",
+      "reason": "Preserve multiple voltage ranges, AC/DC and frequency together"
+    }
+  ],
+  "guidance": {
+    "tig_torch_series": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "tig_torch_cooling": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "tig_torch_max_dc_a": "DC — постоянный ток. Перенесите допустимый ток, заявленную для него ПН и остальные условия из документа. Номинал AC сюда не подставляется.",
+    "tig_torch_max_ac_a": "AC — переменный ток. Перенесите допустимый ток, заявленную для него ПН и остальные условия из документа. Номинал DC сюда не подставляется.",
+    "tig_torch_duty_pct": "Укажите ПН в процентах и ток, при котором она заявлена. В условиях сохраните AC/DC, длительность цикла и ограничения, если они указаны. Не считайте ПН обещанием непрерывной работы.",
+    "tig_torch_power_connector": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "tig_torch_gas_connector": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "tig_torch_control_connector": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_series": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_current_max_a": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "cut_torch_ignition": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_connector": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_cooling": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_consumable_family": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cut_torch_air_flow_l_min": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "holder_nominal_current_a": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "holder_cable_connection": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "holder_model": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "clamp_nominal_current_a": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "clamp_cable_connection": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "clamp_material": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cable_conductor_material": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cable_connector_type": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cable_current_limit_a": "Ток зависит от условий применения. Сохраните ограничения изготовителя, включая длину цепи, нагрузку и охлаждение, если они указаны. Не рассчитывайте ток только по сечению.",
+    "cooler_capacity_kw": "Используйте это поле только для значения в киловаттах. Если в документе ватты, выберите «Мощность охлаждения, Вт». Условия измерения обязательны; автоматического пересчёта нет.",
+    "cooler_flow_l_min": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "cooler_pressure_bar": "Сохраните условия именно этого номинала: режим, нагрузку и ограничения из той же строки документа. Не переносите условия от другой модели.",
+    "cooler_power_v": "Для одного явно указанного напряжения в вольтах. Если дан диапазон или несколько напряжений, выберите «Питание по документу (целиком)».",
+    "cooler_connectors": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "cooler_equipment_compatibility": "Перенесите точное обозначение, исполнение и ограничения из документа. Похожее название или размер не подтверждают совместимость. Если сведений нет, выберите «Нет подтверждённых сведений».",
+    "tig_torch_tungsten_range": "Если изготовитель дал диапазон, перенесите его целиком с единицами. Не превращайте границы в перечень всех подходящих диаметров.",
+    "cooler_capacity_w": "Используйте это поле, если в документе указаны ватты. Перенесите число и полные условия; не пересчитывайте в киловатты.",
+    "cooler_power_supply_text": "Для нескольких напряжений или диапазона перенесите всю запись с единицами, видом тока, частотой и ограничениями. Не выбирайте произвольно одно напряжение.",
+    "tig_torch_tungsten_diameters_mm": "Введите только явно перечисленные диаметры через точку с запятой. Если в документе диапазон, выберите характеристику «Диапазон диаметров вольфрама (дословно)». Не придумывайте промежуточные размеры.",
+    "cable_conductor_cross_section_mm2": "Сечение жилы в квадратных миллиметрах. Это не диаметр кабеля; не вычисляйте одно из другого.",
+    "cooler_fluid_type": "Перенесите точное наименование и ограничения изготовителя. Не заменяйте указанную жидкость водой или похожим составом по собственному предположению."
+  }
+}

@@ -30,3 +30,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and server release state
+.env
+.env.*
+!.env.example
+.secrets
+ops/.secrets
+ops/.state
+__pycache__/
+*.pyc
