@@ -1,4 +1,5 @@
 import type { StructureDraft } from "./structure-view";
+import { documentGuidance } from "./document-guidance";
 import { catalogColumnLabel } from "./catalog-file";
 
 export const reviewColumnLabel = catalogColumnLabel;
@@ -48,7 +49,7 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseReviewCallback(value: string): ReviewAction | null {
   const m = value.match(
     new RegExp(
-      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
+      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
     ),
   );
   if (!m || Number(m[4]) > 4999 || (m[5] !== undefined && Number(m[5]) > 29)) return null;
@@ -87,12 +88,15 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
   const c = r.counts;
   let text = `🔎 Проверка документа\n${short(r.file_name)} · ${short(r.table_label)}\n\n✅ Проверено: ${c.approved} · ⏭ Пропущено: ${c.excluded} · ⏳ Осталось: ${c.pending}\n`;
   if (r.notice) text += `\n${r.notice}\n`;
-  if (r.import_id && !["values", "full", "orig"].includes(screen)) {
+  if (r.import_id && !["values", "full", "orig", "checks"].includes(screen)) {
     text +=
       "\nПроверенные строки уже переданы в предпросмотр импорта. Этот разбор закрыт для изменений. Каталог этим действием не изменён. Откройте импорт, чтобы проверить его текущее состояние.";
     rows.push([
       { text: "📥 Открыть подготовленный импорт", callback_data: `ci:get:${r.import_id}:0` },
     ]);
+  } else if (screen === "checks") {
+    text += "\n" + documentGuidance(r.warnings, r.coverage);
+    add("↩️ К строке", "get");
   } else if (screen === "summary") {
     text += `\nИтог: из ${c.total} строк в импорт попадут ${c.approved}. Пропущенные строки не попадут.\n\nПередача создаст только предпросмотр. Следом нужно выбрать колонки, проверить артикулы, розничные и закупочные цены и отдельно подтвердить импорт. Новые товары автоматически не публикуются. Ранее исключённые из ассортимента товары остаются исключёнными.`;
     if (!r.coverage?.complete || r.warnings.length)
@@ -110,6 +114,7 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
         "\n\nСначала решите, что делать с каждой оставшейся строкой: проверить или пропустить.";
     else if (c.approved) add("✅ Подтверждаю — передать в предпросмотр", "handoff");
     else text += "\n\nВсе строки пропущены. Импорт не создаётся.";
+    add("🔎 Что проверить в таблице", "checks");
     add("🔎 Продолжить проверку", "next");
   } else if (screen === "cols" || screen === "values") {
     const reading = screen === "values";
@@ -195,6 +200,10 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     if (r.cells.some((value) => value.length > 100))
       text +=
         "\n\n🔎 Длинные значения здесь сокращены. Нажмите «Прочитать значения целиком», чтобы увидеть весь сохранённый текст.";
+    if (r.warnings.length || !r.coverage?.complete)
+      text +=
+        "\n\n🔎 В таблице есть особенности распознавания. Откройте «Что проверить в таблице» перед решением по строке.";
+    add("🔎 Что проверить в таблице", "checks");
     add("🔎 Прочитать значения целиком", "values", r.row, 0);
     add("📎 Посмотреть исходную строку", "raw");
     add("✏️ Исправить поле", "cols", r.row, 0);

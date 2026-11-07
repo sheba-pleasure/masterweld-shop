@@ -4,7 +4,12 @@ import { isPrivateChat } from "@/lib/bot/catalog";
 import { tg } from "@/lib/bot/telegram.server";
 import { downloadIntakeDocument, type ImportDocument } from "./telegram-file.server";
 import { openDocumentReview } from "./review.server";
-import { renderIntake, type IntakeView, parseIntakeCallback } from "./intake-view";
+import {
+  renderIntake,
+  renderIntakeChecks,
+  type IntakeView,
+  parseIntakeCallback,
+} from "./intake-view";
 
 const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
   name: string,
@@ -60,7 +65,7 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
   try {
     const r = await rpc("bot_document_intake", {
       p_actor: m.telegram_id,
-      p_op: request.op,
+      p_op: request.op === "checks" ? "get" : request.op,
       p_id: request.id,
       p_payload: request.index === undefined ? {} : { index: request.index },
     });
@@ -70,6 +75,14 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
     return tg("sendMessage", {
       chat_id: chat.id,
       text: "⚠️ Не удалось прочитать результат. Откройте /documents; не начинайте новый импорт для восстановления старого.",
+    });
+  }
+  if (request.op === "checks") {
+    const view = renderIntakeChecks(result, request.index!);
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: view.text,
+      reply_markup: { inline_keyboard: view.rows },
     });
   }
   if (request.op === "original" && result.original_base64) {

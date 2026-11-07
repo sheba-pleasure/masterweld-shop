@@ -121,12 +121,16 @@ export async function showDocumentReview(m: StaffMember, chat: Chat, data: strin
   if (!action) return;
   const { id, revision, row, column, op } = action;
   try {
-    const r = await call(m, ["cols", "raw", "values", "full", "orig"].includes(op) ? "get" : op, {
-      p_id: id,
-      p_revision: revision,
-      p_row: row,
-      p_column: column,
-    });
+    const r = await call(
+      m,
+      ["cols", "raw", "values", "full", "orig", "checks"].includes(op) ? "get" : op,
+      {
+        p_id: id,
+        p_revision: revision,
+        p_row: row,
+        p_column: column,
+      },
+    );
     if (op === "handoff" && r.import_id) {
       await send(
         chat,

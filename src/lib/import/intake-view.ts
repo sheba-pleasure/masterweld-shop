@@ -1,3 +1,5 @@
+import { documentGuidance } from "./document-guidance";
+
 export interface IntakeView {
   ok: true;
   home?: boolean;
@@ -24,8 +26,8 @@ export function parseIntakeCallback(
   if (match) return { op: match[1]!, id: match[2]! };
   match = data.match(new RegExp(`^di:get:(${id}):([0-9]{1,2})$`));
   if (match) return { op: "get", id: match[1]!, page: Number(match[2]) };
-  match = data.match(new RegExp(`^di:table:(${id}):([0-9]{1,2})$`));
-  return match ? { op: "table", id: match[1]!, index: Number(match[2]) } : null;
+  match = data.match(new RegExp(`^di:(table|checks):(${id}):([0-9]{1,2})$`));
+  return match ? { op: match[1]!, id: match[2]!, index: Number(match[3]) } : null;
 }
 const label: Record<string, string> = {
   queued: "⏳ Ожидает обработки",
@@ -64,10 +66,17 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
       lines.push(
         `Страниц обработано: ${extraction.coverage.processed ?? 0} из ${extraction.coverage.pages}.`,
       );
-    if (!extraction.coverage.complete || extraction.warnings.length)
+    if (
+      !extraction.coverage.complete ||
+      extraction.warnings.length ||
+      extraction.tables.some((t) => t.warnings?.length)
+    )
       lines.push(
         "⚠️ Нужна сверка с оригиналом: часть содержимого может требовать ручного разбора. Смешанные сканы, объединённые ячейки и формулы не считаются проверенными.",
       );
+    lines.push(
+      "Кнопка «Что проверить» объясняет особенности каждой таблицы. Памятка не меняет данные.",
+    );
     lines.push(
       "Выберите таблицу. Для каждой строки доступны исходные данные, исправление полей и решение «Строка проверена» или «Пропустить». Затем подтвердите передачу в предпросмотр импорта. Закупочная цена и розничная — разные поля. Строка текста ещё не означает товар.",
     );
@@ -85,6 +94,9 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
           text: `${i + 1}. ${short(t.label, 32)} · ${t.rows.length} строк`,
           callback_data: `di:table:${data.id}:${i}`,
         },
+      ]);
+      rows.push([
+        { text: `🔎 Что проверить · Таблица ${i + 1}`, callback_data: `di:checks:${data.id}:${i}` },
       ]);
     });
     if (pages > 1)
@@ -111,4 +123,35 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
     [{ text: "📚 Все документы", callback_data: "di:home" }],
   );
   return { text: lines.join("\n\n"), rows };
+}
+
+export function renderIntakeChecks(data: IntakeView, index: number) {
+  const table = data.extraction?.tables[index];
+  const rows = [
+    [{ text: "📎 Скачать оригинал", callback_data: `di:original:${data.id}` }],
+    [
+      {
+        text: "📚 К таблицам документа",
+        callback_data: `di:get:${data.id}:${Math.floor(index / 8)}`,
+      },
+    ],
+  ];
+  if (!table)
+    return {
+      text: "⚠️ Таблица недоступна. Вернитесь к документу и обновите результат. Проверка и импорт не начаты.",
+      rows,
+    };
+  rows.unshift([
+    { text: "🔎 Открыть строки для проверки", callback_data: `di:table:${data.id}:${index}` },
+  ]);
+  return {
+    text: [
+      `📄 ${short(data.file_name)}\nТаблица ${index + 1}: ${short(table.label)} · ${table.rows.length} строк`,
+      documentGuidance(
+        [...(table.warnings ?? []), ...(data.extraction?.warnings ?? [])],
+        data.extraction?.coverage,
+      ),
+    ].join("\n\n"),
+    rows,
+  };
 }

@@ -49,6 +49,52 @@ beforeEach(() => {
   mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
 });
 
+it("keeps guidance read-only on an approved row and exposes it before handoff", async () => {
+  const r = {
+    ...review,
+    decision: "approved" as const,
+    counts: { total: 1, pending: 0, approved: 1, excluded: 0 },
+    warnings: ["HIDDEN_ROWS", "FORMULA_NOT_EVALUATED"],
+  };
+  mocks.rpc.mockResolvedValue({ data: r, error: null });
+  const before = JSON.stringify(r);
+  const key = reviewButton(r, "", "checks").callback_data;
+  expect(parseReviewCallback(key)?.op).toBe("checks");
+  expect(parseReviewCallback(key + ":0")).toBeNull();
+  await showDocumentReview(admin, chat, key);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("скрытые строки");
+  expect(message.text).toContain("не вычислял результат");
+  expect(message.reply_markup.force_reply).toBeUndefined();
+  expect(
+    message.reply_markup.inline_keyboard
+      .flat()
+      .some((b: { callback_data: string }) => b.callback_data.includes(":approve:")),
+  ).toBe(false);
+  expect(JSON.stringify(r)).toBe(before);
+  expect(mocks.catalog).not.toHaveBeenCalled();
+  expect(
+    renderReview(r, "summary")
+      .rows.flat()
+      .some((b) => b.callback_data.endsWith(":checks:0")),
+  ).toBe(true);
+  expect(
+    renderReview({ ...r, import_id: id }, "checks")
+      .rows.flat()
+      .some((b) => b.callback_data.includes(":edit:")),
+  ).toBe(false);
+  mocks.rpc.mockClear();
+  for (const [m, c] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { ...chat, type: "group" }],
+  ] as const)
+    await showDocumentReview(m, c, key);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
 it("reads full corrected and original values without opening an edit or changing approval", async () => {
   const saved = "Сохранено: " + "Я".repeat(1800) + " — МОДЕЛЬ-220";
   const original = "Распознано: " + "Б".repeat(1800) + " — МОДЕЛЬ-380";
