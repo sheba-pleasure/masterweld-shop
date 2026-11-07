@@ -1,5 +1,6 @@
 import { z } from "zod";
 import dictionary, { attributeGuidance } from "./dictionary";
+import { parseTechnicalOption, technicalOptionsHelp } from "./options";
 import {
   technicalDocument,
   technicalFact,
@@ -77,7 +78,7 @@ const contextLabels: Record<string, string> = {
   temperature_c: "Температура испытаний, °C",
   pressure_bar: "Рабочее давление, бар",
   gas: "Защитный газ",
-  cooling: "Охлаждение: air — воздушное; liquid — жидкостное",
+  cooling: "Какое охлаждение указано в документе? Ответьте «Воздушное» или «Жидкостное»",
   duty_pct: "Продолжительность нагрузки, %",
   material: "Материал",
   diameter_mm: "Диаметр, мм",
@@ -171,21 +172,37 @@ export function parseTechnicalFieldValue(
     const items = text.split(";").map((s) => s.trim());
     if (!items.length || items.length > 32 || items.some((s) => !s))
       throw new EditorInputError("Укажите от 1 до 32 значений через точку с запятой.");
-    const result = a.kind === "number_list" ? items.map(number) : items;
+    const result =
+      a.kind === "number_list"
+        ? items.map(number)
+        : items.map((item) => {
+            const code = parseTechnicalOption(attributeCode, item, a.options);
+            if (code === undefined)
+              throw new EditorInputError("Выберите вариант из предложенного списка.");
+            return code;
+          });
     if (new Set<string | number>(result).size !== result.length)
       throw new EditorInputError("Уберите повторяющиеся значения.");
-    if (a.kind === "enum_list" && items.some((s) => !a.options.includes(s)))
-      throw new EditorInputError("Выберите коды из предложенного списка.");
     return result;
   }
-  if (a.kind === "enum" && !a.options.includes(text))
-    throw new EditorInputError("Выберите код из предложенного списка.");
+  if (a.kind === "enum") {
+    const code = parseTechnicalOption(attributeCode, text, a.options);
+    if (code === undefined) throw new EditorInputError("Выберите вариант из предложенного списка.");
+    return code;
+  }
   if (!text || text.length > 500) throw new EditorInputError("Введите от 1 до 500 символов.");
   return text;
 }
 export function parseTechnicalContextValue(key: keyof Fact["context"], raw: string) {
   const text = raw.trim();
-  const value = ["gas", "cooling", "material"].includes(key) ? text : numeric(text);
+  const value =
+    key === "cooling"
+      ? parseTechnicalOption("cooling", text, ["air", "liquid"])
+      : ["gas", "material"].includes(key)
+        ? text
+        : numeric(text);
+  if (value === undefined)
+    throw new EditorInputError("Ответьте «Воздушное» или «Жидкостное», как указано в документе.");
   const parsed = technicalContext.safeParse({ [key]: value });
   if (!parsed.success || (typeof value === "number" && value > 1000000))
     throw new EditorInputError("Проверьте значение условия и указанную единицу измерения.");
@@ -403,12 +420,12 @@ export function editorQuestion(s: EditorData): string | null {
         : a.kind === "number_list"
           ? "Значения через точку с запятой (например: 0,8; 1,0)."
           : a.kind === "enum_list"
-            ? "Коды из списка через точку с запятой."
+            ? "Варианты из списка через точку с запятой. Можно скопировать названия."
             : "Введите значение.") +
       (a.unit_code !== "none"
         ? "\nЕдиница: " + unit + ". Не пересчитывайте из другой единицы."
         : "") +
-      (a.options.length ? "\nДопустимые коды: " + a.options.join("; ") : "") +
+      technicalOptionsHelp(a.code, a.options) +
       (attributeGuidance(a.code) ? "\n\n" + attributeGuidance(a.code) : "")
     );
   }

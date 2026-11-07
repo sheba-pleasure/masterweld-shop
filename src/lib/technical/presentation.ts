@@ -1,4 +1,5 @@
 import type { PublicTechnicalCard } from "./schema";
+import { technicalOptionLabel } from "./options";
 
 export type TechnicalValue = PublicTechnicalCard["values"][number];
 export const processLabels: Record<TechnicalValue["process"], string> = {
@@ -8,18 +9,6 @@ export const processLabels: Record<TechnicalValue["process"], string> = {
   tig: "TIG · Аргонодуговая сварка",
   cut: "CUT · Плазменная резка",
   fcaw: "FCAW · Порошковая проволока",
-};
-const optionLabels: Record<string, Record<string, string>> = {
-  tig_polarity_modes: { dc: "DC — постоянный ток", ac: "AC — переменный ток" },
-  tig_start_modes: {
-    hf: "HF — бесконтактный поджиг",
-    lift: "Lift — поджиг касанием с отрывом",
-    contact: "Контактный поджиг",
-  },
-  flux_wire_gas_mode: {
-    self_shielded: "Самозащитная",
-    gas_shielded: "С защитным газом",
-  },
 };
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 20 });
 export const formatTechnicalNumber = (value: number) => number.format(value);
@@ -37,7 +26,7 @@ export function formatTechnicalValue(fact: TechnicalValue): string {
         : "Нет"
       : typeof value === "number"
         ? number.format(value)
-        : (optionLabels[fact.code]?.[value] ?? value);
+        : technicalOptionLabel(fact.code, value);
   const value = Array.isArray(fact.value)
     ? fact.value.map(scalar).join("; ")
     : fact.value === null
