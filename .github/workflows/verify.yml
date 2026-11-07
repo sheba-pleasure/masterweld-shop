@@ -86,6 +86,10 @@ jobs:
         run: python3 ops/tests/technical-model-binding.py
       - name: Human document-to-model confirmation
         run: python3 ops/tests/primary-source-review.py
+      - name: Distinct technical measurement conditions
+        run: python3 ops/tests/technical-measurement-conditions.py
+      - name: Source fact review transactions
+        run: python3 ops/tests/source-fact-review.py
       - name: Telegram bot receipts (isolated PostgreSQL)
         run: python3 ops/tests/telegram-bots.py
       - name: Order notification claims and restart (isolated PostgreSQL)
