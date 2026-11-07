@@ -49,13 +49,13 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseReviewCallback(value: string): ReviewAction | null {
   const m = value.match(
     new RegExp(
-      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|resume|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
+      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|resume|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks|page):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
     ),
   );
   if (!m || Number(m[4]) > 4999 || (m[5] !== undefined && Number(m[5]) > 29)) return null;
-  if (["edit", "cols", "values", "full", "orig"].includes(m[3]!) !== (m[5] !== undefined))
+  if (["edit", "cols", "values", "full", "orig", "page"].includes(m[3]!) !== (m[5] !== undefined))
     return null;
-  if (m[3] === "values" && Number(m[5]) > 3) return null;
+  if (["values", "page"].includes(m[3]!) && Number(m[5]) > 3) return null;
   return {
     id: m[1]!,
     revision: Number(m[2]),
@@ -170,7 +170,9 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       r.row,
       Number.isInteger(index) && index >= 0 && index < r.header.length ? Math.floor(index / 8) : 0,
     );
-    add("↩️ К строке", "get");
+    if (r.header.length > 8 && Number.isInteger(index) && index >= 0 && index < r.header.length)
+      add("↩️ К этой странице строки", "page", r.row, Math.floor(index / 8));
+    else add("↩️ К строке", "get");
   } else if (screen === "raw") {
     text += `\n📎 Исходная строка ${r.position ?? r.row + 1}\nМесто в файле: ${r.locator ?? "точное место не определено; сверьте с оригиналом"}\n\n`;
     if (r.source_origin === "manual")
@@ -184,14 +186,35 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       .join("\n\n");
     text += "\n\nЭто неизменённый результат распознавания. Для сверки доступен исходный файл.";
     add("↩️ К исправленной строке", "get");
+  } else if (
+    screen === "page" &&
+    (!Number.isInteger(columnPage) || columnPage < 0 || columnPage * 8 >= r.header.length)
+  ) {
+    text +=
+      "\nЭта страница полей больше недоступна. Откройте строку заново: сохранённые исправления останутся.";
+    add("🔎 Открыть строку заново", "get");
   } else {
     text += `\nСтрока ${r.position ?? r.row + 1} из ${c.total} · ${status[r.decision]}\n📎 ${short(r.locator ?? "Место в оригинале не определено", 150)}\n\n`;
+    const page = screen === "page" ? columnPage : 0;
+    const pageCount = Math.max(1, Math.ceil(r.header.length / 8));
+    const start = page * 8;
+    if (pageCount > 1)
+      text += `📋 Поля ${start + 1}–${Math.min(start + 8, r.header.length)} из ${r.header.length} · Страница ${page + 1} из ${pageCount}\n\n`;
     text += r.header
+      .slice(start, start + 8)
       .map(
         (h, i) =>
-          `${short(reviewColumnLabel(h, i), 60)}: ${short(r.cells[i] || "(пусто)")}${r.cells[i] !== r.original[i] ? " ✏️" : ""}`,
+          `${short(reviewColumnLabel(h, start + i), 60)}: ${short(r.cells[start + i] || "(Пусто)")}${r.cells[start + i] !== r.original[start + i] ? " ✏️" : ""}`,
       )
       .join("\n");
+    if (pageCount > 1) {
+      text += "\n\nЛистание только показывает поля. Оно не меняет данные и не подтверждает строку.";
+      if (page + 1 < pageCount) {
+        text += "\nПроверьте следующие поля. Решение по строке — на последней странице.";
+        add("Следующие поля →", "page", r.row, page + 1);
+      }
+      if (page > 0) add("← Предыдущие поля", "page", r.row, page - 1);
+    }
     if (r.cells.length !== r.header.length)
       text +=
         "\n\n⚠️ Число ячеек не совпадает с заголовком. Недостающие поля можно заполнить. Лишние ячейки видны в исходной строке; такую строку пропустите и подготовьте исправленный файл.";
@@ -213,9 +236,11 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     rows.push([
       { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },
     ]);
-    if (r.decision !== "approved") add("✅ Строка проверена → следующая", "approve");
-    if (r.decision !== "excluded") add("⏭ Пропустить → следующая", "exclude");
-    if (r.decision !== "pending") add("❔ Вернуть на проверку", "pending");
+    if (page + 1 === pageCount) {
+      if (r.decision !== "approved") add("✅ Строка проверена → следующая", "approve");
+      if (r.decision !== "excluded") add("⏭ Пропустить → следующая", "exclude");
+      if (r.decision !== "pending") add("❔ Вернуть на проверку", "pending");
+    }
     const nav: ReviewButton[] = [];
     const previous = r.prev_row === undefined ? (r.row > 0 ? r.row - 1 : null) : r.prev_row;
     const next = r.next_row === undefined ? (r.row + 1 < c.total ? r.row + 1 : null) : r.next_row;

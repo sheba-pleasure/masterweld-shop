@@ -49,6 +49,91 @@ beforeEach(() => {
   mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
 });
 
+it("shows a wide row in bounded pages and keeps the decision separate from reading", async () => {
+  const wide: DocumentReview = {
+    ...review,
+    header: Array.from({ length: 30 }, (_, i) => "Поле " + String(i + 1).padStart(2, "0")),
+    cells: Array.from({ length: 30 }, (_, i) => "Значение " + i + " " + "Я".repeat(150)),
+    original: Array.from({ length: 30 }, () => "Распознано"),
+    row: 4999,
+    position: 1,
+    revision: 9999999,
+  };
+  const before = JSON.stringify(wide);
+  mocks.rpc.mockResolvedValue({ data: wide, error: null });
+  for (let page = 0; page < 4; page++) {
+    const view = renderReview(wide, page === 0 ? "get" : "page", page);
+    expect(view.text).toContain("Страница " + (page + 1) + " из 4");
+    expect(Array.from(view.text).length).toBeLessThan(3500);
+    wide.header.forEach((header, index) => {
+      expect(view.text.includes(header + ":")).toBe(Math.floor(index / 8) === page);
+    });
+    expect(view.rows.flat().some((b) => b.callback_data.includes(":approve:"))).toBe(page === 3);
+    expect(view.rows.flat().some((b) => b.callback_data.includes(":exclude:"))).toBe(page === 3);
+    for (const button of view.rows.flat().filter((b) => b.callback_data.startsWith("dr:"))) {
+      expect(parseReviewCallback(button.callback_data)).not.toBeNull();
+      expect(Buffer.byteLength(button.callback_data)).toBeLessThanOrEqual(64);
+    }
+    mocks.tg.mockClear();
+    await showDocumentReview(
+      admin,
+      chat,
+      reviewButton(wide, "", "page", wide.row, page).callback_data,
+    );
+    expect(mocks.tg).toHaveBeenCalledTimes(1);
+    expect(mocks.tg.mock.calls[0]![1].text).toBe(view.text);
+    expect(mocks.tg.mock.calls[0]![1].reply_markup.force_reply).toBeUndefined();
+  }
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get", "get", "get", "get"]);
+  expect(mocks.catalog).not.toHaveBeenCalled();
+  expect(JSON.stringify(wide)).toBe(before);
+});
+
+it("rejects invalid page callbacks and offers only recovery when the header no longer has that page", async () => {
+  for (const key of [
+    `dr:${id}:3:page:0`,
+    `dr:${id}:3:page:0:4`,
+    `dr:${id}:3:page:0:-1`,
+    `dr:${id}:3:page:0:1:0`,
+  ])
+    expect(parseReviewCallback(key)).toBeNull();
+  await showDocumentReview(admin, chat, `dr:${id}:3:page:0:3`);
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("Страница полей больше недоступна".toLowerCase());
+  expect(
+    message.reply_markup.inline_keyboard
+      .flat()
+      .map((b: { callback_data: string }) => parseReviewCallback(b.callback_data)?.op)
+      .filter(Boolean),
+  ).toEqual(["get"]);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+});
+
+it("keeps page navigation behind staff ownership and does not reopen handed-off rows", async () => {
+  const key = reviewButton(review, "", "page", 0, 0).callback_data;
+  for (const [member, target] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { ...chat, type: "group" }],
+  ] as const)
+    await showDocumentReview(member, target, key);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.tg).not.toHaveBeenCalled();
+  mocks.rpc.mockResolvedValue({ data: { ...review, import_id: id }, error: null });
+  await showDocumentReview(admin, chat, key);
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("Разбор закрыт для изменений".toLowerCase());
+  expect(
+    message.reply_markup.inline_keyboard
+      .flat()
+      .some((b: { callback_data: string }) =>
+        /:(approve|exclude|edit|handoff):/.test(b.callback_data),
+      ),
+  ).toBe(false);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+});
+
 it("keeps guidance read-only on an approved row and exposes it before handoff", async () => {
   const r = {
     ...review,
@@ -142,6 +227,7 @@ it("lets readers choose any of thirty fields and return to the matching field pa
   const value = renderReview(r, "full", 29);
   expect(value.text).toContain("Значение 29");
   expect(value.rows.flat().some((b) => b.callback_data.endsWith(":values:4999:3"))).toBe(true);
+  expect(value.rows.flat().some((b) => b.callback_data.endsWith(":page:4999:3"))).toBe(true);
   for (const b of [...buttons, ...value.rows.flat()]) {
     if (b.callback_data.startsWith("dr:"))
       expect(parseReviewCallback(b.callback_data)).not.toBeNull();
