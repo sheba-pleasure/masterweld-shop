@@ -52,6 +52,18 @@ const messages: Record<string, string> = {
   SOURCE_FACT_PUBLISHER_REQUIRED: "Укажите организацию, которая выпустила документ.",
   SOURCE_FACT_DECISIONS_REQUIRED:
     "Остались строки без решения. Проверьте каждую или выберите «Пропустить».",
+  SOURCE_FACT_PREVIEW_EXPIRED:
+    "Время предпросмотра истекло. Вернитесь к строкам и проверьте итог заново.",
+  SOURCE_FACT_NOT_PREVIEW:
+    "Сначала проверьте итог выбранных строк. Передача доступна только из действующего предпросмотра.",
+  SOURCE_FACT_CONFIRM_REQUIRED:
+    "Передача требует отдельного подтверждения показанного плана. Откройте итог и нажмите «Передать в редактор».",
+  SOURCE_FACT_FAMILY_CONFIRM_REQUIRED:
+    "Меняется вид товара и подборка характеристик. Откройте итог, проверьте удаления и подтвердите замену отдельно.",
+  SOURCE_FACT_HANDOFF_RESULT:
+    "Не удалось прочитать результат передачи. Сначала откройте сохранённый разбор; новый черновик автоматически не создаётся.",
+  TECH_ORIGIN_INVALID:
+    "Связь с проверкой источника не совпала. Передача не завершена; откройте сохранённый разбор и проверьте источники.",
   SOURCE_FACT_ACCEPTED_LIMIT: "Для итога нужно выбрать от 1 до 128 характеристик.",
   SOURCE_FACT_MERGE_VALUE_LIMIT:
     "Вместе с прежними сведениями получится больше 128 характеристик. Ничего не отброшено. Вернитесь к строкам и сократите выбранный набор либо сначала разберите прежние сведения в редакторе.",
@@ -119,6 +131,8 @@ async function facts(
   if (error) throw safeError(error);
   if (["current", "input"].includes(op) && idle.safeParse(data).success) return null;
   const v = sourceFactReviewResponse.parse(data);
+  if (op === "handoff" && (v.review.phase !== "handed" || !v.review.editor_session_id))
+    throw new Error("SOURCE_FACT_HANDOFF_RESULT");
   if (
     v.review.actor !== m.telegram_id ||
     (id && v.review.id !== id) ||
@@ -359,6 +373,7 @@ const readActions: SourceFactAction[] = [
   "issues",
   "askcancel",
   "changes",
+  "askhandoff",
 ];
 export async function showSourceFactReview(
   m: StaffMember,
@@ -379,9 +394,15 @@ export async function showSourceFactReview(
       output = { view: await prepare(m, action, requestId) };
     } else {
       v = requireReview(await facts(m, "get", action.id, undefined, action.index));
-      if (readActions.includes(action.action)) {
+      if (action.action === "handoff" && v.review.phase === "handed") {
+        if (!v.review.editor_session_id) throw new Error("SOURCE_FACT_HANDOFF_RESULT");
+        output = { view: renderSourceFactReview(v) };
+      } else if (readActions.includes(action.action)) {
         // Merge positions belong to one frozen preview, unlike immutable source row indices.
-        if (action.action === "changes" && v.review.revision !== action.revision)
+        if (
+          ["changes", "askhandoff"].includes(action.action) &&
+          v.review.revision !== action.revision
+        )
           throw new Error("SOURCE_FACT_STALE_BUTTON");
         // Read-only navigation opens the persisted row even after an old button. Every new write gets its current version.
         output = {
@@ -391,6 +412,16 @@ export async function showSourceFactReview(
         if (v.review.revision !== action.revision) throw new Error("SOURCE_FACT_STALE_BUTTON");
         let op: string = action.action,
           payload: Record<string, unknown> = {};
+        if (action.action === "handoff") {
+          if (!v.handoff_supported || v.review.phase !== "preview" || !v.review.merge_preview)
+            throw new Error("SOURCE_FACT_NOT_PREVIEW");
+          payload = {
+            confirm_plan: true,
+            replace_family:
+              v.review.merge_preview.before_document !== null &&
+              v.review.merge_preview.before_document.family_code !== v.review.family_code,
+          };
+        }
         if (action.action === "prompt") payload = { field: sourceFactInputFields[action.args[0]!] };
         if (action.action === "resume") {
           if (!v.prompt || v.prompt.row_index !== action.index)
@@ -413,7 +444,7 @@ export async function showSourceFactReview(
             : {
                 view: renderSourceFactReview(
                   v,
-                  ["preview", "edit", "cancel"].includes(op) ? "list" : "row",
+                  ["preview", "edit", "cancel", "handoff"].includes(op) ? "list" : "row",
                   action.index,
                 ),
               };

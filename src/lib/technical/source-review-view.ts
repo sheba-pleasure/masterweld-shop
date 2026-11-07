@@ -11,6 +11,7 @@ import {
 } from "./presentation";
 import { technicalContext, technicalDocument, technicalProcess } from "./schema";
 import { sourceFactInputField, sourceFactInputFields } from "./source-review-input";
+import { technicalSourceBinding } from "./source-binding";
 import {
   sourceFactMergePreview,
   sourceFactMergeSummary,
@@ -102,6 +103,8 @@ export const sourceFactReviewResponse = z
     source_kind: z.enum(["manual", "manufacturer", "test_report", "supplier"]),
     product_title: z.string(),
     usable: z.boolean(),
+    handoff_supported: z.boolean().default(false),
+    retained_sources: technicalSourceBinding.nullable().default(null),
     current_model: technicalModelContext,
     counts: z.object({ total: count, pending: count, accepted: count, skipped: count }),
     rows: z.array(row).max(8),
@@ -178,6 +181,8 @@ export const sourceFactActions = [
   "stop",
   "resume",
   "changes",
+  "askhandoff",
+  "handoff",
 ] as const;
 export type SourceFactAction = (typeof sourceFactActions)[number];
 export type SourceFactCallback =
@@ -514,6 +519,28 @@ export function renderSourceFactReview(
     original();
     return { text, rows };
   }
+  if (screen === "askhandoff") {
+    if (r.phase !== "preview" || !r.merge_preview || !v.handoff_supported)
+      throw new Error("SOURCE_FACT_NOT_PREVIEW");
+    text +=
+      "📋 Передать проверенные сведения в редактор?\n\n" + sourceFactMergeSummary(r.merge_preview);
+    text +=
+      "\n\nСоздастся один черновик. Каталог, цены и публикация сейчас не изменятся. В редакторе будет отдельный предпросмотр и подтверждение.";
+    if (v.retained_sources?.usable === false)
+      text +=
+        "\n\n⚠️ Среди прежних значений есть недействующие подтверждения: " +
+        v.retained_sources.unavailable +
+        ". Их можно убрать в редакторе. Пока они остаются, применение заблокировано.";
+    const replacement =
+      r.merge_preview.before_document !== null &&
+      r.merge_preview.before_document.family_code !== r.family_code;
+    if (r.preview_expires_at && Date.parse(r.preview_expires_at) > now)
+      add(replacement ? "Да, заменить подборку в черновике" : "Да, передать в редактор", "handoff");
+    else text += "\n\nВремя предпросмотра истекло. Вернитесь к строкам и проверьте итог заново.";
+    add("🔎 Посмотреть каждое изменение", "changes", rowIndex, 0);
+    add("↩️ Вернуться к итогу", "list", rowIndex);
+    return { text, rows };
+  }
   if (r.phase === "preview" && !["row", "missing", "issues"].includes(screen)) {
     text +=
       "📋 Предпросмотр\nПроверено: " +
@@ -533,8 +560,21 @@ export function renderSourceFactReview(
       text +=
         "\n\nСравнение с прежними характеристиками недоступно. Передача невозможна; вернитесь к строкам и проверьте итог заново.";
     }
-    // Handoff is intentionally absent until source dependency guards and the atomic transfer are ready.
-    text += "\nПередача в редактор пока недоступна в этой разрабатываемой версии.";
+    if (
+      v.handoff_supported &&
+      r.merge_preview &&
+      r.preview_expires_at &&
+      Date.parse(r.preview_expires_at) > now
+    ) {
+      if (v.retained_sources?.usable === false)
+        text +=
+          "\n\n⚠️ У прежних значений есть недействующие подтверждения: " +
+          v.retained_sources.unavailable +
+          ". Их нужно будет убрать или проверить заново в редакторе; применение до этого заблокировано.";
+      add("➡️ Передать в редактор", "askhandoff");
+    } else if (!v.handoff_supported) {
+      text += "\nПередача в редактор недоступна в установленной версии.";
+    }
     for (const line of v.rows)
       add(
         icon[line.decision] +

@@ -132,6 +132,8 @@ describe("Source fact callback boundaries", () => {
       ["resume", []],
       ["issues", []],
       ["changes", [255]],
+      ["askhandoff", []],
+      ["handoff", []],
     ] as const) {
       v.review.revision = 2147483647;
       const data = sourceFactButton(v.review, action, 255, ...args);
@@ -374,6 +376,18 @@ describe("Human review screens", () => {
       },
       changes: [{ kind: "added", before_index: null, after_index: 0 }],
     };
+    expect(actions(renderSourceFactReview(v, "list", 0, 0, now))).not.toContain("askhandoff");
+    v.handoff_supported = true;
+    v.review.preview_expires_at = "2026-11-07T12:10:00Z";
+    expect(actions(renderSourceFactReview(v, "list", 0, 0, now))).toContain("askhandoff");
+    expect(actions(renderSourceFactReview(v, "list", 0, 0, now))).not.toContain("handoff");
+    v.retained_sources = { usable: false, total: 2, unavailable: 1 };
+    const confirmation = renderSourceFactReview(v, "askhandoff", 0, 0, now);
+    expect(confirmation.text).toContain("недействующие подтверждения: 1");
+    expect(confirmation.text).toContain("применение заблокировано");
+    expect(actions(confirmation)).toContain("handoff");
+    v.review.preview_expires_at = "2026-11-07T11:59:00Z";
+    expect(actions(renderSourceFactReview(v, "askhandoff", 0, 0, now))).not.toContain("handoff");
     expect(actions(renderSourceFactReview(v, "list", 0, 0, now))).toContain("changes");
     expect(renderSourceFactReview(v, "list", 0, 0, now).text).toContain("Добавится: 1");
     for (const usable of [true, false]) {

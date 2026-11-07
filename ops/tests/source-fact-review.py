@@ -663,7 +663,133 @@ try:
       }});"""
     subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",origin_ui_script],cwd=ROOT,
       input=json.dumps([e,editor("get",e),clone]),capture_output=True,text=True,check=True)
+    handoff_baseline=snapshot()
+    handoff_migration=(ROOT/"docs/migrations/0041_source_fact_handoff.sql").read_text()
+    sql("BEGIN;"+handoff_migration+"COMMIT;")
+    assert snapshot()==handoff_baseline,"HANDOFF_MIGRATION_CHANGED_DATA"
+    for role in ["anon","authenticated","service_role"]:
+        assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)','EXECUTE')")=="f"
+    def ready_facts(approval,family="power_mma",maximum=190,all_rows=True):
+        candidate=copy.deepcopy(payload)
+        candidate["source_id"]=approval["source_id"];candidate["result"]["family_code"]=family
+        result=facts("prepare",str(uuid.uuid4()),payload=candidate)
+        for index,draft in [
+          (0,value("mma_current_max_a",maximum)),
+          (1,value("mma_duty_cycle_pct",60,{"current_a":160,"temperature_c":40})),
+          (2,value("mma_duty_cycle_pct",100,{"current_a":120,"temperature_c":40})),
+        ]:
+            if index and not all_rows:result=step("skip",result,index=index)
+            else:
+                result=step("save",result,index=index,payload={"draft":draft})
+                result=step("accept",result,index=index)
+        result=step("skip",result,index=3)
+        result=step("publisher",result,payload={"text":"Учебный изготовитель"})
+        return step("preview",result)
+    consent={"confirm_plan":True,"replace_family":False}
+    handoff=ready_facts(renewed)
+    assert handoff["handoff_supported"] and handoff["retained_sources"]["usable"]
+    facts("handoff",handoff["review"]["id"],handoff["review"]["revision"],payload=consent,actor=103,error="SOURCE_FACT_DENIED")
+    facts("handoff",handoff["review"]["id"],handoff["review"]["revision"],payload=consent,actor=102,error="SOURCE_FACT_NOT_FOUND")
+    step("handoff",handoff,error="SOURCE_FACT_CONFIRM_REQUIRED")
+    facts("handoff",handoff["review"]["id"],handoff["review"]["revision"]-1,payload=consent,error="SOURCE_FACT_STALE_BUTTON")
+    step("handoff",handoff,payload={**consent,"replace_family":True},error="SOURCE_FACT_FAMILY_CONFIRM_REQUIRED")
+    # Any existing technical session survives the refused transfer.
+    occupied=editor("start")
+    step("handoff",handoff,payload=consent,error="SOURCE_FACT_OTHER_INPUT")
+    assert editor("get",occupied)["data"]==occupied["data"]
+    editor("cancel",occupied)
+    # Expiry requires a fresh explicit preview; it never silently refreshes during handoff.
+    sql("UPDATE source_fact_reviews SET preview_expires_at=now()-interval '1 second' WHERE id="+lit(handoff["review"]["id"]))
+    step("handoff",handoff,payload=consent,error="SOURCE_FACT_PREVIEW_EXPIRED")
+    handoff=step("preview",step("edit",handoff))
+    handoff_args="101,'handoff',"+lit(handoff["review"]["id"])+","+str(handoff["review"]["revision"])+",0,"+lit(json.dumps(consent))
+    # A changed product/base cannot be accepted with the old displayed plan.
+    sql("BEGIN; UPDATE technical_cards SET version=version+1 WHERE product_id="+lit(pid)+
+      "; SELECT bot_source_fact_review("+handoff_args+");",error="SOURCE_FACT_SOURCE_STALE")
+    # A changed stored plan cannot be silently recomputed into something else.
+    sql("BEGIN; UPDATE source_fact_reviews SET merge_preview=jsonb_set(merge_preview,'{after_document,values,0,value}','999') WHERE id="+
+      lit(handoff["review"]["id"])+"; SELECT bot_source_fact_review("+handoff_args+");",error="SOURCE_FACT_MERGE_RESULT")
+    # Actual source withdrawal between preview and handoff is refused. The transaction is rolled back.
+    sql("BEGIN; DO $withdraw_handoff$ DECLARE s jsonb; BEGIN "+
+      "s:=bot_product_sources(101,'withdraw_prepare',NULL,"+lit(renewed["id"])+","+str(renewed["revision"])+"); "+
+      "s:=bot_product_sources(101,'withdraw',NULL,"+lit(renewed["id"])+",(s->'review'->>'revision')::integer); "+
+      "BEGIN PERFORM bot_source_fact_review("+handoff_args+"); RAISE EXCEPTION 'QA_HANDOFF_AFTER_WITHDRAW'; "+
+      "EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'SOURCE_FACT_SOURCE_STALE' THEN RAISE; END IF; END; "+
+      "END $withdraw_handoff$; ROLLBACK;")
+    transfer_baseline=snapshot()
+    sql("""CREATE FUNCTION public.qa_handoff_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.action='source_fact_handoff' THEN RAISE EXCEPTION 'QA_HANDOFF_AUDIT_FAILURE'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER qa_handoff_audit_failure BEFORE INSERT ON staff_audit_log FOR EACH ROW EXECUTE FUNCTION public.qa_handoff_audit_failure();""")
+    step("handoff",handoff,payload=consent,error="QA_HANDOFF_AUDIT_FAILURE")
+    assert snapshot()==transfer_baseline,"HANDOFF_LEFT_PARTIAL_EDITOR_OR_ORIGINS"
+    assert facts("get",handoff["review"]["id"])["review"]==handoff["review"]
+    sql("DROP TRIGGER qa_handoff_audit_failure ON staff_audit_log; DROP FUNCTION qa_handoff_audit_failure()")
+    catalog_before=sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))
+    revisions_before=sql("SELECT count(*) FROM technical_revisions")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        transferred=list(pool.map(lambda _:step("handoff",handoff,payload=consent),range(8)))
+    session_ids={x["review"]["editor_session_id"] for x in transferred}
+    assert len(session_ids)==1 and None not in session_ids
+    transferred_view=transferred[0]
+    receipt_session={"id":next(iter(session_ids)),"revision":0}
+    received=editor("get",receipt_session)
+    assert received["phase"]=="editing" and received["source_binding"]=={"usable":True,"total":3,"unavailable":0}
+    assert sql("SELECT count(*) FROM technical_fact_origins WHERE review_id="+lit(handoff["review"]["id"]))=="3"
+    assert sql("SELECT count(*) FROM staff_audit_log WHERE action='source_fact_handoff' AND details->>'review_id'="+lit(handoff["review"]["id"]))=="1"
+    assert sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))==catalog_before
+    assert sql("SELECT count(*) FROM technical_revisions")==revisions_before
+    assert all("origin_ref" in fact for fact in received["data"]["document"]["values"])
+    # The exact displayed values/sources survive; the only added data is private origin metadata.
+    displayed=copy.deepcopy(received["data"]["document"])
+    for fact in displayed["values"]:fact.pop("origin_ref")
+    assert displayed==handoff["review"]["merge_preview"]["after_document"]
+    command(["docker","restart",NAME]);ready()
+    assert step("handoff",handoff,payload=consent)["review"]["editor_session_id"]==received["id"]
+    received=editor("preview",received)
+    received=editor("apply",received)
+    assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")"))["values"][0]["value"]==190
+    # A new document can replace one fact while old withdrawn facts remain editable only for removal.
+    act("withdraw",act("withdraw_prepare",renewed)["review"])
+    third_approval=approve_source(pid,f["id"])
+    retained_review=ready_facts(third_approval,maximum=195,all_rows=False)
+    assert retained_review["retained_sources"]=={"usable":False,"total":2,"unavailable":2}
+    retained_transfer=step("handoff",retained_review,payload=consent)
+    retained_session=editor("get",{"id":retained_transfer["review"]["editor_session_id"],"revision":0})
+    assert retained_session["source_binding"]=={"usable":False,"total":3,"unavailable":2}
+    editor("preview",retained_session,error="TECH_SOURCE_REVIEW_REQUIRED")
+    cleaned=copy.deepcopy(retained_session["data"])
+    cleaned["document"]["values"]=[fact for fact in cleaned["document"]["values"] if fact["attribute_code"]=="mma_current_max_a"]
+    used={fact["source_key"] for fact in cleaned["document"]["values"]}
+    cleaned["document"]["sources"]=[source for source in cleaned["document"]["sources"] if source["key"] in used]
+    retained_session=editor("save",retained_session,cleaned)
+    assert retained_session["source_binding"]=={"usable":True,"total":1,"unavailable":0}
+    retained_session=editor("apply",editor("preview",retained_session))
+    editor("undo",retained_session,error="TECH_SOURCE_UNDO_REVIEW")
+    # Changing a family has a separate explicit consent and still creates only a draft.
+    family_review=ready_facts(third_approval,family="power_multiprocess")
+    step("handoff",family_review,payload=consent,error="SOURCE_FACT_FAMILY_CONFIRM_REQUIRED")
+    family_transfer=step("handoff",family_review,payload={**consent,"replace_family":True})
+    family_session=editor("get",{"id":family_transfer["review"]["editor_session_id"],"revision":0})
+    assert family_session["data"]["document"]["family_code"]=="power_multiprocess"
+    assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")"))["family"]["code"]=="power_mma"
+    editor("cancel",family_session)
+    another=editor("start")
+    # Replaying a canceled/completed transfer always names its original session, never this later one.
+    assert step("handoff",family_review,payload=consent)["review"]["editor_session_id"]==family_session["id"]
+    assert editor("get",another)["data"]==another["data"]
+    editor("cancel",another)
+    handoff_ui_script="""import { sourceFactReviewResponse, renderSourceFactReview } from './src/lib/technical/source-review-view.ts';
+      let raw=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',chunk=>raw+=chunk);
+      process.stdin.on('end',()=>{for(const rawView of JSON.parse(raw)) {
+        const view=sourceFactReviewResponse.parse(rawView);
+        renderSourceFactReview(view,'list',view.row.row_index);
+        if(view.review.phase==='preview') renderSourceFactReview(view,'askhandoff',view.row.row_index);
+      }});"""
+    subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",handoff_ui_script],cwd=ROOT,
+      input=json.dumps([handoff,transferred_view,retained_review,retained_transfer,family_review,family_transfer]),
+      capture_output=True,text=True,check=True)
     print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
+      "handoff_migration_sha256":hashlib.sha256(handoff_migration.encode()).hexdigest(),
       "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
       "checks":["private_roles","exact_unicode_quote","table_origin","foreign_source","stable_prepare",
        "audit_atomicity","CAS","human_corrections","required_conditions","duplicate_resolution",
@@ -675,6 +801,10 @@ try:
        "merge_rpc_previous_revision","merge_rejects_previous_model","origin_private","origin_immutable","origin_preserved_on_save",
        "origin_removed_rejected","origin_source_replacement_rejected","withdrawn_origin_hides_public","withdrawn_origin_blocks_apply",
        "clone_keeps_origin","renewed_source_does_not_reauthorize","origin_receipt_no_republish","origin_undo_guard","explicit_removal_and_new_review",
-       "origin_registration_matches_accepted_row","origin_inactive_before_handoff","origin_ui_contract"]}))
+       "origin_registration_matches_accepted_row","origin_inactive_before_handoff","origin_ui_contract",
+       "handoff_permissions","handoff_confirmation","handoff_expiry","handoff_changed_base","handoff_frozen_plan",
+       "handoff_withdrawn_source","handoff_preserves_existing_editor","handoff_audit_atomicity","handoff_concurrency",
+       "handoff_no_publication","handoff_restart_receipt","handoff_retained_stale_facts","handoff_family_consent",
+       "handoff_receipt_not_later_session","handoff_ui_contract"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)

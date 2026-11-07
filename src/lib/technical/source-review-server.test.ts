@@ -99,6 +99,8 @@ function fixture(): SourceFactReview {
     source_kind: "manual",
     product_title: "[Учебный] Аппарат",
     usable: true,
+    handoff_supported: false,
+    retained_sources: null,
     current_model: model,
     counts: { total: 1, pending: 1, accepted: 0, skipped: 0 },
     rows: [row],
@@ -232,6 +234,11 @@ beforeEach(() => {
       v.review.revision++;
       v.prompt = null;
     }
+    if (args.p_op === "handoff") {
+      v.review.phase = "handed";
+      v.review.revision++;
+      v.review.editor_session_id = docId;
+    }
     if (args.p_op === "accept") {
       v.row!.decision = "accepted";
       v.review.revision++;
@@ -264,6 +271,101 @@ it("Reads current persisted rows even from old read-only buttons", async () => {
   await showSourceFactReview(member, chat, from, sourceFactButton({ id, revision: 0 }, "row"));
   expect(calls()).toEqual(["bot_source_fact_review:get"]);
   expect(texts()).toContain("160 А");
+});
+function readyHandoff() {
+  const v = stored!;
+  v.handoff_supported = true;
+  v.retained_sources = { usable: true, total: 0, unavailable: 0 };
+  v.review.phase = "preview";
+  v.review.publisher = "Учебный";
+  v.review.preview_expires_at = new Date(Date.now() + 900000).toISOString();
+  v.row!.decision = "accepted";
+  v.counts = { total: 1, pending: 0, accepted: 1, skipped: 0 };
+  v.next_pending = null;
+  v.review.prepared_document = {
+    family_code: "power_mma",
+    sources: [
+      {
+        key: "document_0",
+        kind: "manual",
+        publisher: "Учебный",
+        model: "QA-160",
+        title: "Паспорт",
+        url: "",
+        sha256: "a".repeat(64),
+        locator: "Страница 1",
+        checked_on: "2026-11-07",
+      },
+    ],
+    values: [{ ...v.row!.draft!, process: "mma", state: "known", source_key: "document_0" }],
+  };
+  v.review.merge_preview = {
+    version: "source-fact-merge-v1",
+    before_revision: null,
+    before_document: null,
+    after_document: structuredClone(v.review.prepared_document),
+    changes: [{ kind: "added", before_index: null, after_index: 0 }],
+  };
+  return v;
+}
+it("Shows the explicit handoff confirmation without a mutation", async () => {
+  readyHandoff();
+  await showSourceFactReview(member, chat, from, sourceFactButton(stored!.review, "askhandoff"));
+  expect(calls()).toEqual(["bot_source_fact_review:get"]);
+  expect(texts()).toContain("Создастся один черновик");
+  expect(texts()).toContain("отдельный предпросмотр и подтверждение");
+});
+it("Transfers once and recovers the exact original editor from an old confirmation", async () => {
+  readyHandoff();
+  const button = sourceFactButton(stored!.review, "handoff");
+  await showSourceFactReview(member, chat, from, button);
+  expect(calls()).toEqual(["bot_source_fact_review:get", "bot_source_fact_review:handoff"]);
+  expect(mocks.rpc.mock.calls.at(-1)![1].p_payload).toEqual({
+    confirm_plan: true,
+    replace_family: false,
+  });
+  expect(stored!.review.editor_session_id).toBe(docId);
+  await showSourceFactReview(member, chat, from, button);
+  expect(calls().filter((c) => c.endsWith(":handoff"))).toHaveLength(1);
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("te:" + docId + ":0:resume");
+});
+it("Makes family replacement explicit in the final label and backend consent", async () => {
+  const v = readyHandoff();
+  v.review.merge_preview!.before_document = {
+    family_code: "power_tig_dc",
+    sources: [],
+    values: [],
+  };
+  v.review.merge_preview!.before_revision = source;
+  await showSourceFactReview(member, chat, from, sourceFactButton(v.review, "askhandoff"));
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("Да, заменить подборку");
+  await showSourceFactReview(member, chat, from, sourceFactButton(v.review, "handoff"));
+  expect(mocks.rpc.mock.calls.at(-1)![1].p_payload).toEqual({
+    confirm_plan: true,
+    replace_family: true,
+  });
+});
+it("Recovers a committed handoff after losing the response without repeating it", async () => {
+  readyHandoff();
+  const button = sourceFactButton(stored!.review, "handoff");
+  const original = mocks.rpc.getMockImplementation()!;
+  mocks.rpc.mockImplementation(async (...args) => {
+    const result = await original(...args);
+    return args[1].p_op === "handoff"
+      ? { data: null, error: { message: "PRIVATE_AFTER_COMMIT" } }
+      : result;
+  });
+  await showSourceFactReview(member, chat, from, button);
+  expect(stored!.review.phase).toBe("handed");
+  expect(texts()).not.toContain("PRIVATE_AFTER_COMMIT");
+  await showSourceFactReview(member, chat, from, button);
+  expect(calls().filter((c) => c.endsWith(":handoff"))).toHaveLength(1);
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("te:" + docId + ":0:resume");
+});
+it("Refuses handoff when the installed backend does not advertise support", async () => {
+  readyHandoff().handoff_supported = false;
+  await showSourceFactReview(member, chat, from, sourceFactButton(stored!.review, "handoff"));
+  expect(calls()).toEqual(["bot_source_fact_review:get"]);
 });
 it("Does not reopen a different merge position from an older preview button", async () => {
   await showSourceFactReview(
