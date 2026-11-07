@@ -92,6 +92,8 @@ jobs:
         run: python3 ops/tests/primary-source-review.py
       - name: Distinct technical measurement conditions
         run: python3 ops/tests/technical-measurement-conditions.py
+      - name: Atomic source fact installation guards
+        run: python3 ops/tests/source-facts-installation.py
       - name: Source fact review transactions
         run: python3 ops/tests/source-fact-review.py
       - name: Telegram bot receipts (isolated PostgreSQL)

@@ -70,6 +70,16 @@ def remove_created(name, image_id):
         run(["docker", "rm", "-f", container["Id"]], stdout=subprocess.DEVNULL)
 
 
+def preflight_image(image_id, sha):
+    if inspect("container", CANDIDATE):
+        raise RuntimeError("DEV_CANDIDATE_EXISTS_REQUIRES_REVIEW")
+    try:
+        launch(CANDIDATE, image_id, preflight=True)
+        probe(CANDIDATE, sha)
+    finally:
+        remove_created(CANDIDATE, image_id)
+
+
 def write_active(state, sha):
     temporary = state / "active-sha.next"
     temporary.write_text(sha + "\n")
@@ -108,14 +118,7 @@ def replace(sha, state):
         owned(previous)
         if not old or previous["State"]["Running"]:
             raise RuntimeError("DEV_PREVIOUS_REQUIRES_REVIEW")
-    if inspect("container", CANDIDATE):
-        raise RuntimeError("DEV_CANDIDATE_EXISTS_REQUIRES_REVIEW")
-
-    try:
-        launch(CANDIDATE, image_id, preflight=True)
-        probe(CANDIDATE, sha)
-    finally:
-        remove_created(CANDIDATE, image_id)
+    preflight_image(image_id, sha)
 
     # Re-read before touching running containers; migrations share update.lock.
     validate_image(info, sha, schema_requirements())
