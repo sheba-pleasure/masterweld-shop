@@ -54,6 +54,7 @@ DO $after$ DECLARE t record; h text; BEGIN
 END $after$;
 CREATE TABLE IF NOT EXISTS mw_private.dev_migration_receipts(path text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES('"""+PATH+"','"+checksum+"""');
+NOTIFY pgrst,'reload schema';
 COMMIT;
 """
 def main():
