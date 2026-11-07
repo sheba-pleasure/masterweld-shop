@@ -68,7 +68,7 @@ jobs:
         run: python3 ops/tests/document-upgrade.py
       - name: Offline document extraction and real OCR
         run: |
-          docker build --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
+          docker build --target qa --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
           docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --memory 1g --cpus 1 -v "$PWD/ops/intake:/tests:ro" mw-document-qa /usr/bin/python3 /tests/test_extract.py
       - name: DEV parser replacement and rollback guards
         run: python3 -m unittest discover -s ops/dev -p test_document_parser_update.py

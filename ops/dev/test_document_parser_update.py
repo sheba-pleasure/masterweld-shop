@@ -19,6 +19,9 @@ class SwitchTests(unittest.TestCase):
         self.assertIn("text_locator_version", source)
         self.assertIn("docx_table_version", source)
         self.assertIn("probe.docx", source)
+        self.assertIn("xls_table_version", source)
+        self.assertIn("TEST-XLS-001", source)
+        self.assertIn("formula_cells", source)
 
     def test_failed_promoted_probe_drains_worker_and_restores_old_container(self):
         calls = []

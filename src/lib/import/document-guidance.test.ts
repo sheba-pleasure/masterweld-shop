@@ -115,3 +115,22 @@ it("preserves table identity, read-only buttons, missing-result recovery and pag
   expect(missing.text).toContain("Таблица недоступна");
   expect(missing.rows.flat().some((b) => b.callback_data.startsWith("di:table:"))).toBe(false);
 });
+
+it("distinguishes XLS formula markers from preserved formula text and never trusts the cache", () => {
+  const text = documentGuidance(
+    [
+      "XLS_FORMULA_VALUE_REQUIRED",
+      "HIDDEN_COLUMNS",
+      "XLS_NONCELL_CONTENT_REVIEW",
+      "XLS_DATE_REVIEW",
+    ],
+    { complete: true },
+  );
+  expect(text).toContain("Вместо формул XLS");
+  expect(text).toContain("Сохранённое число не используется");
+  expect(text).not.toContain("сохранил их текст");
+  expect(text).toContain("Макросы не запускались");
+  expect(text).toContain("скрытые колонки");
+  expect(text).toContain("Это не цена и не артикул");
+  expect(text).not.toContain("дополнительные ограничения");
+});

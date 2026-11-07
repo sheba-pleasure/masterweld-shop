@@ -31,6 +31,7 @@ describe("catalog CSV preparation", () => {
   it.each([
     ["sku;price\nA;1.23", "comma", "BAD_PRICE"],
     ["sku;price\nA;=1+2", "dot", "FORMULA"],
+    ["sku;price\nA;=Формула XLS: введите проверенное значение", "dot", "FORMULA"],
     ["sku;price\n;10", "dot", "BAD_SKU"],
     ["sku;price\nA;0", "dot", "BAD_PRICE"],
     ["sku;price\nA;1.001", "dot", "BAD_PRICE"],

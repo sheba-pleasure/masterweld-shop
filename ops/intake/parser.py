@@ -28,7 +28,8 @@ class Handler(BaseHTTPRequestHandler):
                 with out.open("wb") as output:
                     subprocess.run(["/usr/bin/python3","/worker/extract.py",str(source),job["file_name"]],
                       stdout=output,stderr=subprocess.DEVNULL,timeout=180,check=True,
-                      env={"PATH":"/usr/bin:/bin","LANG":"C.UTF-8","TMPDIR":directory})
+                      env={"PATH":"/usr/bin:/bin","LANG":"C.UTF-8","TMPDIR":directory,
+                           "PYTHONPATH":"/opt/parser-deps","PYTHONDONTWRITEBYTECODE":"1"})
                 if out.stat().st_size>5000000: raise ValueError()
                 data=out.read_bytes()
                 if "sha256" not in json.loads(data): raise ValueError()
