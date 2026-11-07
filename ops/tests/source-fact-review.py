@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated PostgreSQL: explicit product model choice, receipts and invalidation."""
+"""Isolated PostgreSQL: source-backed fact decisions, question binding and recovery."""
 import base64
 import copy
 import concurrent.futures
@@ -134,7 +134,7 @@ def facts(op,rid=None,rev=None,index=0,payload=None,actor=101,error=None):
 def step(op,v,index=0,payload=None,error=None):
     return facts(op,v["review"]["id"],v["review"]["revision"],index,payload,error=error)
 def snapshot():
-    tables=sql("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT IN('staff_audit_log','source_fact_reviews','source_fact_rows') ORDER BY tablename").splitlines()
+    tables=sql("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT IN('staff_audit_log','source_fact_reviews','source_fact_rows','source_fact_prompts') ORDER BY tablename").splitlines()
     return {t:sql('SELECT md5(coalesce(string_agg(row_to_json(t)::text,chr(10) ORDER BY row_to_json(t)::text),\'\')) FROM public."'+t+'" t') for t in tables}
 def approve_source(pid,doc):
     r=sources("start",pid,rid=str(uuid.uuid4()))["review"]
@@ -183,7 +183,7 @@ try:
     sql("BEGIN;"+migration+"COMMIT;")
     assert snapshot()==before,"MIGRATION_DATA_CHANGED"
     for role in ["anon","authenticated","service_role"]:
-        for table_name in ["source_fact_reviews","source_fact_rows"]:
+        for table_name in ["source_fact_reviews","source_fact_rows","source_fact_prompts"]:
             sql("SET ROLE "+role+"; SELECT * FROM "+table_name,error="permission denied")
         assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.source_fact_evidence_matches(jsonb,jsonb)','EXECUTE')")=="f"
     facts("current",actor=103,error="SOURCE_FACT_DENIED")
@@ -210,6 +210,130 @@ try:
     facts("get",request,actor=102,error="SOURCE_FACT_NOT_FOUND")
     facts("prepare",str(uuid.uuid4()),payload=payload,error="SOURCE_FACT_ACTIVE")
     assert v["row"]["proposal"]["evidence"]["quote"]==proposals[0]["evidence"]["quote"]
+    # Each answer belongs only to the actor's exact persisted question and row.
+    assert facts("input")["idle"]
+    facts("input",actor=103,error="SOURCE_FACT_DENIED")
+    step("prompt",v,index=3,payload={"field":"value"},error="SOURCE_FACT_ATTRIBUTE")
+    step("prompt",v,payload={"field":"source_key"},error="SOURCE_FACT_INPUT")
+    v=step("prompt",v,payload={"field":"value"})
+    assert v["prompt"]["message_id"] is None and facts("input")==v
+    step("reply",v,payload={"reply_to":900,"value":165},error="SOURCE_FACT_WRONG_QUESTION")
+    step("bind",v,payload={"message_id":0},error="SOURCE_FACT_INPUT")
+    v=step("bind",v,payload={"message_id":900})
+    assert step("bind",v,payload={"message_id":900})==v
+    step("bind",v,payload={"message_id":901},error="SOURCE_FACT_QUESTION_BOUND")
+    step("reply",v,payload={"reply_to":901,"value":165},error="SOURCE_FACT_WRONG_QUESTION")
+    step("reply",v,index=1,payload={"reply_to":900,"value":165},error="SOURCE_FACT_QUESTION_STALE")
+    step("reply",v,payload={"reply_to":900,"value":165,"attribute_code":"other"},error="SOURCE_FACT_INPUT")
+    facts("reply",request,v["review"]["revision"],payload={"reply_to":900,"value":165},
+      actor=102,error="SOURCE_FACT_NOT_FOUND")
+    old_question=copy.deepcopy(v)
+    sql("""CREATE FUNCTION public.qa_reply_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.action='source_fact_reply' THEN RAISE EXCEPTION 'QA_REPLY_FAILURE'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER qa_reply_audit_failure BEFORE INSERT ON staff_audit_log FOR EACH ROW EXECUTE FUNCTION public.qa_reply_audit_failure();""")
+    step("reply",v,payload={"reply_to":900,"value":165},error="QA_REPLY_FAILURE")
+    assert facts("input")==v
+    sql("DROP TRIGGER qa_reply_audit_failure ON staff_audit_log; DROP FUNCTION qa_reply_audit_failure()")
+    v=step("reply",v,payload={"reply_to":900,"value":165})
+    assert v["prompt"] is None and facts("input")["idle"]
+    assert v["row"]["draft"]["value"]==165 and v["row"]["proposal"]["value"]==160
+    step("reply",old_question,payload={"reply_to":900,"value":175},error="SOURCE_FACT_STALE_BUTTON")
+    # Context is collected one explicit field at a time, without changing value or other conditions.
+    v=step("prompt",v,index=1,payload={"field":"current_a"})
+    v=step("bind",v,index=1,payload={"message_id":902})
+    step("reply",v,index=1,payload={"reply_to":902,"value":-1},error="TECH_BAD_CONTEXT")
+    v=step("reply",v,index=1,payload={"reply_to":902,"value":160})
+    assert v["row"]["draft"]==value("mma_duty_cycle_pct",60,{"current_a":160})
+    v=step("prompt",v,index=1,payload={"field":"temperature_c"})
+    v=step("bind",v,index=1,payload={"message_id":903})
+    step("reply",v,index=1,payload={"reply_to":903,"value":"40"},error="TECH_BAD_CONTEXT")
+    v=step("reply",v,index=1,payload={"reply_to":903,"value":40})
+    assert v["row"]["draft"]["context"]=={"current_a":160,"temperature_c":40}
+    # Return this row to the original incomplete draft for the acceptance checks below.
+    v=step("save",v,index=1,payload={"draft":value("mma_duty_cycle_pct",60)})
+    v=step("accept",v)
+    v=step("prompt",v,payload={"field":"value"})
+    assert v["row"]["decision"]=="pending"
+    v=step("bind",v,payload={"message_id":904})
+    command(["docker","restart",NAME]);ready()
+    assert facts("input")==v
+    previous=copy.deepcopy(v)
+    # Explicit resume makes a new revision and cannot silently bind an old question to a new message.
+    v=step("prompt",v,payload={"field":"value"})
+    v=step("bind",v,payload={"message_id":905})
+    step("reply",previous,payload={"reply_to":904,"value":180},error="SOURCE_FACT_STALE_BUTTON")
+    step("reply",v,payload={"reply_to":904,"value":180},error="SOURCE_FACT_WRONG_QUESTION")
+    v=step("cancel_input",v)
+    assert v["row"]["draft"]["value"]==165 and v["row"]["decision"]=="pending" and facts("input")["idle"]
+    # A question can be canceled without restoring approval or losing saved corrections.
+    v=step("prompt",v,payload={"field":"publisher"})
+    v=step("bind",v,payload={"message_id":906})
+    step("reply",v,payload={"reply_to":906,"value":" "},error="SOURCE_FACT_INPUT")
+    v=step("reply",v,payload={"reply_to":906,"value":"Учебный издатель"})
+    assert v["review"]["publisher"]=="Учебный издатель"
+    # Keep the existing explicit-publisher-required acceptance test independent.
+    sql("UPDATE source_fact_reviews SET publisher=NULL WHERE id="+lit(request))
+    v=facts("get",request)
+    ordinary="INSERT INTO bot_editor_states(staff_telegram_id,state,expires_at) VALUES(101,'new_title',now()+interval '1 hour')"
+    technical="INSERT INTO technical_editor_sessions(staff_telegram_id,product_id,base_version,data) VALUES(101,"+lit(pid)+",0,'{}')"
+    doc_prompt="INSERT INTO document_review_prompts(actor,review_id,revision,row_index,column_index) VALUES(101,"+lit(r["id"])+",0,0,0)"
+    competitors=[("bot_editor_states",ordinary),("technical_editor_sessions",technical),("document_review_prompts",doc_prompt)]
+    v=step("prompt",v,payload={"field":"value"})
+    for table_name,query in competitors:
+        sql(query,error="SOURCE_FACT_INPUT_ACTIVE")
+    # Older text input also blocks starting this editor; failed attempts leave no question/revision.
+    v=step("cancel_input",v)
+    for table_name,query in competitors:
+        sql(query)
+        step("prompt",v,payload={"field":"value"},error="SOURCE_FACT_OTHER_INPUT")
+        assert facts("get",request)==v
+        sql("DELETE FROM "+table_name)
+    args="101,'prompt',"+lit(request)+","+str(v["review"]["revision"])+",0,'{\"field\":\"value\"}'"
+    sql("BEGIN ISOLATION LEVEL REPEATABLE READ; SELECT bot_source_fact_review("+args+"); COMMIT;",
+      error="EDITOR_ISOLATION_REQUIRED")
+    assert facts("get",request)==v
+    # Real competing transactions: only one of the two editors may acquire this actor.
+    def attempt(query):
+        result=subprocess.run(["docker","exec","-i",NAME,"psql","-X","-Atq","-U","postgres","-v","ON_ERROR_STOP=1"],
+          input="BEGIN; "+query+"; SELECT pg_sleep(0.05); COMMIT;",capture_output=True,text=True)
+        return result.returncode,result.stderr
+    for table_name,query in competitors:
+        args="101,'prompt',"+lit(request)+","+str(v["review"]["revision"])+",0,'{\"field\":\"value\"}'"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes=list(pool.map(attempt,["SELECT bot_source_fact_review("+args+")",query]))
+        assert sum(code==0 for code,_ in outcomes)==1,outcomes
+        assert any("SOURCE_FACT_OTHER_INPUT" in err or "SOURCE_FACT_INPUT_ACTIVE" in err for _,err in outcomes),outcomes
+        v=facts("get",request)
+        if v["prompt"] is not None:
+            v=step("cancel_input",v)
+        sql("DELETE FROM "+table_name)
+    # A revoked privileged question must not trap the employee, nor accept a reply after a role restore
+    # if an ordinary editor was opened in between.
+    v=step("prompt",v,payload={"field":"value"})
+    v=step("bind",v,payload={"message_id":907})
+    sql("UPDATE staff SET role='seller' WHERE telegram_id=101")
+    facts("input",error="SOURCE_FACT_DENIED")
+    sql(ordinary)
+    sql("UPDATE staff SET role='admin' WHERE telegram_id=101")
+    step("reply",v,payload={"reply_to":907,"value":166},error="SOURCE_FACT_OTHER_INPUT")
+    assert facts("input")==v
+    v=step("cancel_input",v)
+    sql("DELETE FROM bot_editor_states")
+    # An expired question is not silently rebound. A new explicit prompt can replace the expired row.
+    v=step("prompt",v,payload={"field":"value"})
+    v=step("bind",v,payload={"message_id":908})
+    sql("UPDATE source_fact_prompts SET expires_at=now()-interval '1 minute' WHERE actor=101")
+    assert facts("input")["idle"]
+    step("reply",v,payload={"reply_to":908,"value":166},error="SOURCE_FACT_QUESTION_STALE")
+    v=step("prompt",v,payload={"field":"value"})
+    v=step("bind",v,payload={"message_id":909})
+    # Any row action invalidates the pending answer; it may not change the next decision.
+    old_question=copy.deepcopy(v)
+    v=step("skip",v,index=3)
+    assert facts("input")["idle"]
+    step("reply",old_question,payload={"reply_to":909,"value":166},error="SOURCE_FACT_STALE_BUTTON")
+    v=step("reset",v,index=3)
+    v=facts("get",request)
     # Acceptance and its audit must commit together.
     sql("""CREATE FUNCTION public.qa_fact_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
       IF NEW.action='source_fact_accept' THEN RAISE EXCEPTION 'QA_AUDIT_FAILURE'; END IF; RETURN NEW; END $$;
@@ -255,13 +379,21 @@ try:
     assert step("cancel",v)["review"]["phase"]=="canceled"
     assert facts("prepare",request,payload=payload)["review"]["phase"]=="canceled"
     fresh=facts("prepare",str(uuid.uuid4()),payload=payload)
+    fresh=step("prompt",fresh,payload={"field":"value"})
+    fresh=step("bind",fresh,payload={"message_id":910})
     act("withdraw",act("withdraw_prepare",approved)["review"])
     assert not facts("get",fresh["review"]["id"])["usable"]
     step("save",fresh,payload={"draft":value("mma_current_max_a",180)},error="SOURCE_FACT_SOURCE_STALE")
+    step("reply",fresh,payload={"reply_to":910,"value":180},error="SOURCE_FACT_SOURCE_STALE")
+    assert not facts("input")["usable"] # A stale source is not reported as no pending question.
+    fresh=step("cancel_input",fresh)
+    assert facts("input")["idle"]
     step("cancel",fresh)
     print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
       "checks":["private_roles","exact_unicode_quote","table_origin","foreign_source","stable_prepare",
        "audit_atomicity","CAS","human_corrections","required_conditions","duplicate_resolution",
+       "bound_questions","restart_with_question","explicit_resume","cancel_input","exclusive_editors_both_orders","concurrent_editor_starts",
+       "reply_audit_atomicity","revoked_restored_role","expired_question","row_action_invalidates_question","withdrawn_source_question",
        "publisher_required","preview_only","same_page_grouping","old_data_preserved","restart",
        "stale_base","withdrawn_source","cancel_receipt"]}))
 finally:

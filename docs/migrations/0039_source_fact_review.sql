@@ -29,6 +29,64 @@ CREATE TABLE public.source_fact_rows (
  locator_override text CHECK(locator_override IS NULL OR length(btrim(locator_override)) BETWEEN 1 AND 1000),
  PRIMARY KEY(review_id,row_index)
 );
+CREATE TABLE public.source_fact_prompts (
+ actor bigint PRIMARY KEY REFERENCES public.staff(telegram_id),
+ review_id uuid NOT NULL,
+ revision integer NOT NULL CHECK(revision>=0),
+ row_index integer NOT NULL,
+ field text NOT NULL CHECK(field IN('value','publisher','locator','current_a','temperature_c','pressure_bar',
+   'gas','cooling','duty_pct','material','diameter_mm')),
+ message_id bigint CHECK(message_id>0),
+ expires_at timestamptz NOT NULL,
+ FOREIGN KEY(review_id,row_index) REFERENCES public.source_fact_rows(review_id,row_index)
+);
+ALTER TABLE public.source_fact_prompts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.source_fact_prompts FROM PUBLIC,anon,authenticated,service_role;
+
+-- Serialize all question starts on the same actor, including entry through older editors.
+CREATE FUNCTION mw_private.source_fact_input_exclusive() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $exclusive$
+DECLARE actor_id bigint;
+BEGIN
+ IF TG_TABLE_NAME IN('source_fact_prompts','document_review_prompts') THEN
+  IF NEW.expires_at<=now() THEN RETURN NEW; END IF;
+  actor_id:=NEW.actor;
+ ELSIF TG_TABLE_NAME='bot_editor_states' THEN
+  IF NEW.consumed_at IS NOT NULL OR NEW.expires_at<=now() THEN RETURN NEW; END IF;
+  actor_id:=NEW.staff_telegram_id;
+ ELSE
+  IF NEW.phase NOT IN('editing','preview') OR NEW.expires_at<=now() THEN RETURN NEW; END IF;
+  actor_id:=NEW.staff_telegram_id;
+ END IF;
+ IF current_setting('transaction_isolation')<>'read committed' THEN RAISE EXCEPTION 'EDITOR_ISOLATION_REQUIRED'; END IF;
+ PERFORM 1 FROM staff WHERE telegram_id=actor_id FOR UPDATE;
+ IF TG_TABLE_NAME='source_fact_prompts' THEN
+  IF NOT EXISTS(SELECT 1 FROM source_fact_reviews r WHERE r.id=NEW.review_id AND r.actor=actor_id
+     AND r.phase='reviewing' AND r.revision=NEW.revision AND NEW.expires_at<=r.expires_at)
+   THEN RAISE EXCEPTION 'SOURCE_FACT_QUESTION_STALE'; END IF;
+  IF EXISTS(SELECT 1 FROM bot_editor_states WHERE staff_telegram_id=actor_id AND consumed_at IS NULL AND expires_at>now())
+   OR EXISTS(SELECT 1 FROM technical_editor_sessions WHERE staff_telegram_id=actor_id AND phase IN('editing','preview') AND expires_at>now())
+   OR EXISTS(SELECT 1 FROM document_review_prompts WHERE actor=actor_id AND expires_at>now())
+   THEN RAISE EXCEPTION 'SOURCE_FACT_OTHER_INPUT'; END IF;
+ ELSE
+  IF EXISTS(SELECT 1 FROM source_fact_prompts p JOIN source_fact_reviews r ON r.id=p.review_id
+    JOIN staff owner ON owner.telegram_id=p.actor WHERE p.actor=actor_id AND p.expires_at>now()
+     AND r.actor=p.actor AND r.revision=p.revision AND r.phase='reviewing' AND r.expires_at>now()
+     AND owner.active AND(owner.role::text='admin' OR(owner.role::text='director' AND owner.elevated)))
+   THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT_ACTIVE'; END IF;
+ END IF;
+ RETURN NEW;
+END $exclusive$;
+REVOKE ALL ON FUNCTION mw_private.source_fact_input_exclusive() FROM PUBLIC,anon,authenticated,service_role;
+CREATE TRIGGER source_fact_input_guard BEFORE INSERT OR UPDATE ON public.source_fact_prompts
+ FOR EACH ROW EXECUTE FUNCTION mw_private.source_fact_input_exclusive();
+CREATE TRIGGER source_fact_document_guard BEFORE INSERT OR UPDATE ON public.document_review_prompts
+ FOR EACH ROW EXECUTE FUNCTION mw_private.source_fact_input_exclusive();
+CREATE TRIGGER source_fact_ordinary_guard BEFORE INSERT OR UPDATE ON public.bot_editor_states
+ FOR EACH ROW EXECUTE FUNCTION mw_private.source_fact_input_exclusive();
+CREATE TRIGGER source_fact_technical_guard BEFORE INSERT OR UPDATE ON public.technical_editor_sessions
+ FOR EACH ROW EXECUTE FUNCTION mw_private.source_fact_input_exclusive();
+
 ALTER TABLE public.source_fact_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.source_fact_rows ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.source_fact_reviews,public.source_fact_rows FROM PUBLIC,anon,authenticated,service_role;
@@ -106,16 +164,25 @@ DECLARE r source_fact_reviews%ROWTYPE; line source_fact_rows%ROWTYPE; src produc
  d document_intakes%ROWTYPE; v_proposal jsonb; supplied jsonb; all_rows jsonb; accepted_values jsonb;
  source_values jsonb; result_document jsonb; counts jsonb; current_model jsonb; selected_attribute technical_attributes%ROWTYPE;
  n integer; ix integer:=0; row_count integer; usable boolean; family text; changed boolean:=false;
+ prompt source_fact_prompts%ROWTYPE; input_field text; input_value jsonb; context_number numeric;
 BEGIN
  PERFORM 1 FROM staff WHERE telegram_id=p_actor AND active
   AND(role::text='admin' OR(role::text='director' AND elevated)) FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'SOURCE_FACT_DENIED'; END IF;
- IF p_op IS NULL OR p_op NOT IN('prepare','get','current','map','save','accept','skip','reset','publisher','locator','preview','edit','cancel')
+ IF p_op IS NULL OR p_op NOT IN('prepare','get','current','input','prompt','bind','reply','cancel_input',
+  'map','save','accept','skip','reset','publisher','locator','preview','edit','cancel')
   THEN RAISE EXCEPTION 'SOURCE_FACT_OPERATION'; END IF;
  IF jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR octet_length(p_payload::text)>1600000
   OR p_index IS NULL OR p_index NOT BETWEEN 0 AND 255 THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
  PERFORM pg_advisory_xact_lock(14757,31);
- IF p_op='current' THEN
+ IF p_op='input' THEN
+  SELECT p.* INTO prompt FROM source_fact_prompts p JOIN source_fact_reviews r0 ON r0.id=p.review_id
+   WHERE p.actor=p_actor AND r0.actor=p_actor AND p.expires_at>now() AND r0.expires_at>now()
+    AND r0.revision=p.revision AND r0.phase='reviewing' FOR UPDATE OF p;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'idle',true); END IF;
+  SELECT * INTO r FROM source_fact_reviews WHERE id=prompt.review_id FOR UPDATE;
+  p_index:=prompt.row_index;
+ ELSIF p_op='current' THEN
   SELECT * INTO r FROM source_fact_reviews WHERE actor=p_actor ORDER BY
    (phase IN('reviewing','preview') AND expires_at>now()) DESC,created_at DESC,id LIMIT 1 FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'idle',true); END IF;
@@ -178,19 +245,96 @@ BEGIN
  current_model:=mw_private.technical_model_context(r.product_id);
  usable:=mw_private.product_document_source_usable(src.id) AND r.model_context=current_model
   AND r.base_version=coalesce((SELECT version FROM technical_cards WHERE product_id=r.product_id),0);
- IF p_op NOT IN('prepare','get','current') THEN
+ IF p_op NOT IN('prepare','get','current','input') THEN
   IF p_op='cancel' AND r.phase='canceled' THEN NULL;
   ELSE
    IF p_revision IS NULL OR p_revision<>r.revision THEN RAISE EXCEPTION 'SOURCE_FACT_STALE_BUTTON'; END IF;
-   IF r.phase NOT IN('reviewing','preview') OR (r.expires_at<=now() AND p_op<>'cancel')
+   IF r.phase NOT IN('reviewing','preview') OR (r.expires_at<=now() AND p_op NOT IN('cancel','cancel_input'))
     THEN RAISE EXCEPTION 'SOURCE_FACT_EXPIRED'; END IF;
-   IF NOT usable AND p_op<>'cancel' THEN RAISE EXCEPTION 'SOURCE_FACT_SOURCE_STALE'; END IF;
+   IF NOT usable AND p_op NOT IN('cancel','cancel_input') THEN RAISE EXCEPTION 'SOURCE_FACT_SOURCE_STALE'; END IF;
    IF p_op NOT IN('cancel','edit') AND r.phase<>'reviewing' THEN RAISE EXCEPTION 'SOURCE_FACT_NOT_EDITING'; END IF;
-   IF p_op IN('map','save','accept','skip','reset','locator') THEN
+   IF p_op IN('map','save','accept','skip','reset','locator','prompt','bind','reply','cancel_input') THEN
     SELECT * INTO line FROM source_fact_rows WHERE review_id=r.id AND row_index=p_index FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'SOURCE_FACT_ROW'; END IF;
    END IF;
-   IF p_op='map' THEN
+   IF p_op IN('bind','reply','cancel_input') THEN
+    SELECT * INTO prompt FROM source_fact_prompts WHERE actor=p_actor AND review_id=r.id FOR UPDATE;
+    IF NOT FOUND OR prompt.revision<>r.revision OR prompt.row_index<>p_index
+      OR (prompt.expires_at<=now() AND p_op<>'cancel_input')
+     THEN RAISE EXCEPTION 'SOURCE_FACT_QUESTION_STALE'; END IF;
+   END IF;
+   IF p_op='prompt' THEN
+    input_field:=p_payload->>'field';
+    IF input_field IS NULL OR input_field NOT IN('value','publisher','locator','current_a','temperature_c','pressure_bar',
+      'gas','cooling','duty_pct','material','diameter_mm') OR p_payload-'field'<>'{}'::jsonb
+     THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+    IF input_field NOT IN('publisher','locator') AND line.draft IS NULL
+     THEN RAISE EXCEPTION 'SOURCE_FACT_ATTRIBUTE'; END IF;
+    -- Choosing to correct a row withdraws its approval even if the next message never arrives.
+    IF input_field<>'publisher' THEN
+     UPDATE source_fact_rows SET decision='pending',decided_at=NULL WHERE review_id=r.id AND row_index=p_index;
+    END IF;
+   ELSIF p_op='bind' THEN
+    IF p_payload-'message_id'<>'{}'::jsonb OR jsonb_typeof(p_payload->'message_id') IS DISTINCT FROM 'number'
+      OR p_payload->>'message_id' !~ '^[1-9][0-9]{0,15}$'
+     THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+    IF prompt.message_id IS NOT NULL AND prompt.message_id<>(p_payload->>'message_id')::bigint
+     THEN RAISE EXCEPTION 'SOURCE_FACT_QUESTION_BOUND'; END IF;
+    IF prompt.message_id IS NULL THEN
+     UPDATE source_fact_prompts SET message_id=(p_payload->>'message_id')::bigint WHERE actor=p_actor;
+     changed:=true;
+    END IF;
+   ELSIF p_op='reply' THEN
+    IF p_payload-ARRAY['reply_to','value']<>'{}'::jsonb
+      OR jsonb_typeof(p_payload->'reply_to') IS DISTINCT FROM 'number'
+      OR p_payload->>'reply_to' !~ '^[1-9][0-9]{0,15}$'
+      OR NOT p_payload ? 'value' OR octet_length(p_payload::text)>8192
+     THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+    IF prompt.message_id IS NULL OR prompt.message_id<>(p_payload->>'reply_to')::bigint
+     THEN RAISE EXCEPTION 'SOURCE_FACT_WRONG_QUESTION'; END IF;
+    -- Rights may have been revoked and restored while another editor started.
+    IF EXISTS(SELECT 1 FROM bot_editor_states WHERE staff_telegram_id=p_actor AND consumed_at IS NULL AND expires_at>now())
+     OR EXISTS(SELECT 1 FROM technical_editor_sessions WHERE staff_telegram_id=p_actor AND phase IN('editing','preview') AND expires_at>now())
+     OR EXISTS(SELECT 1 FROM document_review_prompts WHERE actor=p_actor AND expires_at>now())
+     THEN RAISE EXCEPTION 'SOURCE_FACT_OTHER_INPUT'; END IF;
+    input_value:=p_payload->'value';input_field:=prompt.field;
+    IF input_field IN('publisher','locator') THEN
+     IF jsonb_typeof(input_value) IS DISTINCT FROM 'string' OR length(btrim(input_value#>>'{}')) NOT BETWEEN 1 AND 1000
+      THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+     IF input_field='publisher' THEN
+      UPDATE source_fact_reviews SET publisher=btrim(input_value#>>'{}') WHERE id=r.id;
+     ELSE
+      UPDATE source_fact_rows SET locator_override=btrim(input_value#>>'{}'),decision='pending',decided_at=NULL
+       WHERE review_id=r.id AND row_index=p_index;
+     END IF;
+    ELSE
+     IF line.draft IS NULL THEN RAISE EXCEPTION 'SOURCE_FACT_ATTRIBUTE'; END IF;
+     IF input_field='value' THEN
+      IF jsonb_typeof(input_value) NOT IN('string','number','boolean','array') THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+      supplied:=jsonb_set(line.draft,'{value}',input_value);
+     ELSE
+      IF input_field IN('gas','cooling','material') THEN
+       IF jsonb_typeof(input_value) IS DISTINCT FROM 'string' OR length(btrim(input_value#>>'{}')) NOT BETWEEN 1 AND 120
+        OR (input_field='cooling' AND input_value#>>'{}' NOT IN('air','liquid'))
+        THEN RAISE EXCEPTION 'TECH_BAD_CONTEXT'; END IF;
+      ELSE
+       IF jsonb_typeof(input_value) IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'TECH_BAD_CONTEXT'; END IF;
+       context_number:=(input_value#>>'{}')::numeric;
+       IF context_number NOT BETWEEN -100 AND 1000000 OR (input_field<>'temperature_c' AND context_number<0)
+        OR (input_field='duty_pct' AND context_number>100)
+        OR (input_field IN('pressure_bar','diameter_mm') AND context_number<=0)
+        THEN RAISE EXCEPTION 'TECH_BAD_CONTEXT'; END IF;
+      END IF;
+      supplied:=jsonb_set(line.draft,ARRAY['context',input_field],input_value);
+     END IF;
+     IF octet_length(supplied::text)>8192 THEN RAISE EXCEPTION 'SOURCE_FACT_INPUT'; END IF;
+     -- Partial drafts may still lack conditions. Acceptance always runs the full canonical validator.
+     UPDATE source_fact_rows SET draft=supplied,decision='pending',decided_at=NULL
+      WHERE review_id=r.id AND row_index=p_index;
+    END IF;
+   ELSIF p_op='cancel_input' THEN
+    NULL; -- Keep recorded corrections and pending decisions; only end this question.
+   ELSIF p_op='map' THEN
     SELECT a.* INTO selected_attribute FROM technical_attributes a JOIN technical_family_attributes f ON f.attribute_code=a.code
      WHERE f.family_code=r.family_code AND a.code=p_payload->>'attribute_code';
     IF NOT FOUND OR p_payload->>'process' IS NULL OR NOT (p_payload->>'process')=ANY(selected_attribute.processes)
@@ -260,8 +404,17 @@ BEGIN
    ELSIF p_op='cancel' THEN
     UPDATE source_fact_reviews SET phase='canceled',preview_expires_at=NULL,prepared_document=NULL WHERE id=r.id;
    END IF;
-   UPDATE source_fact_reviews SET revision=revision+1 WHERE id=r.id RETURNING * INTO r;
-   changed:=true;
+   IF p_op<>'bind' THEN
+    DELETE FROM source_fact_prompts WHERE actor=p_actor AND review_id=r.id;
+    UPDATE source_fact_reviews SET revision=revision+1 WHERE id=r.id RETURNING * INTO r;
+    IF p_op='prompt' THEN
+     INSERT INTO source_fact_prompts(actor,review_id,revision,row_index,field,expires_at)
+      VALUES(p_actor,r.id,r.revision,p_index,input_field,r.expires_at)
+      ON CONFLICT(actor) DO UPDATE SET review_id=excluded.review_id,revision=excluded.revision,
+       row_index=excluded.row_index,field=excluded.field,message_id=NULL,expires_at=excluded.expires_at;
+    END IF;
+    changed:=true;
+   END IF;
   END IF;
  END IF;
  IF changed THEN
@@ -275,12 +428,14 @@ BEGIN
   SELECT row_index,proposal,draft,decision,locator_override FROM source_fact_rows WHERE review_id=r.id
    ORDER BY row_index LIMIT 8 OFFSET (p_index/8)*8) q;
  SELECT * INTO line FROM source_fact_rows WHERE review_id=r.id AND row_index=p_index;
+ SELECT * INTO prompt FROM source_fact_prompts WHERE actor=p_actor AND review_id=r.id AND revision=r.revision
+  AND expires_at>now() AND r.phase='reviewing';
  RETURN jsonb_build_object('ok',true,'idle',false,'review',to_jsonb(r)-'extraction',
   'source_review_id',src.review_id,'file_name',d.file_name,'source_kind',src.source_kind,
   'usable',coalesce(usable,false),'counts',counts,'rows',coalesce(all_rows,'[]'::jsonb),
   'row',CASE WHEN line.review_id IS NOT NULL THEN to_jsonb(line) END,
   'missing_fields',r.extraction->'fields_without_candidates','warnings',r.extraction->'warnings',
-  'current_model',current_model);
+  'current_model',current_model,'prompt',CASE WHEN prompt.actor IS NOT NULL THEN to_jsonb(prompt) END);
 END $review$;
 REVOKE ALL ON FUNCTION public.bot_source_fact_review(bigint,text,uuid,integer,integer,jsonb) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.bot_source_fact_review(bigint,text,uuid,integer,integer,jsonb) TO service_role;
