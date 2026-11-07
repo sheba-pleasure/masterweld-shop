@@ -50,7 +50,7 @@ const safeErrors: Record<string, string> = {
   TECH_UNDO_EXPIRED: "Откат недоступен. Срок — 7 дней после применения.",
   TECH_DENIED: "Доступ к редактированию отозван. Обратитесь к владельцу.",
   TECH_CONFLICT:
-    "⚠️ Характеристики изменились после начала работы. Черновик сохранён. Сверьте его с новой карточкой; затем отмените черновик и начните заново.",
+    "⚠️ Товар или его характеристики изменились после начала работы. Черновик сохранён. Сверьте модель и источники с текущей карточкой; затем отмените черновик и начните заново.",
   TECH_EDITOR_ACTIVE:
     "У вас уже открыт черновик другого товара. /technical — продолжить или отменить его.",
   TECH_EDITOR_STALE: "Эта кнопка или ответ устарели. /technical — открыть текущий шаг.",
@@ -127,8 +127,9 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
   if (s.phase === "applied") {
     text +=
       s.review_state === "verified"
-        ? "✅ Подтверждённые характеристики сохранены. Покупатель увидит их у опубликованного, не исключённого товара."
+        ? "✅ Подтверждение сохранено в истории. Откройте «Текущие характеристики», чтобы проверить, какие сведения действуют сейчас."
         : "📨 Предложение сохранено для проверки владельцем. Опубликованные сведения не изменились.";
+    rows.push([{ text: "⚙️ Текущие характеристики", callback_data: "te:open:" + s.product_id }]);
     if (can(member, "publish_products")) add("↩️ Проверить откат", "askundo");
   } else if (s.phase === "canceled" || s.phase === "undone" || s.phase === "expired") {
     text +=
@@ -156,6 +157,7 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
   } else if (d.screen === "home") {
     text +=
       "Черновик сохраняется на 24 часа. Витрина изменится только после подтверждения владельцем.\n" +
+      "Сверьте точную модель и модификацию в источниках с текущим товаром. Прежние значения не подтверждаются одним открытием черновика.\n" +
       (d.document
         ? "Семейство: " +
           (families.find((f) => f.code === d.document?.family_code)?.label ??
@@ -359,6 +361,12 @@ export async function technicalEditor(
         .object({
           card: z
             .object({
+              identity_review: z
+                .object({
+                  required: z.boolean(),
+                  previous_revision: z.string().uuid().nullable().optional(),
+                })
+                .optional(),
               revisions: z.array(
                 z.object({
                   id: z.string().uuid(),
@@ -371,8 +379,27 @@ export async function technicalEditor(
         })
         .parse(data).card;
       const rows: Button[][] = [
-        [{ text: "✏️ Править текущую опубликованную карточку", callback_data: "te:start:" + id }],
+        [
+          {
+            text: card?.identity_review?.required
+              ? "✏️ Начать проверку текущего товара"
+              : "✏️ Править текущую опубликованную карточку",
+            callback_data: "te:start:" + id,
+          },
+        ],
       ];
+      if (
+        can(member, "publish_products") &&
+        card?.identity_review?.required &&
+        card.identity_review.previous_revision
+      ) {
+        rows.push([
+          {
+            text: "🔎 Проверить прежние характеристики",
+            callback_data: "te:proposal:" + card.identity_review.previous_revision,
+          },
+        ]);
+      }
       if (can(member, "publish_products"))
         for (const r of card?.revisions ?? []) {
           if (r.review_state !== "verified")
@@ -385,7 +412,9 @@ export async function technicalEditor(
         }
       await tg("sendMessage", {
         chat_id: chat.id,
-        text: "⚙️ Проверенные характеристики\nНачните от текущей карточки или выберите предложение для проверки. При проверке предложение сравнивается с текущей опубликованной карточкой.",
+        text: card?.identity_review?.required
+          ? "⚠️ Товар изменён — характеристики нужно проверить заново.\nПрежние подтверждённые сведения скрыты, история сохранена. Сверьте точную модель, значения и источники. Открытие прежней подборки не возвращает её на витрину: нужны исправления по необходимости, предпросмотр и отдельное подтверждение владельцем."
+          : "⚙️ Проверенные характеристики\nНачните от текущей карточки или выберите предложение для проверки. При проверке предложение сравнивается с текущей опубликованной карточкой.",
         reply_markup: { inline_keyboard: rows },
       });
       return true;

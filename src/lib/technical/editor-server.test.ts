@@ -141,6 +141,61 @@ it("cancel asks confirmation before mutating a preview", async () => {
   expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current"]);
   expect(JSON.stringify(mocks.tg.mock.calls)).toContain("cancel_now");
 });
+it.each(["admin", "seller"] as const)(
+  "explains identity invalidation and only offers the old revision to an approver (%s)",
+  async (role) => {
+    mocks.rpc.mockImplementation(async (name: string) =>
+      name === "bot_technical_catalog"
+        ? {
+            data: {
+              ok: true,
+              card: { revisions: [], identity_review: { required: true, previous_revision: id } },
+            },
+            error: null,
+          }
+        : { data: { ok: true, session: null }, error: null },
+    );
+    await technicalEditor({ ...owner, role }, chat, from, { callback: "te:open:" + id });
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current", "read"]);
+    const message = mocks.tg.mock.calls[0]?.[1];
+    expect(message.text).toContain("характеристики нужно проверить заново");
+    expect(message.text).toContain("отдельное подтверждение владельцем");
+    const buttons = message.reply_markup.inline_keyboard.flat() as { callback_data: string }[];
+    expect(buttons.some((b) => b.callback_data === "te:proposal:" + id)).toBe(role === "admin");
+    expect(buttons.some((b) => b.callback_data === "te:start:" + id)).toBe(true);
+  },
+);
+it("does not offer a recovery revision from a malformed read response", async () => {
+  mocks.rpc.mockImplementation(async (name: string) =>
+    name === "bot_technical_catalog"
+      ? {
+          data: {
+            ok: true,
+            card: {
+              revisions: [],
+              identity_review: { required: true, previous_revision: "bad-id" },
+            },
+          },
+          error: null,
+        }
+      : { data: { ok: true, session: null }, error: null },
+  );
+  await technicalEditor(owner, chat, from, { callback: "te:open:" + id });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current", "read"]);
+  expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("te:proposal:");
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("Не удалось завершить шаг");
+});
+it("an applied receipt does not promise old facts are still public after later edits", async () => {
+  mocks.rpc.mockResolvedValue({
+    data: { ok: true, session: { ...stored, phase: "applied", review_state: "verified" } },
+    error: null,
+  });
+  await technicalEditor(owner, chat, from, { callback: "te:" + id + ":3:resume" });
+  const message = mocks.tg.mock.calls[0]?.[1];
+  expect(message.text).toContain("Подтверждение сохранено в истории");
+  expect(message.text).not.toContain("Покупатель увидит");
+  expect(JSON.stringify(message.reply_markup)).toContain("te:open:" + id);
+});
 it("no active draft lets ordinary text reach the legacy editor", async () => {
   mocks.rpc.mockResolvedValue({ data: { ok: true, session: null }, error: null });
   expect(await technicalEditor(owner, chat, from, { text: "title" })).toBe(false);

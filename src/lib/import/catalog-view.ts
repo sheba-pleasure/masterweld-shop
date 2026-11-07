@@ -1,4 +1,5 @@
 import { FIELDS, FIELD_LABEL, catalogColumnLabel, type Field, type Mapping } from "./catalog-file";
+import { technicalIdentityConsequence } from "@/lib/technical/identity-review";
 
 import { modelIdentityText, modelLinkState, type DocumentModelLink } from "./model-links-view";
 import { renderModelComparison, type ModelComparison } from "./model-conflict-view";
@@ -262,6 +263,8 @@ export function renderImport(
     `\n➕ Новых: ${r.counts.new}\n✏️ Изменятся: ${r.counts.update}\n➖ Без изменений: ${r.counts.unchanged}\n⚠️ Ошибок: ${r.counts.error}\n`,
     `🛡 Исключённых товаров в файле: ${r.counts.excluded}. Они останутся скрытыми. Новые товары не появятся на сайте.`,
   ];
+  if (r.counts.update > 0 && ["preview", "applied", "undo_preview", "undone"].includes(r.state))
+    lines.push(technicalIdentityConsequence);
   if (r.state === "undo_preview")
     lines.push(
       "Откат вернёт прежние импортированные поля существующих товаров. Новые карточки будут скрыты и отмечены «Не продаём», с сохранением заказов и фото. Если после импорта были правки, откат остановится целиком. Подтверждение — 30 минут.",
