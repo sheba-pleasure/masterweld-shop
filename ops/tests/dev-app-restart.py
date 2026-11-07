@@ -199,7 +199,7 @@ try:
         assert gate.inspect("container", APP)["Id"] == active_before
         CHECKS.append("partial_documentary_schema_preserves_active_container")
         sql("""
-CREATE TABLE technical_attributes(required_context text[],
+CREATE TABLE technical_attributes(code text PRIMARY KEY,required_context text[],
  CONSTRAINT technical_attributes_required_context_check CHECK(required_context <@ ARRAY['test_conditions']));
 ALTER TABLE source_fact_prompts ADD COLUMN field text;
 ALTER TABLE source_fact_prompts ADD CONSTRAINT source_fact_prompts_field_check CHECK(field IN('test_conditions'));

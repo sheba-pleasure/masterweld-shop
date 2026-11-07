@@ -132,7 +132,7 @@ try:
         # Deliberately small metadata fixtures. Real 0042 bodies/ACLs/data are tested
         # by source-fact-review.py --documentary-conditions.
         sql("""
-          CREATE TABLE technical_attributes(required_context text[],
+          CREATE TABLE technical_attributes(code text PRIMARY KEY,required_context text[],
             CONSTRAINT technical_attributes_required_context_check CHECK(required_context <@ ARRAY['test_conditions']));
           ALTER TABLE source_fact_prompts ADD COLUMN field text;
           ALTER TABLE source_fact_prompts ADD CONSTRAINT source_fact_prompts_field_check CHECK(field IN('test_conditions'));

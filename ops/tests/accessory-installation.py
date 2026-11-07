@@ -4,6 +4,7 @@ import importlib.util
 import json
 import pathlib
 import subprocess
+import sys
 import time
 import uuid
 from unittest import mock
@@ -13,6 +14,14 @@ NAME = "mw-accessory-install-qa-" + uuid.uuid4().hex[:12]
 spec = importlib.util.spec_from_file_location("installation", ROOT / "ops/dev/documentary_conditions_installation.py")
 installation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installation)
+sys.path.insert(0, str(ROOT / "ops/production"))
+dev_spec = importlib.util.spec_from_file_location("dev_guard", ROOT / "ops/dev/app_compatibility.py")
+dev = importlib.util.module_from_spec(dev_spec)
+dev_spec.loader.exec_module(dev)
+prod_spec = importlib.util.spec_from_file_location("prod_guard", ROOT / "ops/production/app_compatibility.py")
+prod = importlib.util.module_from_spec(prod_spec)
+prod_spec.loader.exec_module(prod)
+assert dev.SCHEMA_SQL == prod.SCHEMA_SQL
 
 
 def run(args, **kwargs):
@@ -41,8 +50,10 @@ def ready():
 def snapshot():
     names = sql("SELECT quote_ident(schemaname)||'.'||quote_ident(tablename) FROM pg_tables "
                 "WHERE schemaname IN('public','mw_private') ORDER BY schemaname,tablename").splitlines()
-    return {name: sql("SELECT md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]')::text) FROM " + name + " t")
-            for name in names}
+    values = [("(" + installation.literal(name) + ",(SELECT md5(coalesce(jsonb_agg(to_jsonb(t) "
+               "ORDER BY to_jsonb(t)::text),'[]')::text) FROM " + name + " t))") for name in names]
+    return json.loads(sql("SELECT jsonb_object_agg(name,fingerprint) FROM (VALUES " +
+                          ",".join(values) + ") snapshot(name,fingerprint)"))
 
 
 created = False
@@ -62,6 +73,7 @@ try:
       INSERT INTO public.qa_preserved VALUES(1,'{"catalog":"unchanged","orders":[1,2]}');
       ALTER TABLE public.qa_preserved ENABLE ROW LEVEL SECURITY;""")
     baseline = snapshot()
+    assert dev.validate_schema(json.loads(sql(dev.SCHEMA_SQL))) == frozenset({dev.CAPABILITY})
     tables = {"units": "technical_units", "attributes": "technical_attributes", "bindings": "technical_family_attributes"}
     old = {key: json.loads(sql("SELECT jsonb_agg(to_jsonb(t)) FROM " + table + " t")) for key, table in tables.items()}
     extension = json.loads((ROOT / "src/lib/technical/accessory-dictionary.json").read_text())
@@ -109,6 +121,41 @@ try:
     assert json.loads(sql("SELECT jsonb_object_agg(path,sha256) FROM mw_private.dev_migration_receipts")) == {
         "previous-test": "unchanged", installation.PROPOSAL_PATH: installation.PROPOSAL_SHA256,
         installation.ACCESSORY_PATH: installation.ACCESSORY_SHA256}
+    state = json.loads(sql(dev.SCHEMA_SQL))
+    assert dev.validate_schema(state) == dev.KNOWN_CAPABILITIES
+    assert prod.validate_schema(state, installation.IDENTITY) == prod.KNOWN_CAPABILITIES
+    for gate, error, prefix in [(dev, RuntimeError, "DEV"), (prod, ValueError, "PROD")]:
+        labels = {"org.opencontainers.image.revision": "a" * 40, gate.CAPABILITY: "1", gate.DOCUMENTARY_CAPABILITY: "1"}
+        if gate is dev:
+            labels["mw.environment"] = "dev"
+        image = {"Id": "sha256:" + "b" * 64, "Config": {"Labels": labels}}
+        try:
+            gate.validate_image(image, "a" * 40, gate.KNOWN_CAPABILITIES)
+        except error as failure:
+            assert str(failure) == prefix + "_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"
+        else:
+            raise AssertionError("OLD_IMAGE_ACCEPTED_AFTER_DICTIONARY")
+        labels[gate.ACCESSORY_CAPABILITY] = "1"
+        assert gate.validate_image(image, "a" * 40, gate.KNOWN_CAPABILITIES) == image["Id"]
+    corruptions = [
+        "DROP FUNCTION mw_private.accessory_dictionary_version();",
+        "CREATE OR REPLACE FUNCTION mw_private.accessory_dictionary_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 2';",
+        "UPDATE technical_units SET label='Other' WHERE code='mm2';",
+        "UPDATE technical_attributes SET required_context='{}' WHERE code='tig_torch_max_dc_a';",
+        "DELETE FROM technical_family_attributes WHERE family_code='tig_torch';",
+        "INSERT INTO technical_family_attributes(family_code,attribute_code,label,sort_order,options_override) SELECT 'power_mma',attribute_code,label,sort_order,options_override FROM technical_family_attributes WHERE family_code='tig_torch' LIMIT 1;",
+    ]
+    read_probe = dev.SCHEMA_SQL.replace("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;", "").replace("COMMIT;", "ROLLBACK;")
+    for mutation in corruptions:
+        corrupt = json.loads(sql("BEGIN;" + mutation + read_probe))
+        for gate, error, prefix in [(dev, RuntimeError, "DEV"), (prod, ValueError, "PROD")]:
+            try:
+                gate.validate_schema(corrupt, installation.IDENTITY) if gate is prod else gate.validate_schema(corrupt)
+            except error as failure:
+                assert str(failure) == prefix + "_ACCESSORY_SCHEMA_INCOMPLETE"
+            else:
+                raise AssertionError("CORRUPTED_DICTIONARY_ACCEPTED")
+        assert json.loads(sql(dev.SCHEMA_SQL)) == state
     sql(transaction, "DOCUMENTARY_INSTALL_ALREADY_PRESENT")
     assert snapshot() == after
     run(["docker", "restart", NAME])
@@ -117,7 +164,8 @@ try:
     print(json.dumps({"ok": True, "proposal0042": installation.PROPOSAL_SHA256,
                       "proposal0043": installation.ACCESSORY_SHA256, "rollback_cases": len(cases) + 2,
                       "exact_appended_dictionary": True, "both_receipts": True, "repeat_refused": True,
-                      "restart_preserved": True}, ensure_ascii=False))
+                      "restart_preserved": True, "schema_corruption_cases": len(corruptions),
+                      "dev_and_production_guards": True, "old_image_refused": True}, ensure_ascii=False))
 finally:
     if created:
         run(["docker", "rm", "-f", "-v", NAME])

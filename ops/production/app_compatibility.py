@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only production source-fact schema/image guard; never starts or changes resources."""
 import argparse
+import importlib.util
 import json
 import pathlib
 import re
@@ -11,14 +12,20 @@ from preflight import DEV_ID, read_env
 
 CAPABILITY = "mw.capabilities.source-facts"
 DOCUMENTARY_CAPABILITY = "mw.capabilities.documentary-conditions"
-KNOWN_CAPABILITIES = frozenset({CAPABILITY, DOCUMENTARY_CAPABILITY})
+_spec = importlib.util.spec_from_file_location("accessory_compatibility", pathlib.Path(__file__).resolve().parents[1] / "accessory_compatibility.py")
+accessory = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(accessory)
+ACCESSORY_CAPABILITY = accessory.CAPABILITY
+KNOWN_CAPABILITIES = frozenset({CAPABILITY, DOCUMENTARY_CAPABILITY, ACCESSORY_CAPABILITY})
 DB_CONTAINER = "mw-prod-db"
 DB_NAME = "masterweld_production"
 SCHEMA_SQL = """
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout='10s';
+""" + accessory.probe_sql() + """
 SELECT jsonb_build_object(
  'identity', public.mw_environment_identity(),
+ 'accessoryDictionary', current_setting('mw.accessory_schema')::jsonb,
  'sourceFacts', jsonb_build_array(
   to_regclass('public.source_fact_reviews') IS NOT NULL,
   to_regclass('public.source_fact_rows') IS NOT NULL,
@@ -87,6 +94,11 @@ def validate_schema(value, identity):
         raise ValueError("PROD_SCHEMA_INVALID")
     if any(documentary) and (not all(documentary) or not all(flags)):
         raise ValueError("PROD_DOCUMENTARY_SCHEMA_INCOMPLETE")
+    accessories = value.get("accessoryDictionary")
+    if not isinstance(accessories, list) or len(accessories) != 4 or any(type(flag) is not bool for flag in accessories):
+        raise ValueError("PROD_SCHEMA_INVALID")
+    if any(accessories) and (not all(accessories) or not all(documentary)):
+        raise ValueError("PROD_ACCESSORY_SCHEMA_INCOMPLETE")
     # Require compatible code from schema presence, even before the first value.
     # An empty read followed by a concurrent first write must never permit an old image.
     required = set()
@@ -94,6 +106,8 @@ def validate_schema(value, identity):
         required.add(CAPABILITY)
     if all(documentary):
         required.add(DOCUMENTARY_CAPABILITY)
+    if all(accessories):
+        required.add(ACCESSORY_CAPABILITY)
     return frozenset(required)
 
 
@@ -128,12 +142,15 @@ def validate_image(image, revision, required):
     if labels.get("mw.environment") == "dev":
         raise ValueError("PROD_DEV_IMAGE_FORBIDDEN")
     if (not isinstance(required, frozenset) or not required <= KNOWN_CAPABILITIES
-            or (DOCUMENTARY_CAPABILITY in required and CAPABILITY not in required)):
+            or (DOCUMENTARY_CAPABILITY in required and CAPABILITY not in required)
+            or (ACCESSORY_CAPABILITY in required and DOCUMENTARY_CAPABILITY not in required)):
         raise ValueError("PROD_SCHEMA_REQUIREMENTS_INVALID")
     if CAPABILITY in required and labels.get(CAPABILITY) != "1":
         raise ValueError("PROD_IMAGE_SOURCE_FACTS_UNSUPPORTED")
     if DOCUMENTARY_CAPABILITY in required and labels.get(DOCUMENTARY_CAPABILITY) != "1":
         raise ValueError("PROD_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+    if ACCESSORY_CAPABILITY in required and labels.get(ACCESSORY_CAPABILITY) != "1":
+        raise ValueError("PROD_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED")
     image_id = image.get("Id", "")
     if not isinstance(image_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
         raise ValueError("PROD_IMAGE_ID_REQUIRED")

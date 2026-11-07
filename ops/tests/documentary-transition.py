@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real isolated Docker/PG 0042 transition. Apps/worker are synthetic; no Telegram."""
+"""Real isolated Docker/PG 0042/0043 transition. Apps/worker are synthetic; no Telegram."""
 import importlib.util
 import json
 import pathlib
@@ -38,6 +38,7 @@ def build(worker=False, documentary=False):
               gate.CAPABILITY: "1"}
     if documentary:
         labels[gate.DOCUMENTARY_CAPABILITY] = "1"
+        labels[gate.ACCESSORY_CAPABILITY] = "1"
     server = """
 const http=require('node:http');
 process.on('SIGTERM',()=>process.exit(0));
@@ -121,7 +122,7 @@ try:
             CONTAINERS.append(op.WORKER)
             worker=gate.inspect("container",op.WORKER)
             old=gate.inspect("container",app.APP)
-            rec={"version":1,"phase":"prepared","operation":uuid.uuid4().hex,
+            rec={"version":2,"phase":"prepared","operation":uuid.uuid4().hex,
                  "sourceSha":new_sha,"imageId":new_image,"oldId":old["Id"],"oldImage":old_image,
                  "oldRevision":old_sha,"workerId":worker["Id"],"workerImage":worker_image}
             previous=op.PREVIOUS_PREFIX+rec["operation"]
@@ -149,7 +150,7 @@ try:
             assert not (op.STATE/"active-sha").exists(), "Stopped app must not be recorded as active"
             assert not gate.inspect("container",old["Id"])["State"]["Running"]
             assert not gate.inspect("container",worker["Id"])["State"]["Running"]
-            assert op.sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="1"
+            assert op.sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="2"
             assert gate.schema_requirements()==gate.KNOWN_CAPABILITIES
             # Disallow any migration call while a new process finishes the saved transition.
             saved=op.check_record(json.loads(op.JOURNAL.read_text()))
@@ -168,7 +169,7 @@ try:
             assert not gate.inspect("container",old["Id"])["State"]["Running"]
             assert not gate.inspect("container",old["Id"])["NetworkSettings"]["Networks"]
             assert gate.inspect("container",worker["Id"])["State"]["Running"]
-            assert op.sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="1"
+            assert op.sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="2"
             assert (op.STATE/"active-sha").read_text().strip()==new_sha
             CHECKS.append(scenario+"_finish_without_replay")
             CHECKS.append(scenario+"_old_app_retained_stopped")

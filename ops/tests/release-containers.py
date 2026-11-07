@@ -3,6 +3,7 @@
 
 No production app startup, existing database or Telegram. GitHub and the isolated schema are fixtures.
 All containers/images/network/state are uniquely named; only loopback ports are published.
+Run without concurrent container tests: the preservation check observes every pre-existing container.
 """
 import fcntl
 import hashlib
@@ -391,6 +392,7 @@ try:
         str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in [ROOT / "ops" / f for f in ("lib.sh", "release.sh", "rollback.sh", "gateway-up.sh")] +
         [ROOT / "ops/tests/release-fixture.mjs", ROOT / "ops/production/app_compatibility.py",
+         ROOT / "ops/accessory_compatibility.py", ROOT / "src/lib/technical/accessory-dictionary.json",
          ROOT / "src/lib/orders/notification-environment.server.ts"]}
     REPORT["passed"] = True
 except Exception as error:

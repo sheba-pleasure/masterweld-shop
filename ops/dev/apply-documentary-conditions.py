@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reviewed DEV-only 0042 transition. --finish reads the receipt and never repeats SQL."""
+"""Reviewed DEV-only combined 0042/0043 transition. --finish reads the receipt and never repeats SQL."""
 import argparse
 import fcntl
 import json
@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 STATE = ROOT / "ops/.state/dev"
 JOURNAL = STATE / "documentary-transition.json"
 WORKER = "mw-dev-document-worker"
-PREVIOUS_PREFIX = "mw-dev-before-0042-"
+PREVIOUS_PREFIX = "mw-dev-before-0042-0043-"
 PHASES = {"prepared", "draining", "drain_failed", "migration_submitted",
           "migration_requires_review", "migration_recorded", "activation_requires_review",
           "application_ready", "worker_requires_review", "complete"}
@@ -49,19 +49,20 @@ def baseline():
     if compatibility.schema_requirements() != frozenset({compatibility.CAPABILITY}):
         raise RuntimeError("DOCUMENTARY_BASELINE_REQUIRED")
     proposal = installation.load_proposal()
+    installation.accessory_extension()
     guard, separator, _ = proposal.partition("END $baseline$;")
     if not separator:
         raise RuntimeError("DOCUMENTARY_BASELINE_GUARD_REQUIRED")
     sql("BEGIN READ ONLY; SET LOCAL statement_timeout='10s';" + guard + separator + "COMMIT;")
-    if sql("SELECT count(*) FROM mw_private.dev_migration_receipts WHERE path=" +
-           installation.literal(installation.PROPOSAL_PATH)) != "0":
+    if sql("SELECT count(*) FROM mw_private.dev_migration_receipts WHERE path IN (" +
+           installation.literal(installation.PROPOSAL_PATH) + "," + installation.literal(installation.ACCESSORY_PATH) + ")") != "0":
         raise RuntimeError("DOCUMENTARY_RECEIPT_ALREADY_EXISTS")
 
 
 def check_record(record):
     expected = {"version", "phase", "operation", "sourceSha", "imageId",
                 "oldId", "oldImage", "oldRevision", "workerId", "workerImage"}
-    if not isinstance(record, dict) or set(record) != expected or record["version"] != 1 or record["phase"] not in PHASES:
+    if not isinstance(record, dict) or set(record) != expected or record["version"] != 2 or record["phase"] not in PHASES:
         raise RuntimeError("DOCUMENTARY_JOURNAL_INVALID")
     for key in ("sourceSha", "oldRevision"):
         if not isinstance(record[key], str) or not re.fullmatch("[0-9a-f]{40}", record[key]):
@@ -159,15 +160,21 @@ class Adapter:
             run(["docker", "start", worker["Id"]])
 
     def migrate(self, record):
-        sql(installation.transaction(record["sourceSha"], record["imageId"]))
+        sql(installation.transaction(record["sourceSha"], record["imageId"], accessories=True))
 
     def confirm_commit(self, record):
         if compatibility.schema_requirements() != compatibility.KNOWN_CAPABILITIES:
             raise RuntimeError("DOCUMENTARY_FINISH_REQUIRES_COMMITTED_SCHEMA")
-        receipt = sql("BEGIN READ ONLY; SET LOCAL statement_timeout='10s'; SELECT sha256 FROM "
-                      "mw_private.dev_migration_receipts WHERE path=" +
-                      installation.literal(installation.PROPOSAL_PATH) + "; COMMIT;")
-        if receipt != installation.PROPOSAL_SHA256:
+        raw = sql("BEGIN READ ONLY; SET LOCAL statement_timeout='10s'; SELECT jsonb_object_agg(path,sha256) FROM "
+                  "mw_private.dev_migration_receipts WHERE path IN (" +
+                  installation.literal(installation.PROPOSAL_PATH) + "," +
+                  installation.literal(installation.ACCESSORY_PATH) + "); COMMIT;")
+        try:
+            receipt = json.loads(raw)
+        except (ValueError, TypeError):
+            raise RuntimeError("DOCUMENTARY_FINISH_REQUIRES_RECEIPT") from None
+        if receipt != {installation.PROPOSAL_PATH: installation.PROPOSAL_SHA256,
+                       installation.ACCESSORY_PATH: installation.ACCESSORY_SHA256}:
             raise RuntimeError("DOCUMENTARY_FINISH_REQUIRES_RECEIPT")
         compatibility.validate_image(compatibility.inspect("image", record["imageId"]),
                                      record["sourceSha"], compatibility.KNOWN_CAPABILITIES)
@@ -248,16 +255,23 @@ def prepare(sha):
     old_revision = compatibility.validate_previous(old)
     worker = compatibility.inspect("container", WORKER)
     compatibility.owned(worker)
-    record = {"version": 1, "phase": "prepared", "operation": uuid.uuid4().hex,
+    record = {"version": 2, "phase": "prepared", "operation": uuid.uuid4().hex,
               "sourceSha": sha, "imageId": image_id, "oldId": old["Id"], "oldImage": old["Image"],
               "oldRevision": old_revision, "workerId": worker["Id"], "workerImage": worker["Image"]}
     check_record(record)
     if not checked_worker(record)["State"]["Running"]:
         raise RuntimeError("DOCUMENTARY_RUNNING_WORKER_REQUIRED")
     rehearsal = json.loads(run(["python3", str(ROOT / "ops/tests/source-fact-review.py"),
-                                "--documentary-conditions"], cwd=ROOT, timeout=900).stdout)
+                                "--accessory-characteristics"], cwd=ROOT, timeout=900).stdout)
     if rehearsal.get("ok") is not True or rehearsal.get("documentary_conditions", {}).get("proposal_sha256") != installation.PROPOSAL_SHA256:
         raise RuntimeError("DOCUMENTARY_REHEARSAL_REQUIRED")
+    if rehearsal.get("accessory_characteristics", {}).get("proposal_sha256") != installation.ACCESSORY_SHA256:
+        raise RuntimeError("ACCESSORY_REHEARSAL_REQUIRED")
+    combined = json.loads(run(["python3", str(ROOT / "ops/tests/accessory-installation.py")],
+                              cwd=ROOT, timeout=900).stdout)
+    if (combined.get("ok") is not True or combined.get("proposal0042") != installation.PROPOSAL_SHA256
+            or combined.get("proposal0043") != installation.ACCESSORY_SHA256):
+        raise RuntimeError("ACCESSORY_INSTALL_REHEARSAL_REQUIRED")
     if revision() != sha:
         raise RuntimeError("DOCUMENTARY_SOURCE_CHANGED")
     restart.preflight_image(image_id, sha)

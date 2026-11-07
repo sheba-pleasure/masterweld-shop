@@ -1,19 +1,27 @@
 """Fail-closed DEV image/schema checks. Reads metadata only; never repairs data."""
+import importlib.util
 import json
+import pathlib
 import re
 import subprocess
 
 IDENTITY = {"environment": "dev", "instanceId": "3a6a67bc-5ce6-46a4-af72-e6ab78800e49"}
 CAPABILITY = "mw.capabilities.source-facts"
 DOCUMENTARY_CAPABILITY = "mw.capabilities.documentary-conditions"
-KNOWN_CAPABILITIES = frozenset({CAPABILITY, DOCUMENTARY_CAPABILITY})
+_spec = importlib.util.spec_from_file_location("accessory_compatibility", pathlib.Path(__file__).resolve().parents[1] / "accessory_compatibility.py")
+accessory = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(accessory)
+ACCESSORY_CAPABILITY = accessory.CAPABILITY
+KNOWN_CAPABILITIES = frozenset({CAPABILITY, DOCUMENTARY_CAPABILITY, ACCESSORY_CAPABILITY})
 DB_CONTAINER = "mw-dev-db"
 DB_NAME = "masterweld_dev"
 SCHEMA_SQL = """
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout='10s';
+""" + accessory.probe_sql() + """
 SELECT jsonb_build_object(
  'identity', public.mw_environment_identity(),
+ 'accessoryDictionary', current_setting('mw.accessory_schema')::jsonb,
  'sourceFacts', jsonb_build_array(
   to_regclass('public.source_fact_reviews') IS NOT NULL,
   to_regclass('public.source_fact_rows') IS NOT NULL,
@@ -87,6 +95,11 @@ def validate_schema(value):
         raise RuntimeError("DEV_SCHEMA_INVALID")
     if any(documentary) and (not all(documentary) or not all(flags)):
         raise RuntimeError("DEV_DOCUMENTARY_SCHEMA_INCOMPLETE")
+    accessories = value.get("accessoryDictionary")
+    if not isinstance(accessories, list) or len(accessories) != 4 or any(type(flag) is not bool for flag in accessories):
+        raise RuntimeError("DEV_SCHEMA_INVALID")
+    if any(accessories) and (not all(accessories) or not all(documentary)):
+        raise RuntimeError("DEV_ACCESSORY_SCHEMA_INCOMPLETE")
     # Require compatible code from schema presence, even before the first value.
     # An empty read followed by a concurrent first write must never permit an old image.
     required = set()
@@ -94,6 +107,8 @@ def validate_schema(value):
         required.add(CAPABILITY)
     if all(documentary):
         required.add(DOCUMENTARY_CAPABILITY)
+    if all(accessories):
+        required.add(ACCESSORY_CAPABILITY)
     return frozenset(required)
 
 
@@ -108,12 +123,15 @@ def validate_image(info, revision, required):
     if labels.get("org.opencontainers.image.revision") != revision:
         raise RuntimeError("DEV_IMAGE_REVISION_MISMATCH")
     if (not isinstance(required, frozenset) or not required <= KNOWN_CAPABILITIES
-            or (DOCUMENTARY_CAPABILITY in required and CAPABILITY not in required)):
+            or (DOCUMENTARY_CAPABILITY in required and CAPABILITY not in required)
+            or (ACCESSORY_CAPABILITY in required and DOCUMENTARY_CAPABILITY not in required)):
         raise RuntimeError("DEV_SCHEMA_REQUIREMENTS_INVALID")
     if CAPABILITY in required and labels.get(CAPABILITY) != "1":
         raise RuntimeError("DEV_IMAGE_SOURCE_FACTS_UNSUPPORTED")
     if DOCUMENTARY_CAPABILITY in required and labels.get(DOCUMENTARY_CAPABILITY) != "1":
         raise RuntimeError("DEV_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+    if ACCESSORY_CAPABILITY in required and labels.get(ACCESSORY_CAPABILITY) != "1":
+        raise RuntimeError("DEV_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED")
     if not re.fullmatch("sha256:[0-9a-f]{64}", info.get("Id", "")):
         raise RuntimeError("DEV_IMAGE_ID_REQUIRED")
     return info["Id"]

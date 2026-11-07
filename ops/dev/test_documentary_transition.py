@@ -17,7 +17,7 @@ IMAGE = "sha256:" + "b" * 64
 
 
 def record():
-    return {"version": 1, "phase": "prepared", "operation": "1" * 32,
+    return {"version": 2, "phase": "prepared", "operation": "1" * 32,
             "sourceSha": SHA, "imageId": IMAGE, "oldId": "2" * 64,
             "oldImage": "sha256:" + "3" * 64, "oldRevision": "4" * 40,
             "workerId": "5" * 64, "workerImage": "sha256:" + "6" * 64}
@@ -191,7 +191,7 @@ class AdapterTests(unittest.TestCase):
                 self.assertFalse(journal.with_suffix(".next").exists())
         for key, value in [("imageId", "mutable:tag"), ("sourceSha", "short"),
                            ("oldId", "some-container"), ("phase", "unknown"),
-                           ("operation", "../escape"), ("workerImage", IMAGE[:20])]:
+                           ("operation", "../escape"), ("workerImage", IMAGE[:20]), ("version", 1)]:
             with self.subTest(key=key), self.assertRaisesRegex(RuntimeError, "JOURNAL_INVALID"):
                 operator.check_record({**record(), key: value})
 
@@ -209,6 +209,25 @@ class AdapterTests(unittest.TestCase):
                 io.confirm_commit(record())
             self.assertIn("BEGIN READ ONLY", sql.call_args.args[0])
             inspect.assert_not_called()
+
+    def test_finish_requires_each_receipt_and_accepts_only_the_exact_pair(self):
+        expected = {operator.installation.PROPOSAL_PATH: operator.installation.PROPOSAL_SHA256,
+                    operator.installation.ACCESSORY_PATH: operator.installation.ACCESSORY_SHA256}
+        variants = [{}, {operator.installation.PROPOSAL_PATH: operator.installation.PROPOSAL_SHA256},
+                    {**expected, operator.installation.ACCESSORY_PATH: "changed"},
+                    {**expected, "other": "unreviewed"}]
+        with patch.object(operator.compatibility, "schema_requirements", return_value=operator.compatibility.KNOWN_CAPABILITIES), \
+             patch.object(operator.compatibility, "inspect", return_value={"Id": IMAGE}) as inspect, \
+             patch.object(operator.compatibility, "validate_image", return_value=IMAGE) as validate:
+            for receipt in variants:
+                with patch.object(operator, "sql", return_value=json.dumps(receipt)):
+                    with self.assertRaisesRegex(RuntimeError, "REQUIRES_RECEIPT"):
+                        operator.Adapter().confirm_commit(record())
+            inspect.assert_not_called()
+            validate.assert_not_called()
+            with patch.object(operator, "sql", return_value=json.dumps(expected)):
+                operator.Adapter().confirm_commit(record())
+            validate.assert_called_once_with({"Id": IMAGE}, SHA, operator.compatibility.KNOWN_CAPABILITIES)
 
     def test_foreign_container_name_cannot_be_stopped_during_finish(self):
         old = {"Id": record()["oldId"], "Image": record()["oldImage"], "Name": "/another-project",
