@@ -30,6 +30,8 @@ const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
   args: Record<string, unknown>,
 ) => Promise<{ data: Result | null; error: { message?: string } | null }>;
 const errors: Record<string, string> = {
+  DOCUMENT_STRUCTURE_PAGE:
+    "Эта часть предпросмотра недоступна. Откройте сохранённую строку и проверьте исправление заново.",
   DOCUMENT_MODEL_INPUT_ACTIVE:
     "Сначала завершите вопрос о модели. /input — продолжить, /cancel — закрыть ввод.",
   DOCUMENT_MODEL_DENIED: "Разбор документов доступен администратору с правом импорта.",
@@ -354,7 +356,7 @@ export async function showDocumentStructure(m: StaffMember, chat: Chat, data: st
   if (!action) return;
   const { id, revision, row, op, arg } = action;
   try {
-    const reads = ["tools", "heads", "parts", "askundo", "fields"];
+    const reads = ["tools", "heads", "parts", "askundo", "fields", "page"];
     const operation = reads.includes(op)
       ? "get"
       : ({
@@ -371,6 +373,8 @@ export async function showDocumentStructure(m: StaffMember, chat: Chat, data: st
       p_column: ["src", "where"].includes(op) ? -1 : arg,
       p_payload: { guided: op === "walk" },
     });
+    if (op === "page" && (r.revision !== revision || r.structure_draft?.stage !== "preview"))
+      throw new Error("DOCUMENT_STALE");
     if (["apply", "cancel", "undo"].includes(op)) return display(chat, r);
     await structureDisplay(m, chat, r, !reads.includes(op), op, arg ?? 0);
   } catch (error) {

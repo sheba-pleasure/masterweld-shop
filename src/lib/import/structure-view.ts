@@ -34,17 +34,18 @@ const withArg = new Set([
   "skip",
   "copy",
   "fields",
+  "page",
 ]);
 export function parseStructureCallback(value: string): StructureAction | null {
   const match = value.match(
-    /^ds:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9]{1,7}):(tools|heads|head|add|parts|split|edit|walk|std|skip|copy|src|where|preview|apply|back|cancel|undo|askundo|fields):([0-9]{1,4})(?::([0-9]{1,3}))?$/,
+    /^ds:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9]{1,7}):(tools|heads|head|add|parts|split|edit|walk|std|skip|copy|src|where|preview|apply|back|cancel|undo|askundo|fields|page):([0-9]{1,4})(?::([0-9]{1,3}))?$/,
   );
   if (
     !match ||
     Buffer.byteLength(value) > 64 ||
     Number(match[4]) > 4999 ||
     withArg.has(match[3]!) !== (match[5] !== undefined) ||
-    Number(match[5] ?? 0) > 119
+    Number(match[5] ?? 0) > (match[3] === "page" ? 999 : 119)
   )
     return null;
   const arg = match[5] === undefined ? undefined : Number(match[5]);
@@ -84,6 +85,44 @@ export const STANDARD_HEADERS: Field[] = [
   "stock_qty",
   "category_slug",
 ];
+// Keep full values; prefer line boundaries and never split a surrogate pair.
+function previewPages(text: string): string[] {
+  const pages: string[] = [];
+  let remaining = text;
+  while (remaining.length > 2700) {
+    let end = remaining.lastIndexOf("\n", 2700);
+    if (end < 1000) {
+      end = 2700;
+      const last = remaining.charCodeAt(end - 1);
+      if (last >= 0xd800 && last <= 0xdbff) end--;
+    } else end++;
+    pages.push(remaining.slice(0, end));
+    remaining = remaining.slice(end);
+  }
+  if (remaining) pages.push(remaining);
+  if (pages.length > 1000) throw new Error("DOCUMENT_STRUCTURE_PAGE");
+  return pages;
+}
+function previewContent(r: DocumentReview): string {
+  const d = r.structure_draft!;
+  if (d.kind === "header")
+    return `Было: ${r.header[d.column!]}.\nСтанет: ${reviewColumnLabel(d.value, d.column!)}.\n\nВсе ранее проверенные строки снова потребуют проверки. Пропущенные строки останутся пропущенными.`;
+  const fields = (cells: string[]) =>
+    r.header.map((h, i) => `${reviewColumnLabel(h, i)}: ${cells[i] || "(пусто)"}`).join("\n");
+  const before =
+    d.kind === "split"
+      ? "Было: одна строка\n" + fields(r.cells)
+      : `Было: товара нет в разборе.\nСтанет: новый товар после строки ${r.position ?? r.row + 1}.`;
+  return (
+    before +
+    "\n\n" +
+    d.rows!.map((cells, i) => `📦 Товар ${i + 1}\n` + fields(cells)).join("\n\n") +
+    "\n\n📎 " +
+    (d.note || r.locator || "Точное место в оригинале не определено.") +
+    "\n\nКаждую новую строку нужно будет отдельно проверить. Исходная строка сохранится для сверки."
+  );
+}
+
 export function structureQuestion(r: DocumentReview) {
   const d = r.structure_draft!;
   if (d.focus === -1)
@@ -115,35 +154,18 @@ export function renderStructure(r: DocumentReview, screen = "tools", arg = 0) {
           : "Разделение одной строки на несколько товаров";
     text += "\n";
     if (d.stage === "preview") {
-      text += "\n👀 Было → станет\n";
-      if (d.kind === "header") {
-        text += `Было: ${r.header[d.column!]}.\nСтанет: ${reviewColumnLabel(d.value, d.column!)}.\n\nВсе ранее проверенные строки снова потребуют проверки. Пропущенные строки останутся пропущенными.`;
-      } else {
-        if (d.kind === "split")
-          text +=
-            "Было: одна строка\n" +
-            r.header
-              .map((h, i) => `${reviewColumnLabel(h, i)}: ${short(r.cells[i] || "(пусто)")}`)
-              .join("\n") +
-            "\n\n";
-        else
-          text += `Было: товара нет в разборе.\nСтанет: новый товар после строки ${r.position ?? r.row + 1}.\n\n`;
-        text += d
-          .rows!.map(
-            (cells, i) =>
-              `📦 Товар ${i + 1}\n` +
-              r.header
-                .map((h, j) => `${reviewColumnLabel(h, j)}: ${cells[j] || "(пусто)"}`)
-                .join("\n"),
-          )
-          .join("\n\n");
-        text += "\n\n📎 " + (d.note || r.locator || "Точное место в оригинале не определено.");
-        text +=
-          "\n\nКаждую новую строку нужно будет отдельно проверить. Исходная строка сохранится для сверки.";
-      }
+      const pages = previewPages(previewContent(r));
+      const page = screen === "page" ? arg : 0;
+      if (!Number.isInteger(page) || page < 0 || page >= pages.length)
+        throw new Error("DOCUMENT_STRUCTURE_PAGE");
+      text += `\n👀 Было → станет · Часть ${page + 1} из ${pages.length}\n\n` + pages[page];
       text +=
         "\n\nПодтверждение изменит только разбор документа. Импорт и публикация не запускаются.";
-      add("✅ Подтвердить исправление таблицы", "apply");
+      if (page > 0) add("← Предыдущая часть", "page", page - 1);
+      if (page + 1 < pages.length) {
+        add("Читать дальше →", "page", page + 1);
+        text += "\n\nПрочитайте следующие части. Подтверждение — в последней.";
+      } else add("✅ Подтвердить исправление таблицы", "apply");
       add("✏️ Вернуться к исправлению", "back");
     } else if (d.focus >= -1) {
       text += "\n" + structureQuestion(r);
@@ -167,10 +189,14 @@ export function renderStructure(r: DocumentReview, screen = "tools", arg = 0) {
         page = Math.floor((arg % 30) / 8);
       text += `\n📦 Товар ${part + 1} из ${d.rows!.length}\n`;
       text += r.header
-        .map((h, i) => `${reviewColumnLabel(h, i)}: ${short(d.rows![part]![i] || "(пусто)")}`)
+        .slice(page * 8, page * 8 + 8)
+        .map(
+          (h, i) =>
+            `${reviewColumnLabel(h, page * 8 + i)}: ${short(d.rows![part]![page * 8 + i] || "(пусто)")}`,
+        )
         .join("\n");
       text +=
-        "\n\n«Заполнить по шагам» задаст по одному вопросу. Можно также выбрать отдельное поле. Общие значения из склеенной строки автоматически не копируются.";
+        "\n\nПоказаны поля этой страницы; длинные значения сокращены. Полный текст доступен в «Проверить перед сохранением».\n\n«Заполнить по шагам» задаст по одному вопросу. Можно также выбрать отдельное поле. Общие значения из склеенной строки автоматически не копируются.";
       add("▶️ Заполнить по шагам", "walk", part * 30);
       r.header
         .slice(page * 8, page * 8 + 8)
