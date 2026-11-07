@@ -73,7 +73,7 @@ try {
   await page.locator('a[href^="/product/dev-welder"]').first().click();
   await page.waitForFunction(() => window.__telegramQA.backVisible);
   await page.evaluate(() => window.__telegramQA.back());
-  await page.waitForURL(origin + "/");
+  await page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("q") === "DEV");
   await page.getByRole("button", { name: "В корзину", exact: true }).first().click();
   await page.getByRole("button", { name: /Корзина: 1 шт/ }).click();
   await page.getByLabel("Имя покупателя", { exact: true }).fill("DEV QA Telegram Mirror");
