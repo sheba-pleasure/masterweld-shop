@@ -1,0 +1,955 @@
+{
+  "version": 1,
+  "scope": "Reviewed consumable dimensions, packaging and documentary markings; no SKU facts, automatic compatibility or complete research vocabulary.",
+  "units": [
+    {
+      "code": "m",
+      "label": "м",
+      "dimension": "length"
+    },
+    {
+      "code": "size_number",
+      "label": "№",
+      "dimension": "nominal_size"
+    }
+  ],
+  "attributes": [
+    {
+      "code": "electrode_standard_class",
+      "label": "Классификация AWS/ISO/ГОСТ (дословно)",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "electrode_length_mm",
+      "label": "Длина электрода",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "electrode_deposited_metal",
+      "label": "Класс наплавленного металла",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "package_net_mass_kg",
+      "label": "Масса содержимого упаковки",
+      "kind": "number",
+      "unit_code": "kg",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "electrode_baking",
+      "label": "Требования к прокалке по изготовителю",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "wire_standard_class",
+      "label": "Класс проволоки AWS/ISO/ГОСТ",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "wire_standard_notes",
+      "label": "Ограничения классификации",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "filler_rod_class",
+      "label": "Марка/классификация AWS/ISO",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "filler_rod_diameter_mm",
+      "label": "Диаметр прутка",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "filler_rod_length_mm",
+      "label": "Длина прутка",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "filler_rod_package_weight_kg",
+      "label": "Масса упаковки",
+      "kind": "number",
+      "unit_code": "kg",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "saw_wire_class",
+      "label": "Марка проволоки/класс",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "saw_wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "saw_wire_package_mass_kg",
+      "label": "Вес бухты/кассеты",
+      "kind": "number",
+      "unit_code": "kg",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "saw_wire_flux_pair",
+      "label": "Совместимые флюсы по рекомендациям",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "saw_flux_class",
+      "label": "Классификация флюса",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "saw_flux_grain_min_mm",
+      "label": "Размер зерна минимум",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "saw_flux_grain_max_mm",
+      "label": "Размер зерна максимум",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "saw_flux_wire_pairs",
+      "label": "Рекомендованные пары с проволокой",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "saw_flux_drying",
+      "label": "Правила хранения/сушки",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tungsten_type_iso",
+      "label": "Маркировка ISO/изготовителя",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tungsten_diameter_mm",
+      "label": "Диаметр",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tungsten_length_mm",
+      "label": "Длина",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tungsten_qty_pack",
+      "label": "Штук в упаковке",
+      "kind": "integer",
+      "unit_code": "count",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 1,
+      "maximum": null
+    },
+    {
+      "code": "mig_tip_wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_tip_length_mm",
+      "label": "Длина наконечника",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_tip_holder_family",
+      "label": "Совместимый держатель",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "quantity_pack",
+      "label": "Штук в упаковке",
+      "kind": "integer",
+      "unit_code": "count",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 1,
+      "maximum": null
+    },
+    {
+      "code": "mig_nozzle_inner_diameter_mm",
+      "label": "Диаметр выходного отверстия",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_nozzle_length_mm",
+      "label": "Длина сопла",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_liner_wire_diameter_min_mm",
+      "label": "Минимальный диаметр проволоки",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_liner_wire_diameter_max_mm",
+      "label": "Максимальный диаметр проволоки",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "mig_liner_length_m",
+      "label": "Длина канала",
+      "kind": "number",
+      "unit_code": "m",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "roller_wire_diameters_mm",
+      "label": "Диаметры проволоки",
+      "kind": "number_list",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "roller_outer_diameter_mm",
+      "label": "Внешний диаметр ролика",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "roller_inner_diameter_mm",
+      "label": "Посадочный диаметр",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "roller_width_mm",
+      "label": "Ширина ролика",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_tungsten_diameter_mm",
+      "label": "Под какой диаметр вольфрама",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "tig_cup_size",
+      "label": "Размер керамического сопла №",
+      "kind": "integer",
+      "unit_code": "size_number",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 1,
+      "maximum": null
+    },
+    {
+      "code": "tig_gas_lens",
+      "label": "Газовая линза",
+      "kind": "boolean",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "tig_part_length_mm",
+      "label": "Длина",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_part_nominal_current_a",
+      "label": "Ток/номинал сопла (если применим)",
+      "kind": "number",
+      "unit_code": "a",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_nozzle_orifice_mm",
+      "label": "Диаметр отверстия сопла",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "cut_part_manufacturer_code",
+      "label": "Код производителя для совместимости",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "brazing_alloy",
+      "label": "Класс/состав припоя",
+      "kind": "text",
+      "unit_code": "none",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    },
+    {
+      "code": "brazing_diameter_mm",
+      "label": "Диаметр/размер",
+      "kind": "number",
+      "unit_code": "mm",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": 0,
+      "maximum": null
+    },
+    {
+      "code": "brazing_melting_range_c",
+      "label": "Интервал плавления",
+      "kind": "text",
+      "unit_code": "c",
+      "options": [],
+      "processes": ["general"],
+      "required_context": [],
+      "fixed_context": {},
+      "minimum": null,
+      "maximum": null
+    }
+  ],
+  "bindings": [
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_standard_class",
+      "label": "Классификация AWS/ISO/ГОСТ (дословно)",
+      "sort_order": 101,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_length_mm",
+      "label": "Длина электрода",
+      "sort_order": 102,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_deposited_metal",
+      "label": "Класс наплавленного металла",
+      "sort_order": 103,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "package_net_mass_kg",
+      "label": "Масса содержимого упаковки",
+      "sort_order": 104,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mma_electrodes",
+      "attribute_code": "electrode_baking",
+      "label": "Требования к прокалке по изготовителю",
+      "sort_order": 105,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mig_wire_solid",
+      "attribute_code": "wire_standard_class",
+      "label": "Класс проволоки AWS/ISO/ГОСТ",
+      "sort_order": 106,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_mig_wire_solid",
+      "attribute_code": "wire_standard_notes",
+      "label": "Ограничения классификации",
+      "sort_order": 107,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_flux_wire",
+      "attribute_code": "wire_standard_class",
+      "label": "Марка/классификация",
+      "sort_order": 108,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tig_rod",
+      "attribute_code": "filler_rod_class",
+      "label": "Марка/классификация AWS/ISO",
+      "sort_order": 109,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tig_rod",
+      "attribute_code": "filler_rod_diameter_mm",
+      "label": "Диаметр прутка",
+      "sort_order": 110,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tig_rod",
+      "attribute_code": "filler_rod_length_mm",
+      "label": "Длина прутка",
+      "sort_order": 111,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tig_rod",
+      "attribute_code": "filler_rod_package_weight_kg",
+      "label": "Масса упаковки",
+      "sort_order": 112,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_wire",
+      "attribute_code": "saw_wire_class",
+      "label": "Марка проволоки/класс",
+      "sort_order": 113,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_wire",
+      "attribute_code": "saw_wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "sort_order": 114,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_wire",
+      "attribute_code": "saw_wire_package_mass_kg",
+      "label": "Вес бухты/кассеты",
+      "sort_order": 115,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_wire",
+      "attribute_code": "saw_wire_flux_pair",
+      "label": "Совместимые флюсы по рекомендациям",
+      "sort_order": 116,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "saw_flux_class",
+      "label": "Классификация флюса",
+      "sort_order": 117,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "saw_flux_grain_min_mm",
+      "label": "Размер зерна минимум",
+      "sort_order": 118,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "saw_flux_grain_max_mm",
+      "label": "Размер зерна максимум",
+      "sort_order": 119,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "saw_flux_wire_pairs",
+      "label": "Рекомендованные пары с проволокой",
+      "sort_order": 120,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "saw_flux_drying",
+      "label": "Правила хранения/сушки",
+      "sort_order": 121,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_saw_flux",
+      "attribute_code": "package_net_mass_kg",
+      "label": "Масса содержимого упаковки",
+      "sort_order": 122,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tungsten",
+      "attribute_code": "tungsten_type_iso",
+      "label": "Маркировка ISO/изготовителя",
+      "sort_order": 123,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tungsten",
+      "attribute_code": "tungsten_diameter_mm",
+      "label": "Диаметр",
+      "sort_order": 124,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tungsten",
+      "attribute_code": "tungsten_length_mm",
+      "label": "Длина",
+      "sort_order": 125,
+      "options_override": null
+    },
+    {
+      "family_code": "consumable_tungsten",
+      "attribute_code": "tungsten_qty_pack",
+      "label": "Штук в упаковке",
+      "sort_order": 126,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_contact_tip",
+      "attribute_code": "mig_tip_wire_diameter_mm",
+      "label": "Диаметр проволоки",
+      "sort_order": 127,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_contact_tip",
+      "attribute_code": "mig_tip_length_mm",
+      "label": "Длина наконечника",
+      "sort_order": 128,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_contact_tip",
+      "attribute_code": "mig_tip_holder_family",
+      "label": "Совместимый держатель",
+      "sort_order": 129,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_contact_tip",
+      "attribute_code": "quantity_pack",
+      "label": "Штук в упаковке",
+      "sort_order": 130,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_gas_nozzle",
+      "attribute_code": "mig_nozzle_inner_diameter_mm",
+      "label": "Диаметр выходного отверстия",
+      "sort_order": 131,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_gas_nozzle",
+      "attribute_code": "mig_nozzle_length_mm",
+      "label": "Длина сопла",
+      "sort_order": 132,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_gas_nozzle",
+      "attribute_code": "quantity_pack",
+      "label": "Штук в упаковке",
+      "sort_order": 133,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_liner",
+      "attribute_code": "mig_liner_wire_diameter_min_mm",
+      "label": "Минимальный диаметр проволоки",
+      "sort_order": 134,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_liner",
+      "attribute_code": "mig_liner_wire_diameter_max_mm",
+      "label": "Максимальный диаметр проволоки",
+      "sort_order": 135,
+      "options_override": null
+    },
+    {
+      "family_code": "mig_liner",
+      "attribute_code": "mig_liner_length_m",
+      "label": "Длина канала",
+      "sort_order": 136,
+      "options_override": null
+    },
+    {
+      "family_code": "feed_rollers",
+      "attribute_code": "roller_wire_diameters_mm",
+      "label": "Диаметры проволоки",
+      "sort_order": 137,
+      "options_override": null
+    },
+    {
+      "family_code": "feed_rollers",
+      "attribute_code": "roller_outer_diameter_mm",
+      "label": "Внешний диаметр ролика",
+      "sort_order": 138,
+      "options_override": null
+    },
+    {
+      "family_code": "feed_rollers",
+      "attribute_code": "roller_inner_diameter_mm",
+      "label": "Посадочный диаметр",
+      "sort_order": 139,
+      "options_override": null
+    },
+    {
+      "family_code": "feed_rollers",
+      "attribute_code": "roller_width_mm",
+      "label": "Ширина ролика",
+      "sort_order": 140,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_kit_parts",
+      "attribute_code": "tig_tungsten_diameter_mm",
+      "label": "Под какой диаметр вольфрама",
+      "sort_order": 141,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_kit_parts",
+      "attribute_code": "tig_cup_size",
+      "label": "Размер керамического сопла №",
+      "sort_order": 142,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_kit_parts",
+      "attribute_code": "tig_gas_lens",
+      "label": "Газовая линза",
+      "sort_order": 143,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_kit_parts",
+      "attribute_code": "tig_part_length_mm",
+      "label": "Длина",
+      "sort_order": 144,
+      "options_override": null
+    },
+    {
+      "family_code": "tig_kit_parts",
+      "attribute_code": "quantity_pack",
+      "label": "Количество",
+      "sort_order": 145,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_parts",
+      "attribute_code": "cut_part_nominal_current_a",
+      "label": "Ток/номинал сопла (если применим)",
+      "sort_order": 146,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_parts",
+      "attribute_code": "cut_nozzle_orifice_mm",
+      "label": "Диаметр отверстия сопла",
+      "sort_order": 147,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_parts",
+      "attribute_code": "cut_part_manufacturer_code",
+      "label": "Код производителя для совместимости",
+      "sort_order": 148,
+      "options_override": null
+    },
+    {
+      "family_code": "cut_parts",
+      "attribute_code": "quantity_pack",
+      "label": "Количество",
+      "sort_order": 149,
+      "options_override": null
+    },
+    {
+      "family_code": "brazing_solder",
+      "attribute_code": "brazing_alloy",
+      "label": "Класс/состав припоя",
+      "sort_order": 150,
+      "options_override": null
+    },
+    {
+      "family_code": "brazing_solder",
+      "attribute_code": "brazing_diameter_mm",
+      "label": "Диаметр/размер",
+      "sort_order": 151,
+      "options_override": null
+    },
+    {
+      "family_code": "brazing_solder",
+      "attribute_code": "brazing_melting_range_c",
+      "label": "Интервал плавления",
+      "sort_order": 152,
+      "options_override": null
+    },
+    {
+      "family_code": "brazing_solder",
+      "attribute_code": "package_net_mass_kg",
+      "label": "Масса содержимого упаковки",
+      "sort_order": 153,
+      "options_override": null
+    }
+  ]
+}

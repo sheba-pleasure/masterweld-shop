@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { consumableGuidance } from "./dictionary";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "@/lib/bot/permissions";
 import { isPrivateChat } from "@/lib/bot/catalog";
@@ -173,13 +174,24 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
     }
     add("🗑 Отменить черновик", "cancel");
   } else if (d.screen === "families") {
-    text += "Выберите семейство. Здесь только семейства с пилотными полями.";
-    families.forEach((f, i) => add(f.label, "family", i));
+    const start = d.page * 8;
+    text +=
+      "Выберите вид товара по документу. Это не меняет раздел магазина.\n" +
+      "Страница " +
+      (d.page + 1) +
+      " из " +
+      Math.ceil(families.length / 8) +
+      ". Здесь семейства с подготовленными полями; полный справочник ещё дополняется.";
+    families.slice(start, start + 8).forEach((f, i) => add(f.label, "family", start + i));
+    if (start > 0) add("⬅️ Предыдущие виды товаров", "families", d.page - 1);
+    if (start + 8 < families.length) add("Следующие виды товаров ➡️", "families", d.page + 1);
   } else if (d.screen === "family_change") {
     text += "⚠️ Смена семейства очистит значения и источники только в этом черновике.";
     add("Подтвердить смену семейства", "family_yes");
   } else if (d.screen === "fields") {
     text += "Выберите характеристику:";
+    const guidance = consumableGuidance(d.document?.family_code ?? "");
+    if (guidance) text += "\n\n" + guidance;
     const all = fields(d),
       start = d.page * 8;
     all.slice(start, start + 8).forEach((f, i) => add(f.label, "field", start + i));
