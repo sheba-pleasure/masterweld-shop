@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only production source-fact schema/image guard; never starts or changes resources."""
 import argparse
+import importlib.util
 import json
 import pathlib
 import re
@@ -10,13 +11,21 @@ import uuid
 from preflight import DEV_ID, read_env
 
 CAPABILITY = "mw.capabilities.source-facts"
+DOCUMENTARY_CAPABILITY = "mw.capabilities.documentary-conditions"
+_spec = importlib.util.spec_from_file_location("accessory_compatibility", pathlib.Path(__file__).resolve().parents[1] / "accessory_compatibility.py")
+accessory = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(accessory)
+ACCESSORY_CAPABILITY = accessory.CAPABILITY
+KNOWN_CAPABILITIES = frozenset({CAPABILITY, DOCUMENTARY_CAPABILITY, ACCESSORY_CAPABILITY})
 DB_CONTAINER = "mw-prod-db"
 DB_NAME = "masterweld_production"
 SCHEMA_SQL = """
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout='10s';
+""" + accessory.probe_sql() + """
 SELECT jsonb_build_object(
  'identity', public.mw_environment_identity(),
+ 'accessoryDictionary', current_setting('mw.accessory_schema')::jsonb,
  'sourceFacts', jsonb_build_array(
   to_regclass('public.source_fact_reviews') IS NOT NULL,
   to_regclass('public.source_fact_rows') IS NOT NULL,
@@ -24,6 +33,22 @@ SELECT jsonb_build_object(
   to_regclass('public.technical_fact_origins') IS NOT NULL,
   to_regprocedure('public.bot_source_fact_review(bigint,text,uuid,integer,integer,jsonb)') IS NOT NULL,
   to_regprocedure('mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)') IS NOT NULL
+ ),
+ 'documentaryConditions', jsonb_build_array(
+  to_regprocedure('mw_private.documentary_conditions_version()') IS NOT NULL,
+  EXISTS(SELECT 1 FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang
+   WHERE p.oid=to_regprocedure('mw_private.documentary_conditions_version()')
+    AND p.prorettype='integer'::regtype AND p.provolatile='i' AND l.lanname='sql' AND p.prosrc='SELECT 1'),
+  EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass('public.technical_attributes')
+   AND conname='technical_attributes_required_context_check'
+   AND position('''test_conditions''' in pg_get_constraintdef(oid))>0),
+  EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass('public.source_fact_prompts')
+   AND conname='source_fact_prompts_field_check'
+   AND position('''test_conditions''' in pg_get_constraintdef(oid))>0),
+  EXISTS(SELECT 1 FROM pg_proc WHERE oid=to_regprocedure('mw_private.validate_technical_document_before_origins(jsonb,text)')
+   AND position('context_key=''test_conditions''' in prosrc)>0),
+  EXISTS(SELECT 1 FROM pg_proc WHERE oid=to_regprocedure('mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)')
+   AND position('input_field=''test_conditions''' in prosrc)>0)
  ));
 COMMIT;
 """
@@ -64,8 +89,26 @@ def validate_schema(value, identity):
         raise ValueError("PROD_SCHEMA_INVALID")
     if any(flags) and not all(flags):
         raise ValueError("PROD_SOURCE_FACT_SCHEMA_INCOMPLETE")
-    # Empty new tables still require compatible code: first writes may happen concurrently.
-    return all(flags)
+    documentary = value.get("documentaryConditions")
+    if not isinstance(documentary, list) or len(documentary) != 6 or any(type(flag) is not bool for flag in documentary):
+        raise ValueError("PROD_SCHEMA_INVALID")
+    if any(documentary) and (not all(documentary) or not all(flags)):
+        raise ValueError("PROD_DOCUMENTARY_SCHEMA_INCOMPLETE")
+    accessories = value.get("accessoryDictionary")
+    if not isinstance(accessories, list) or len(accessories) != 4 or any(type(flag) is not bool for flag in accessories):
+        raise ValueError("PROD_SCHEMA_INVALID")
+    if any(accessories) and (not all(accessories) or not all(documentary)):
+        raise ValueError("PROD_ACCESSORY_SCHEMA_INCOMPLETE")
+    # Require compatible code from schema presence, even before the first value.
+    # An empty read followed by a concurrent first write must never permit an old image.
+    required = set()
+    if all(flags):
+        required.add(CAPABILITY)
+    if all(documentary):
+        required.add(DOCUMENTARY_CAPABILITY)
+    if all(accessories):
+        required.add(ACCESSORY_CAPABILITY)
+    return frozenset(required)
 
 
 def schema_requirements(identity, db_container=DB_CONTAINER, db_name=DB_NAME):
@@ -90,7 +133,7 @@ def schema_requirements(identity, db_container=DB_CONTAINER, db_name=DB_NAME):
     return validate_schema(value, identity)
 
 
-def validate_image(image, revision, source_facts):
+def validate_image(image, revision, required):
     if not re.fullmatch(r"[0-9a-f]{40}", revision or ""):
         raise ValueError("PROD_FULL_REVISION_REQUIRED")
     labels = image.get("Config", {}).get("Labels") or {}
@@ -98,8 +141,16 @@ def validate_image(image, revision, source_facts):
         raise ValueError("PROD_IMAGE_REVISION_MISMATCH")
     if labels.get("mw.environment") == "dev":
         raise ValueError("PROD_DEV_IMAGE_FORBIDDEN")
-    if source_facts and labels.get(CAPABILITY) != "1":
+    if (not isinstance(required, frozenset) or not required <= KNOWN_CAPABILITIES
+            or (DOCUMENTARY_CAPABILITY in required and CAPABILITY not in required)
+            or (ACCESSORY_CAPABILITY in required and DOCUMENTARY_CAPABILITY not in required)):
+        raise ValueError("PROD_SCHEMA_REQUIREMENTS_INVALID")
+    if CAPABILITY in required and labels.get(CAPABILITY) != "1":
         raise ValueError("PROD_IMAGE_SOURCE_FACTS_UNSUPPORTED")
+    if DOCUMENTARY_CAPABILITY in required and labels.get(DOCUMENTARY_CAPABILITY) != "1":
+        raise ValueError("PROD_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+    if ACCESSORY_CAPABILITY in required and labels.get(ACCESSORY_CAPABILITY) != "1":
+        raise ValueError("PROD_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED")
     image_id = image.get("Id", "")
     if not isinstance(image_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
         raise ValueError("PROD_IMAGE_ID_REQUIRED")

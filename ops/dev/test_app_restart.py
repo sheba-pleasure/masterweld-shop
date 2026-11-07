@@ -16,6 +16,8 @@ NEW_SHA = "a" * 40
 OLD_SHA = "b" * 40
 NEW_ID = "sha256:" + "1" * 64
 OLD_ID = "sha256:" + "2" * 64
+SOURCE_REQUIRED = frozenset({compatibility.CAPABILITY})
+DOCUMENTARY_REQUIRED = SOURCE_REQUIRED | {compatibility.DOCUMENTARY_CAPABILITY}
 
 
 def image(revision=NEW_SHA, image_id=NEW_ID, capable=True):
@@ -36,7 +38,8 @@ class CompatibilityTests(unittest.TestCase):
     def test_empty_old_schema_and_complete_new_schema(self):
         for needed in (False, True):
             self.assertEqual(compatibility.validate_schema(
-                {"identity": compatibility.IDENTITY, "sourceFacts": [needed] * 6}), needed)
+                {"identity": compatibility.IDENTITY, "sourceFacts": [needed] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}),
+                SOURCE_REQUIRED if needed else frozenset())
 
     def test_partial_schema_bad_identity_and_unknown_values_fail_closed(self):
         values = [
@@ -51,15 +54,81 @@ class CompatibilityTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(RuntimeError):
                 compatibility.validate_schema(value)
 
+    def test_documentary_schema_requires_all_markers_and_source_dependencies(self):
+        for mask in range(64):
+            value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6,
+                     "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
+            if mask in (0, 63):
+                self.assertEqual(compatibility.validate_schema(value),
+                                 DOCUMENTARY_REQUIRED if mask == 63 else SOURCE_REQUIRED)
+            else:
+                with self.assertRaisesRegex(RuntimeError, "DEV_DOCUMENTARY_SCHEMA_INCOMPLETE"):
+                    compatibility.validate_schema(value)
+        value = {"identity": compatibility.IDENTITY, "sourceFacts": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
+        with self.assertRaisesRegex(RuntimeError, "DEV_DOCUMENTARY_SCHEMA_INCOMPLETE"):
+            compatibility.validate_schema(value)
+        for flags in [None, [], [False] * 5, [1] * 6, "false"]:
+            value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
+            with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_INVALID"):
+                compatibility.validate_schema(value)
+
+
+    def test_accessory_schema_requires_exact_dictionary_and_dependencies(self):
+        for mask in range(16):
+            value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [True] * 6,
+                     "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
+            if mask in (0, 15):
+                self.assertEqual(compatibility.validate_schema(value),
+                                 compatibility.KNOWN_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
+            else:
+                with self.assertRaisesRegex(RuntimeError, "DEV_ACCESSORY_SCHEMA_INCOMPLETE"):
+                    compatibility.validate_schema(value)
+        value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [False] * 6,
+                 "accessoryDictionary": [True] * 4}
+        with self.assertRaisesRegex(RuntimeError, "DEV_ACCESSORY_SCHEMA_INCOMPLETE"):
+            compatibility.validate_schema(value)
+        for flags in [None, [], [False] * 3, [1] * 4, "false"]:
+            value["accessoryDictionary"] = flags
+            with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_INVALID"):
+                compatibility.validate_schema(value)
+
+    def test_accessory_image_requires_capability_and_documentary_dependency(self):
+        target = image()
+        target["Config"]["Labels"][compatibility.DOCUMENTARY_CAPABILITY] = "1"
+        for label in [None, "0", "2", "true", 1]:
+            if label is not None:
+                target["Config"]["Labels"][compatibility.ACCESSORY_CAPABILITY] = label
+            with self.assertRaisesRegex(RuntimeError, "DEV_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"):
+                compatibility.validate_image(target, NEW_SHA, compatibility.KNOWN_CAPABILITIES)
+        target["Config"]["Labels"][compatibility.ACCESSORY_CAPABILITY] = "1"
+        self.assertEqual(compatibility.validate_image(target, NEW_SHA, compatibility.KNOWN_CAPABILITIES), NEW_ID)
+        with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_REQUIREMENTS_INVALID"):
+            compatibility.validate_image(target, NEW_SHA, SOURCE_REQUIRED | {compatibility.ACCESSORY_CAPABILITY})
+
+    def test_documentary_image_requires_exact_capability_even_for_empty_schema(self):
+        for label in [None, "0", "2", "true", 1]:
+            target = image()
+            if label is not None:
+                target["Config"]["Labels"][compatibility.DOCUMENTARY_CAPABILITY] = label
+            with self.assertRaisesRegex(RuntimeError, "DEV_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED"):
+                compatibility.validate_image(target, NEW_SHA, DOCUMENTARY_REQUIRED)
+        target = image()
+        target["Config"]["Labels"][compatibility.DOCUMENTARY_CAPABILITY] = "1"
+        self.assertEqual(compatibility.validate_image(target, NEW_SHA, DOCUMENTARY_REQUIRED), NEW_ID)
+        for required in [True, False, {}, {"source_facts": True}, frozenset({"unknown"}),
+                         frozenset({compatibility.DOCUMENTARY_CAPABILITY})]:
+            with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_REQUIREMENTS_INVALID"):
+                compatibility.validate_image(target, NEW_SHA, required)
+
     def test_image_environment_revision_and_capability(self):
-        self.assertEqual(compatibility.validate_image(image(), NEW_SHA, True), NEW_ID)
-        self.assertEqual(compatibility.validate_image(image(capable=False), NEW_SHA, False), NEW_ID)
+        self.assertEqual(compatibility.validate_image(image(), NEW_SHA, SOURCE_REQUIRED), NEW_ID)
+        self.assertEqual(compatibility.validate_image(image(capable=False), NEW_SHA, frozenset()), NEW_ID)
         wrong_environment = image()
         wrong_environment["Config"]["Labels"]["mw.environment"] = "production"
         for info, sha, required in [
-            (image(capable=False), NEW_SHA, True), (image(), OLD_SHA, True),
-            (wrong_environment, NEW_SHA, False), (None, NEW_SHA, False),
-            (image(image_id="mutable-tag"), NEW_SHA, True), (image(), "short", False),
+            (image(capable=False), NEW_SHA, SOURCE_REQUIRED), (image(), OLD_SHA, SOURCE_REQUIRED),
+            (wrong_environment, NEW_SHA, frozenset()), (None, NEW_SHA, frozenset()),
+            (image(image_id="mutable-tag"), NEW_SHA, SOURCE_REQUIRED), (image(), "short", frozenset()),
         ]:
             with self.subTest(info=info), self.assertRaises(RuntimeError):
                 compatibility.validate_image(info, sha, required)
@@ -101,7 +170,7 @@ class RestartTests(unittest.TestCase):
         self.images = {NEW_ID: image(), OLD_ID: image(OLD_SHA, OLD_ID)}
         self.containers = [container(app.APP), container(app.PREVIOUS, running=False)]
         self.events = []
-        self.required = True
+        self.required = SOURCE_REQUIRED
         self.fail_probe = None
         self.fail_command = None
         for module, name, value in [
@@ -162,6 +231,24 @@ class RestartTests(unittest.TestCase):
         self.assertEqual(self.events, [])
         self.assertEqual(len(self.containers), 2)
         self.assertEqual((self.state / "active-sha").read_text().strip(), OLD_SHA)
+
+    def test_documentary_target_refuses_before_any_mutation(self):
+        self.required = DOCUMENTARY_REQUIRED
+        with self.assertRaisesRegex(RuntimeError, "DOCUMENTARY_CONDITIONS_UNSUPPORTED"):
+            app.replace(NEW_SHA, self.state)
+        self.assertEqual(self.events, [])
+        self.assertEqual((self.state / "active-sha").read_text().strip(), OLD_SHA)
+
+    def test_documentary_fallback_does_not_start_source_only_predecessor(self):
+        self.required = DOCUMENTARY_REQUIRED
+        self.images[NEW_ID]["Config"]["Labels"][compatibility.DOCUMENTARY_CAPABILITY] = "1"
+        self.fail_probe = (app.APP, NEW_SHA)
+        with self.assertRaisesRegex(RuntimeError, "ROLLBACK_REQUIRES_REVIEW"):
+            app.replace(NEW_SHA, self.state)
+        self.assertIsNone(self.inspect("container", app.APP))
+        self.assertFalse(self.get(app.PREVIOUS)["State"]["Running"])
+        self.assertNotIn(["docker", "start", app.APP + "-id"], self.events)
+        self.assertFalse((self.state / "active-sha").exists())
 
     def test_preflight_failure_preserves_both_old_containers_and_marker(self):
         self.fail_probe = (app.CANDIDATE, NEW_SHA)

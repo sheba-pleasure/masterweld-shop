@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { consumableGuidance } from "./dictionary";
+import { familyGuidance } from "./dictionary";
 import {
   technicalModelBinding,
   technicalModelContext,
@@ -238,7 +238,7 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
     add("Подтвердить смену семейства", "family_yes");
   } else if (d.screen === "fields") {
     text += "Выберите характеристику:";
-    const guidance = consumableGuidance(d.document?.family_code ?? "");
+    const guidance = familyGuidance(d.document?.family_code ?? "");
     if (guidance) text += "\n\n" + guidance;
     const all = fields(d),
       start = d.page * 8;

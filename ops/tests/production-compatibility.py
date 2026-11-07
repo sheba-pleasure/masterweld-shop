@@ -17,8 +17,8 @@ DB = PREFIX + "-db"
 SLOT = PREFIX + "-slot-a"
 IDENTITY = {"environment": "production", "instanceId": str(uuid.uuid4())}
 ENV = {"APP_ENV": "production", "MW_INSTANCE_ID": IDENTITY["instanceId"]}
-SHAS = ["1" * 40, "2" * 40]
-IMAGES = [PREFIX + ":old", PREFIX + ":compatible"]
+SHAS = ["1" * 40, "2" * 40, "3" * 40]
+IMAGES = [PREFIX + ":old", PREFIX + ":compatible", PREFIX + ":documentary"]
 containers = []
 images = []
 image_ids = []
@@ -75,15 +75,15 @@ try:
     with tempfile.TemporaryDirectory(prefix=PREFIX) as directory:
         context = pathlib.Path(directory)
         (context / "Dockerfile").write_text(
-            'FROM node:22-bookworm-slim\nARG SHA\nARG CAP\nARG QA_RUN\n'
-            'LABEL org.opencontainers.image.revision=$SHA mw.capabilities.source-facts=$CAP mw.qa-run=$QA_RUN\n'
+            'FROM node:22-bookworm-slim\nARG SHA\nARG CAP\nARG DOC\nARG QA_RUN\n'
+            'LABEL org.opencontainers.image.revision=$SHA mw.capabilities.source-facts=$CAP mw.capabilities.documentary-conditions=$DOC mw.qa-run=$QA_RUN\n'
             'CMD ["sleep","300"]\n'
         )
         for index, name in enumerate(IMAGES):
             assert docker("image", "inspect", name, check=False).returncode != 0
             images.append(name)
             docker("build", "--network", "none", "--build-arg", "SHA=" + SHAS[index],
-                   "--build-arg", "CAP=" + str(index), "--build-arg", "QA_RUN=" + PREFIX, "-t", name, directory)
+                   "--build-arg", "CAP=" + str(int(index > 0)), "--build-arg", "DOC=" + str(int(index == 2)), "--build-arg", "QA_RUN=" + PREFIX, "-t", name, directory)
             image_ids.append(json.loads(docker("image", "inspect", name).stdout)[0]["Id"])
         old_id = check_image(0)
         new_id = check_image(1)
@@ -119,13 +119,48 @@ try:
         refused(lambda: guard.check(wrong, SHAS[1], image=IMAGES[1],
                                    db_container=DB, db_name="postgres"), "PROD_DATABASE_IDENTITY_MISMATCH")
         checks.append("wrong_production_instance_refused")
+        # The next schema also starts empty. Source-fact support alone is insufficient.
+        docker("rm", SLOT)
+        docker("create", "--name", SLOT, "--network", "none", "--label", "mw-shop.slot=a",
+               "--label", "mw-shop.sha=" + SHAS[1],
+               "--env", "APP_ENV=production", "--env", "MW_INSTANCE_ID=" + IDENTITY["instanceId"], new_id)
+        def source_slot():
+            return guard.check(ENV, SHAS[1], container=SLOT, slot="a", db_container=DB, db_name="postgres")
+        sql("CREATE FUNCTION mw_private.documentary_conditions_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 1'")
+        refused(lambda: check_image(2), "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE")
+        checks.append("partial_documentary_schema_refuses_new_image")
+        # Deliberately small metadata fixtures. Real 0042 bodies/ACLs/data are tested
+        # by source-fact-review.py --documentary-conditions.
+        sql("""
+          CREATE TABLE technical_attributes(code text PRIMARY KEY,required_context text[],
+            CONSTRAINT technical_attributes_required_context_check CHECK(required_context <@ ARRAY['test_conditions']));
+          ALTER TABLE source_fact_prompts ADD COLUMN field text;
+          ALTER TABLE source_fact_prompts ADD CONSTRAINT source_fact_prompts_field_check CHECK(field IN('test_conditions'));
+          CREATE FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) RETURNS void
+            LANGUAGE plpgsql AS $$ DECLARE context_key text; BEGIN
+              IF context_key='test_conditions' THEN RETURN; END IF; END $$;
+          CREATE OR REPLACE FUNCTION mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)
+            RETURNS jsonb LANGUAGE plpgsql AS $$ DECLARE input_field text; BEGIN
+              IF input_field='test_conditions' THEN RETURN '{}'::jsonb; END IF; RETURN '{}'::jsonb; END $$;
+        """)
+        refused(lambda: check_image(1), "PROD_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+        refused(source_slot, "PROD_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+        assert json.loads(docker("inspect", SLOT).stdout)[0]["State"]["Running"] is False
+        documentary_id = check_image(2)
+        assert documentary_id == image_ids[2]
+        checks.append("empty_documentary_schema_refuses_source_only_image_and_stopped_predecessor")
+        checks.append("documentary_capable_image_returns_immutable_id")
+        sql("CREATE OR REPLACE FUNCTION mw_private.documentary_conditions_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 2'")
+        refused(lambda: check_image(2), "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE")
+        sql("CREATE OR REPLACE FUNCTION mw_private.documentary_conditions_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 1'")
+        checks.append("unknown_documentary_schema_version_refused")
         env_file = context / "production.env"
         env_file.write_text("\n".join(key + "=" + value for key, value in ENV.items()) + "\n")
         env_file.chmod(0o600)
         cli = subprocess.run([sys.executable, str(ROOT / "ops/production/app_compatibility.py"),
-                              "--env-file", str(env_file), "--sha", SHAS[1], "--image", IMAGES[1],
+                              "--env-file", str(env_file), "--sha", SHAS[2], "--image", IMAGES[2],
                               "--db-container", DB, "--db-name", "postgres"], capture_output=True, text=True)
-        assert cli.returncode == 0 and cli.stdout.strip() == new_id, cli.stderr
+        assert cli.returncode == 0 and cli.stdout.strip() == documentary_id, cli.stderr
         assert sql("SELECT value FROM qa_preserve WHERE id=1") == "Keep exactly"
         assert json.loads(docker("inspect", SLOT).stdout)[0]["State"]["Running"] is False
         checks.append("CLI_reads_private_config_without_starting_predecessor_or_writing_rows")

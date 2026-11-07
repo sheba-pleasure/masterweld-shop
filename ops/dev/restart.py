@@ -45,10 +45,14 @@ fetch('http://127.0.0.1:3000/api/public/release-health', {signal: AbortSignal.ti
     raise RuntimeError("DEV_HEALTH_FAILED")
 
 
-def launch(name, image_id, preflight=False):
+def launch(name, image_id, preflight=False, operation_id=None):
+    if operation_id is not None and not re.fullmatch('[0-9a-f]{32}', operation_id):
+        raise RuntimeError('DEV_OPERATION_ID_REQUIRED')
     args = ["docker", "create", "--name", name, "--label", "mw.environment=dev",
             "--restart", "no" if preflight else "unless-stopped",
             "--network", EDGE_NETWORK, "--env-file", str(ROOT / "ops/.secrets/dev/app.env")]
+    if operation_id is not None:
+        args += ['--label', 'mw.dev-transition=' + operation_id]
     # Candidate has no public upstream alias/port. Verify normal startup guards,
     # but never start a second notification worker during the preflight.
     if preflight:

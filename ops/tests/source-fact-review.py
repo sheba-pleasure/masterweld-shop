@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Isolated PostgreSQL: source-backed fact decisions, question binding and recovery."""
+import argparse
 import base64
 import copy
 import concurrent.futures
@@ -10,7 +11,15 @@ import pathlib
 import subprocess
 import time
 import uuid
+from unittest import mock
 
+parser=argparse.ArgumentParser()
+parser.add_argument("--documentary-conditions",action="store_true")
+parser.add_argument("--accessory-characteristics",action="store_true")
+args=parser.parse_args()
+accessory_characteristics=args.accessory_characteristics
+documentary_conditions=args.documentary_conditions or accessory_characteristics
+accessory_report=None
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 NAME="mw-source-fact-qa-"+uuid.uuid4().hex[:12]
 compatibility_spec=importlib.util.spec_from_file_location("app_compatibility",ROOT/"ops/dev/app_compatibility.py")
@@ -23,7 +32,7 @@ def check_app_schema(expected):
         try: compatibility.validate_schema(state)
         except RuntimeError as error: assert str(error)=="DEV_SOURCE_FACT_SCHEMA_INCOMPLETE"
         else: raise AssertionError("PARTIAL_SCHEMA_ACCEPTED")
-    else: assert compatibility.validate_schema(state) is expected
+    else: assert (compatibility.CAPABILITY in compatibility.validate_schema(state)) is expected
 def command(args):
     return subprocess.run(args,check=True,capture_output=True,text=True)
 def sql(q,error=None):
@@ -684,6 +693,153 @@ try:
     assert snapshot()==handoff_baseline,"HANDOFF_MIGRATION_CHANGED_DATA"
     for role in ["anon","authenticated","service_role"]:
         assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)','EXECUTE')")=="f"
+    if documentary_conditions:
+        # Proposed 0042 runs only in this disposable database, never live DEV.
+        proposal=(ROOT/"docs/proposals/0042_documentary_measurement_conditions.sql").read_text()
+        if accessory_characteristics:
+            accessory_sql=(ROOT/"docs/proposals/0043_accessory_characteristics.sql").read_text()
+            sql("BEGIN;"+accessory_sql+"ROLLBACK;",error="ACCESSORY_DOCUMENTARY_CONDITIONS_REQUIRED")
+        measurement={
+          "family_code":"power_mma",
+          "sources":[{"key":"manual","kind":"synthetic","publisher":"Учебный изготовитель",
+            "model":"Учебная модель","title":"[Учебный] Условия из документа",
+            "url":"https://example.invalid/conditions","locator":"Учебная таблица",
+            "checked_on":"2026-11-06","sha256":""}],
+          "values":[{**value("mma_current_max_a",160,{"test_conditions":"Кабель: 8 м; ПН 60 %."}),
+            "state":"known","source_key":"manual"}]}
+        def validate_measurement(document,error=None):
+            return sql("SELECT validate_technical_document("+lit(json.dumps(document))+",'verified')",error)
+        validate_measurement(measurement,"TECH_BAD_CONTEXT")
+        def all_rows():
+            tables=sql("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename").splitlines()
+            return {t:sql('SELECT md5(coalesce(string_agg(row_to_json(t)::text,chr(10) ORDER BY row_to_json(t)::text),\'\')) FROM public."'+t+'" t') for t in tables}
+        sql("CREATE TABLE public.documentary_install_empty(id integer)")
+        baseline=all_rows()
+        acl_before=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
+          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')""")
+        installer_spec=importlib.util.spec_from_file_location("documentary_conditions_installation",
+          ROOT/"ops/dev/documentary_conditions_installation.py")
+        installer=importlib.util.module_from_spec(installer_spec)
+        installer_spec.loader.exec_module(installer)
+        sql("""CREATE TABLE mw_private.dev_migration_receipts(
+          path text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now());
+          INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES ('previous-test','unchanged');""")
+        assert installer.IDENTITY==compatibility.IDENTITY
+        for revision,image,error in [
+          ("short","sha256:"+"b"*64,"DOCUMENTARY_INSTALL_REVISION"),
+          ("a"*40,"mutable:tag","DOCUMENTARY_INSTALL_IMAGE"),
+        ]:
+            try: installer.transaction(revision,image)
+            except RuntimeError as failure: assert str(failure)==error
+            else: raise AssertionError("INVALID_INSTALL_IDENTITY_ACCEPTED")
+        with mock.patch.object(installer,"PROPOSAL_SHA256","0"*64):
+            try: installer.transaction("a"*40,"sha256:"+"b"*64)
+            except RuntimeError as failure: assert str(failure)=="DOCUMENTARY_INSTALL_CHECKSUM"
+            else: raise AssertionError("MODIFIED_INSTALL_PROPOSAL_ACCEPTED")
+        install_sql=installer.transaction("a"*40,"sha256:"+"b"*64)
+        def unchanged_installation():
+            assert all_rows()==baseline
+            assert sql("SELECT to_regprocedure('mw_private.documentary_conditions_version()') IS NULL")=="t"
+            assert sql("SELECT jsonb_object_agg(path,sha256) FROM mw_private.dev_migration_receipts")=='{"previous-test": "unchanged"}'
+            validate_measurement(measurement,"TECH_BAD_CONTEXT")
+        # Corruption after proposal execution must roll back both schema and data.
+        for injected,expected_error in [
+          ("UPDATE public.staff SET name='Unexpected' WHERE telegram_id=101;", "DOCUMENTARY_INSTALL_ROWS_CHANGED"),
+          ("UPDATE mw_private.dev_migration_receipts SET sha256='Changed';", "DOCUMENTARY_INSTALL_ROWS_CHANGED"),
+          ("GRANT EXECUTE ON FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) TO anon;", "DOCUMENTARY_INSTALL_FUNCTIONS_CHANGED"),
+          ("CREATE FUNCTION public.unexpected_install_function() RETURNS int LANGUAGE sql AS 'SELECT 1';", "DOCUMENTARY_INSTALL_FUNCTIONS_CHANGED"),
+          ("GRANT UPDATE ON public.products TO anon;", "DOCUMENTARY_INSTALL_RELATIONS_CHANGED"),
+          ("CREATE POLICY unexpected_install_policy ON public.products FOR UPDATE TO anon USING(true);", "DOCUMENTARY_INSTALL_ACCESS_CHANGED"),
+          ("CREATE ROLE unexpected_install_role;", "DOCUMENTARY_INSTALL_ACCESS_CHANGED"),
+          ("ALTER TABLE public.technical_attributes ADD CONSTRAINT unexpected_install_check CHECK(true);", "DOCUMENTARY_INSTALL_CONSTRAINTS_CHANGED"),
+          ("ALTER TABLE public.documentary_install_empty ADD COLUMN unexpected_install_column text;", "DOCUMENTARY_INSTALL_COLUMNS_CHANGED"),
+        ]:
+            sql(install_sql.replace("-- All checks precede",injected+"\n-- All checks precede"),error=expected_error)
+            unchanged_installation()
+        # Wrong instance and modified baseline fail before the proposal can commit.
+        sql(install_sql.replace("DO $identity$", "UPDATE mw_private.environment SET environment='production'; DO $identity$",1),
+          error="DOCUMENTARY_INSTALL_DEV_REQUIRED")
+        unchanged_installation()
+        assert json.loads(sql("SELECT public.mw_environment_identity()"))==installer.IDENTITY
+        bad_baseline="ALTER FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) COST 101;"
+        sql(install_sql.replace(proposal,bad_baseline+proposal),error="DOCUMENTARY_CONDITIONS_BASELINE")
+        unchanged_installation()
+        # Late failure prevents the receipt and proposed functions from surviving.
+        sql(install_sql.replace("NOTIFY pgrst","SELECT 1/0; NOTIFY pgrst"),error="division by zero")
+        unchanged_installation()
+        result=sql(install_sql)
+        assert json.loads(result)["state"]=="recorded"
+        assert sql("SELECT sha256 FROM mw_private.dev_migration_receipts WHERE path="+lit(installer.PROPOSAL_PATH))==installer.PROPOSAL_SHA256
+        sql(install_sql,error="DOCUMENTARY_INSTALL_ALREADY_PRESENT")
+        assert sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="2"
+        assert all_rows()==baseline,"DOCUMENTARY_CONDITIONS_CHANGED_ROWS"
+        assert compatibility.validate_schema(json.loads(sql(compatibility.SCHEMA_SQL)))==frozenset({
+          compatibility.CAPABILITY,compatibility.DOCUMENTARY_CAPABILITY})
+        acl_after=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
+          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')
+          AND p.oid<>'mw_private.documentary_conditions_version()'::regprocedure""")
+        assert acl_before==acl_after,"DOCUMENTARY_CONDITIONS_CHANGED_ACL"
+        for role in ["anon","authenticated","service_role"]:
+            for signature in ["mw_private.documentary_conditions_version()",
+              "mw_private.validate_technical_document_before_origins(jsonb,text)",
+              "mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)"]:
+                assert sql("SELECT has_function_privilege("+lit(role)+","+lit(signature)+",'EXECUTE')")=="f"
+        if accessory_characteristics:
+            from accessory_checks import check_accessories
+            accessory_report=check_accessories(sql,ROOT)
+        validate_measurement(measurement)
+        for note in ["v","Полные условия\nБез пересчёта единиц", "🧰"*500]:
+            candidate=copy.deepcopy(measurement)
+            candidate["values"][0]["context"]["test_conditions"]=note
+            validate_measurement(candidate)
+        for note in ["", " \t\r\n", "\u00a0\u2003\ufeff", "🧰"*501, " "*500+"A", 0, True, [], {}, None]:
+            candidate=copy.deepcopy(measurement)
+            candidate["values"][0]["context"]["test_conditions"]=note
+            validate_measurement(candidate,"TECH_BAD_CONTEXT")
+        distinct=copy.deepcopy(measurement)
+        distinct["values"].append({**distinct["values"][0],"value":120,
+          "context":{"test_conditions":"Кабель: 16 м; ПН 100 %."}})
+        validate_measurement(distinct)
+        distinct["values"][1]["context"]=distinct["values"][0]["context"]
+        validate_measurement(distinct,"TECH_BAD_VALUE")
+        unknown=copy.deepcopy(measurement)
+        unknown["values"][0].update(state="unknown",value=None,source_key=None)
+        validate_measurement(unknown,"TECH_UNKNOWN_HAS_VALUE")
+        # Required context remains real validation, not a UI-only prompt.
+        sql("BEGIN; UPDATE technical_attributes SET required_context=ARRAY['test_conditions'] WHERE code='mma_current_max_a';"+
+          "SELECT validate_technical_document("+lit(json.dumps({**measurement,"values":[
+            {**measurement["values"][0],"context":{}}]}))+",'verified'); ROLLBACK;",error="TECH_CONTEXT_REQUIRED")
+        sql("BEGIN;"+proposal+"ROLLBACK;",error="DOCUMENTARY_CONDITIONS_BASELINE")
+        # Same persisted question, actor, decision invalidation and handoff as every other field.
+        candidate=copy.deepcopy(payload);candidate["source_id"]=renewed["source_id"]
+        extra=facts("prepare",str(uuid.uuid4()),payload=candidate)
+        extra=step("accept",extra)
+        extra=step("prompt",extra,payload={"field":"test_conditions"})
+        assert extra["row"]["decision"]=="pending"
+        extra=step("bind",extra,payload={"message_id":942})
+        question=copy.deepcopy(extra)
+        step("reply",extra,payload={"reply_to":943,"value":"Wrong question"},error="SOURCE_FACT_WRONG_QUESTION")
+        for note in ["", "\u00a0", "🧰"*501, 17]:
+            step("reply",extra,payload={"reply_to":942,"value":note},error="TECH_BAD_CONTEXT")
+        facts("reply",extra["review"]["id"],extra["review"]["revision"],payload={"reply_to":942,"value":"Foreign"},
+          actor=102,error="SOURCE_FACT_NOT_FOUND")
+        command(["docker","restart",NAME]);ready()
+        assert facts("get",extra["review"]["id"])["prompt"]["field"]=="test_conditions"
+        note="Учебные условия: кабель 8 м; ПН 60 %.\nТолько для указанной модификации."
+        extra=step("reply",extra,payload={"reply_to":942,"value":note})
+        assert extra["row"]["draft"]["context"]["test_conditions"]==note
+        assert extra["row"]["decision"]=="pending" and extra["prompt"] is None
+        step("reply",question,payload={"reply_to":942,"value":"Duplicate"},error="SOURCE_FACT_STALE_BUTTON")
+        extra=step("accept",extra)
+        for index in [1,2,3]:extra=step("skip",extra,index=index)
+        extra=step("publisher",extra,payload={"text":"Учебный изготовитель"})
+        extra=step("preview",extra)
+        assert extra["review"]["prepared_document"]["values"][0]["context"]["test_conditions"]==note
+        transferred=step("handoff",extra,payload={"confirm_plan":True,"replace_family":False})
+        session=editor("get",{"id":transferred["review"]["editor_session_id"],"revision":0})
+        assert any(v["context"].get("test_conditions")==note for v in session["data"]["document"]["values"])
+        editor("cancel",session)
+        assert step("handoff",extra,payload={"confirm_plan":True,"replace_family":False})["review"]["editor_session_id"]==session["id"]
     def ready_facts(approval,family="power_mma",maximum=190,all_rows=True):
         candidate=copy.deepcopy(payload)
         candidate["source_id"]=approval["source_id"];candidate["result"]["family_code"]=family
@@ -850,6 +1006,49 @@ try:
     identity_review=editor("start",source_revision=retained_session["applied_revision"])
     identity_review=editor("apply",editor("preview",identity_review))
     assert public_facts()["values"][0]["value"]==195
+    if accessory_characteristics:
+        # A new source is explicitly reviewed; values are not inferred from an old MMA passport.
+        torch_text="Учебная горелка MODEL-220. Постоянный ток: 160 А; ПН 60 %. Только учебный режим."
+        torch_file=upload(torch_text.encode())
+        job=worker("claim")
+        worker("finish",job["id"],job["lease"],{"version":"document-v1","sha256":torch_file["checksum"],
+          "tables":[],"blocks":[{"locator":"page:1","page":1,"text":torch_text}],"warnings":[],"coverage":{"complete":True}})
+        torch_source=approve_source(pid,torch_file["id"])
+        torch_payload={"source_id":torch_source["source_id"],"result":{
+          "version":"source-candidates-v1","checksum":torch_file["checksum"],"family_code":"tig_torch",
+          "candidates":[{"attribute_code":"tig_torch_max_dc_a","unit_code":"a","process":"tig","value":160,
+            "issues":["model_scope_review"],"evidence":{"kind":"block","block":0,"locator":"page:1","page":1,
+              "start":0,"end":len(torch_text),"offset_unit":"unicode_codepoints","quote":torch_text}}],
+          "unmatched_entries":[],"fields_without_candidates":[],"warnings":[]}}
+        torch=facts("prepare",str(uuid.uuid4()),payload=torch_payload)
+        step("accept",torch,error="TECH_CONTEXT_REQUIRED")
+        torch=step("prompt",torch,payload={"field":"duty_pct"})
+        torch=step("bind",torch,payload={"message_id":1941})
+        torch=step("reply",torch,payload={"reply_to":1941,"value":60})
+        step("accept",torch,error="TECH_CONTEXT_REQUIRED")
+        torch=step("prompt",torch,payload={"field":"test_conditions"})
+        torch=step("bind",torch,payload={"message_id":1942})
+        torch=step("reply",torch,payload={"reply_to":1942,"value":"Только учебный режим."})
+        torch=step("accept",torch)
+        torch=step("publisher",torch,payload={"text":"Учебный изготовитель"})
+        torch=step("preview",torch)
+        step("handoff",torch,payload=consent,error="SOURCE_FACT_FAMILY_CONFIRM_REQUIRED")
+        card_before=sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))
+        transferred=step("handoff",torch,payload={**consent,"replace_family":True})
+        torch_session=editor("get",{"id":transferred["review"]["editor_session_id"],"revision":0})
+        assert sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))==card_before
+        assert torch_session["data"]["document"]["family_code"]=="tig_torch"
+        assert torch_session["data"]["document"]["values"][0]["context"]=={"duty_pct":60,"test_conditions":"Только учебный режим."}
+        torch_session=editor("apply",editor("preview",torch_session))
+        published_torch=public_facts()
+        assert published_torch["family"]["code"]=="tig_torch"
+        assert published_torch["values"][0]["value"]==160
+        assert published_torch["values"][0]["context"]["duty_pct"]==60
+        assert step("handoff",torch,payload={**consent,"replace_family":True})["review"]["editor_session_id"]==torch_session["id"]
+        command(["docker","restart",NAME]);ready()
+        assert public_facts()==published_torch
+        accessory_report["checks"]+=["human_conditions_before_acceptance","explicit_family_change",
+          "handoff_draft_only","separate_preview_apply","public_conditions","replay_and_restart"]
     # An imported model source changes the generation even if title and price are unchanged.
     previous_context=technical("read")["card"]["model_context"]
     pid_again,model_import,_=imported("MODEL-330")
@@ -859,6 +1058,10 @@ try:
     assert choice("get",pid)["current"]["state"]=="selected"
     assert technical("read")["card"]["model_context"]!=previous_context
     assert public_facts() is None
+    if accessory_characteristics:
+        editor("apply",torch_session) # Receipt only; never refreshes the model binding.
+        step("handoff",torch,payload={**consent,"replace_family":True})
+        assert public_facts() is None
     stale_copy=editor("start",source_revision=identity_review["applied_revision"])
     assert not stale_copy["source_binding"]["usable"]
     editor("preview",stale_copy,error="TECH_SOURCE_REVIEW_REQUIRED")
@@ -895,7 +1098,13 @@ try:
     command(["docker","restart",NAME]);ready()
     assert_excluded()
     assert stable_history()==excluded_history
-    print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
+    print(json.dumps({"ok":True,"accessory_characteristics":accessory_report,"documentary_conditions":({
+      "proposal_sha256":hashlib.sha256(proposal.encode()).hexdigest(),
+      "checks":["exact_unicode","existing_rows_unchanged","existing_acl_unchanged","distinct_conditions",
+        "required_condition","bound_human_reply","decision_withdrawal","restart_question","handoff_receipt",
+        "atomic_install_preservation","install_corruption_rollback","wrong_instance_rollback",
+        "changed_baseline_rollback","late_failure_no_receipt","installed_repeat_refused"]
+      } if documentary_conditions else None),"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
       "handoff_migration_sha256":hashlib.sha256(handoff_migration.encode()).hexdigest(),
       "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
       "checks":["private_roles","exact_unicode_quote","table_origin","foreign_source","stable_prepare",
@@ -917,4 +1126,4 @@ try:
        "identity_old_receipts_no_republish","model_reimport_and_undo_keep_stale_origins","old_source_receipts_no_refresh",
        "excluded_reimport_and_undo_stay_hidden","import_preserves_immutable_history","excluded_restart"]}))
 finally:
-    if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)
+    if created:subprocess.run(["docker","rm","-fv",NAME],capture_output=True)

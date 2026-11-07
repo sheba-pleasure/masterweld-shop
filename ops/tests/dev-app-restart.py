@@ -40,7 +40,7 @@ def sql(query):
                     "-d", "masterweld_dev", "-v", "ON_ERROR_STOP=1"], input=query).stdout.strip()
 
 
-def build(mode, capable):
+def build(mode, capable, documentary=False):
     revision = uuid.uuid4().hex + uuid.uuid4().hex[:8]
     tag = "masterweld-dev:" + revision
     assert gate.inspect("image", tag) is None
@@ -59,6 +59,8 @@ http.createServer((request,response) => {
               "org.opencontainers.image.revision": revision}
     if capable:
         labels[gate.CAPABILITY] = "1"
+    if documentary:
+        labels[gate.DOCUMENTARY_CAPABILITY] = "1"
     dockerfile = "FROM node:22-bookworm-slim\n"
     dockerfile += "LABEL " + " ".join(k + "=" + json.dumps(v) for k, v in labels.items()) + "\n"
     dockerfile += "ENV RELEASE_SHA=" + revision + " MODE=" + mode + "\nUSER node\n"
@@ -138,12 +140,12 @@ try:
         bad_sha, bad_id = build("fail-active", True)
         preflight_sha, preflight_id = build("fail-preflight", True)
 
-        assert gate.schema_requirements() is False
+        assert gate.schema_requirements() == frozenset()
         app.launch(APP, legacy_id)
         app.probe(APP, legacy_sha)
         app.write_active(state, legacy_sha)
         schema()
-        assert gate.schema_requirements() is True
+        assert gate.schema_requirements() == frozenset({gate.CAPABILITY})
         original = gate.inspect("container", APP)["Id"]
         replace(legacy_sha, state, "SOURCE_FACTS_UNSUPPORTED")
         assert gate.inspect("container", APP)["Id"] == original
@@ -188,6 +190,48 @@ try:
         assert (state / "active-sha").read_text().strip() == good_sha
         CHECKS += ["successful_switch_retains_previous", "normal_notification_setting_preserved",
                    "isolated_networks_no_published_ports", "no_catalog_or_order_data"]
+        # Source-only images become incompatible even while the new schema is empty.
+        documentary_sha, documentary_id = build("normal", True, documentary=True)
+        documentary_bad_sha, _ = build("fail-active", True, documentary=True)
+        active_before = gate.inspect("container", APP)["Id"]
+        sql("CREATE FUNCTION mw_private.documentary_conditions_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 1'")
+        replace(documentary_sha, state, "DOCUMENTARY_SCHEMA_INCOMPLETE")
+        assert gate.inspect("container", APP)["Id"] == active_before
+        CHECKS.append("partial_documentary_schema_preserves_active_container")
+        sql("""
+CREATE TABLE technical_attributes(code text PRIMARY KEY,required_context text[],
+ CONSTRAINT technical_attributes_required_context_check CHECK(required_context <@ ARRAY['test_conditions']));
+ALTER TABLE source_fact_prompts ADD COLUMN field text;
+ALTER TABLE source_fact_prompts ADD CONSTRAINT source_fact_prompts_field_check CHECK(field IN('test_conditions'));
+CREATE FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) RETURNS void
+ LANGUAGE plpgsql AS $$ DECLARE context_key text; BEGIN
+ IF context_key='test_conditions' THEN RETURN; END IF; END $$;
+CREATE OR REPLACE FUNCTION mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)
+ RETURNS jsonb LANGUAGE plpgsql AS $$ DECLARE input_field text; BEGIN
+ IF input_field='test_conditions' THEN RETURN '{}'::jsonb; END IF; RETURN '{}'::jsonb; END $$;
+""")
+        assert gate.schema_requirements() == frozenset({gate.CAPABILITY, gate.DOCUMENTARY_CAPABILITY})
+        replace(good_sha, state, "DOCUMENTARY_CONDITIONS_UNSUPPORTED")
+        assert gate.inspect("container", APP)["Id"] == active_before
+        assert gate.inspect("container", APP)["State"]["Running"]
+        assert gate.inspect("container", CANDIDATE) is None
+        CHECKS.append("empty_documentary_schema_refuses_source_only_target_before_start")
+        replace(documentary_bad_sha, state, "ROLLBACK_REQUIRES_REVIEW")
+        assert gate.inspect("container", APP) is None
+        assert gate.inspect("container", PREVIOUS)["Id"] == active_before
+        assert not gate.inspect("container", PREVIOUS)["State"]["Running"]
+        assert not (state / "active-sha").exists()
+        CHECKS.append("documentary_failure_never_starts_source_only_predecessor")
+        clean_apps()
+        app.launch(APP, documentary_id)
+        app.probe(APP, documentary_sha)
+        app.write_active(state, documentary_sha)
+        active_before = gate.inspect("container", APP)["Id"]
+        replace(documentary_bad_sha, state, "PREVIOUS_RESTORED")
+        assert gate.inspect("container", APP)["Id"] == active_before
+        app.probe(APP, documentary_sha)
+        assert (state / "active-sha").read_text().strip() == documentary_sha
+        CHECKS.append("documentary_compatible_fallback_is_started_and_probed")
         print(json.dumps({"ok": True, "checks": CHECKS}))
 finally:
     clean_apps()

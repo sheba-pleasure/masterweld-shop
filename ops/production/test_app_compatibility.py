@@ -10,6 +10,8 @@ SHA = "1" * 40
 IMAGE_ID = "sha256:" + "a" * 64
 IDENTITY = {"environment": "production", "instanceId": "11111111-2222-4333-8444-555555555555"}
 ENV = {"APP_ENV": "production", "MW_INSTANCE_ID": IDENTITY["instanceId"]}
+SOURCE_REQUIRED = frozenset({guard.CAPABILITY})
+DOCUMENTARY_REQUIRED = SOURCE_REQUIRED | {guard.DOCUMENTARY_CAPABILITY}
 
 
 def image(capable=True):
@@ -38,9 +40,9 @@ class ProductionCompatibilityTests(unittest.TestCase):
     def test_no_schema_full_schema_and_every_partial_schema(self):
         for mask in range(64):
             flags = [bool(mask & (1 << n)) for n in range(6)]
-            value = {"identity": IDENTITY, "sourceFacts": flags}
+            value = {"identity": IDENTITY, "sourceFacts": flags, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}
             if mask in (0, 63):
-                self.assertEqual(guard.validate_schema(value, IDENTITY), mask == 63)
+                self.assertEqual(guard.validate_schema(value, IDENTITY), SOURCE_REQUIRED if mask == 63 else frozenset())
             else:
                 with self.assertRaisesRegex(ValueError, "PROD_SOURCE_FACT_SCHEMA_INCOMPLETE"):
                     guard.validate_schema(value, IDENTITY)
@@ -52,11 +54,77 @@ class ProductionCompatibilityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_INVALID"):
                 guard.validate_schema({"identity": IDENTITY, "sourceFacts": flags}, IDENTITY)
 
+    def test_documentary_schema_requires_all_markers_and_source_dependencies(self):
+        for mask in range(64):
+            value = {"identity": IDENTITY, "sourceFacts": [True] * 6,
+                     "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
+            if mask in (0, 63):
+                self.assertEqual(guard.validate_schema(value, IDENTITY),
+                                 DOCUMENTARY_REQUIRED if mask == 63 else SOURCE_REQUIRED)
+            else:
+                with self.assertRaisesRegex(ValueError, "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE"):
+                    guard.validate_schema(value, IDENTITY)
+        value = {"identity": IDENTITY, "sourceFacts": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
+        with self.assertRaisesRegex(ValueError, "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE"):
+            guard.validate_schema(value, IDENTITY)
+        for flags in [None, [], [False] * 5, [1] * 6, "false"]:
+            value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
+            with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_INVALID"):
+                guard.validate_schema(value, IDENTITY)
+
+
+    def test_accessory_schema_requires_exact_dictionary_and_dependencies(self):
+        for mask in range(16):
+            value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [True] * 6,
+                     "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
+            if mask in (0, 15):
+                self.assertEqual(guard.validate_schema(value, IDENTITY),
+                                 guard.KNOWN_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
+            else:
+                with self.assertRaisesRegex(ValueError, "PROD_ACCESSORY_SCHEMA_INCOMPLETE"):
+                    guard.validate_schema(value, IDENTITY)
+        value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [False] * 6,
+                 "accessoryDictionary": [True] * 4}
+        with self.assertRaisesRegex(ValueError, "PROD_ACCESSORY_SCHEMA_INCOMPLETE"):
+            guard.validate_schema(value, IDENTITY)
+        for flags in [None, [], [False] * 3, [1] * 4, "false"]:
+            value["accessoryDictionary"] = flags
+            with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_INVALID"):
+                guard.validate_schema(value, IDENTITY)
+
+    def test_accessory_image_requires_capability_and_documentary_dependency(self):
+        target = image()
+        target["Config"]["Labels"][guard.DOCUMENTARY_CAPABILITY] = "1"
+        for label in [None, "0", "2", "true", 1]:
+            if label is not None:
+                target["Config"]["Labels"][guard.ACCESSORY_CAPABILITY] = label
+            with self.assertRaisesRegex(ValueError, "PROD_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"):
+                guard.validate_image(target, SHA, guard.KNOWN_CAPABILITIES)
+        target["Config"]["Labels"][guard.ACCESSORY_CAPABILITY] = "1"
+        self.assertEqual(guard.validate_image(target, SHA, guard.KNOWN_CAPABILITIES), IMAGE_ID)
+        with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_REQUIREMENTS_INVALID"):
+            guard.validate_image(target, SHA, SOURCE_REQUIRED | {guard.ACCESSORY_CAPABILITY})
+
+    def test_documentary_image_requires_exact_capability_even_for_empty_schema(self):
+        for label in [None, "0", "2", "true", 1]:
+            target = image()
+            if label is not None:
+                target["Config"]["Labels"][guard.DOCUMENTARY_CAPABILITY] = label
+            with self.assertRaisesRegex(ValueError, "PROD_IMAGE_DOCUMENTARY_CONDITIONS_UNSUPPORTED"):
+                guard.validate_image(target, SHA, DOCUMENTARY_REQUIRED)
+        target = image()
+        target["Config"]["Labels"][guard.DOCUMENTARY_CAPABILITY] = "1"
+        self.assertEqual(guard.validate_image(target, SHA, DOCUMENTARY_REQUIRED), IMAGE_ID)
+        for required in [True, False, {}, {"source_facts": True}, frozenset({"unknown"}),
+                         frozenset({guard.DOCUMENTARY_CAPABILITY})]:
+            with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_REQUIREMENTS_INVALID"):
+                guard.validate_image(target, SHA, required)
+
     def test_old_image_only_before_new_schema(self):
-        self.assertEqual(guard.validate_image(image(False), SHA, False), IMAGE_ID)
+        self.assertEqual(guard.validate_image(image(False), SHA, frozenset()), IMAGE_ID)
         with self.assertRaisesRegex(ValueError, "PROD_IMAGE_SOURCE_FACTS_UNSUPPORTED"):
-            guard.validate_image(image(False), SHA, True)
-        self.assertEqual(guard.validate_image(image(), SHA, True), IMAGE_ID)
+            guard.validate_image(image(False), SHA, SOURCE_REQUIRED)
+        self.assertEqual(guard.validate_image(image(), SHA, SOURCE_REQUIRED), IMAGE_ID)
 
     def test_image_requires_exact_sha_id_and_non_dev(self):
         for target, sha in [
@@ -65,7 +133,7 @@ class ProductionCompatibilityTests(unittest.TestCase):
             ({"Id": IMAGE_ID, "Config": {"Labels": {**image()["Config"]["Labels"], "mw.environment": "dev"}}}, SHA),
         ]:
             with self.subTest(target=target, sha=sha), self.assertRaises(ValueError):
-                guard.validate_image(target, sha, True)
+                guard.validate_image(target, sha, SOURCE_REQUIRED)
 
     def test_container_checks_slot_sha_and_database_without_starting(self):
         self.assertEqual(guard.validate_container(container(), SHA, IDENTITY, "a"), IMAGE_ID)
@@ -80,13 +148,13 @@ class ProductionCompatibilityTests(unittest.TestCase):
                 guard.validate_container(bad, SHA, IDENTITY, "a")
 
     def test_container_reads_immutable_image_not_tag(self):
-        with patch.object(guard, "schema_requirements", return_value=True), patch.object(guard, "inspect") as inspect:
+        with patch.object(guard, "schema_requirements", return_value=SOURCE_REQUIRED), patch.object(guard, "inspect") as inspect:
             inspect.side_effect = [container(), image()]
             self.assertEqual(guard.check(ENV, SHA, container="isolated-slot", slot="a"), IMAGE_ID)
             self.assertEqual(inspect.call_args_list[-1].args, ("image", IMAGE_ID))
 
     def test_container_image_id_mismatch_is_rejected(self):
-        with patch.object(guard, "schema_requirements", return_value=True), patch.object(guard, "inspect") as inspect:
+        with patch.object(guard, "schema_requirements", return_value=SOURCE_REQUIRED), patch.object(guard, "inspect") as inspect:
             inspect.side_effect = [container(), {**image(), "Id": "sha256:" + "b" * 64}]
             with self.assertRaisesRegex(ValueError, "PROD_IMAGE_ID_MISMATCH"):
                 guard.check(ENV, SHA, container="isolated-slot", slot="a")
@@ -106,10 +174,10 @@ class ProductionCompatibilityTests(unittest.TestCase):
 
     def test_database_ownership_running_and_read_only_query(self):
         db = {"Config": {"Labels": {"mw.environment": "production"}}, "State": {"Running": True}}
-        result = json.dumps({"identity": IDENTITY, "sourceFacts": [True] * 6})
+        result = json.dumps({"identity": IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6})
         with patch.object(guard, "inspect", return_value=db), patch.object(guard.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, result, "")
-            self.assertTrue(guard.schema_requirements(IDENTITY, "isolated-db", "postgres"))
+            self.assertEqual(guard.schema_requirements(IDENTITY, "isolated-db", "postgres"), SOURCE_REQUIRED)
             self.assertIn("READ ONLY", run.call_args.kwargs["input"])
             self.assertIn("statement_timeout", run.call_args.kwargs["input"])
             self.assertEqual(run.call_args.args[0][:4], ["docker", "exec", "-i", "isolated-db"])
