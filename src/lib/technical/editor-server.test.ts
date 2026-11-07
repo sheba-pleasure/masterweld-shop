@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn(), tg: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { rpc: mocks.rpc } }));
 vi.mock("@/lib/bot/telegram.server", () => ({ tg: mocks.tg }));
 import { technicalEditor } from "./editor.server";
-import { editorAction, families, fields, type EditorData } from "./editor";
+import { editorAction, editorReply, families, fields, type EditorData } from "./editor";
 import type { StaffMember } from "@/lib/bot/permissions";
 const id = "10000000-0000-4000-8000-000000000001";
 const owner: StaffMember = {
@@ -52,6 +52,8 @@ beforeEach(() => {
   mocks.rpc.mockImplementation(async (_name: string, args: Record<string, unknown>) => {
     if (args["p_op"] === "save")
       stored = { ...stored, data: args["p_data"] as EditorData, revision: stored.revision + 1 };
+    if (args["p_op"] === "prompt")
+      stored = { ...stored, prompt_message_id: args["p_prompt_message_id"] as number };
     return { data: { ok: true, session: structuredClone(stored) }, error: null };
   });
 });
@@ -141,6 +143,91 @@ it("accepts only a reply to the stored current prompt and saves using CAS", asyn
   expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current", "save"]);
   expect(stored.data.pending?.value).toBe(160);
   expect(stored.data.screen).toBe("sources");
+});
+it("keeps an invalid answer unchanged and offers explicit question recovery", async () => {
+  awaitingValue();
+  const before = structuredClone(stored);
+  await technicalEditor(owner, chat, from, { text: "-1", replyTo: 111 });
+  expect(stored).toEqual(before);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current"]);
+  expect(mocks.tg).toHaveBeenCalledTimes(1);
+  const payload = mocks.tg.mock.calls[0]![1];
+  expect(payload.text).toContain("Ответ не сохранён");
+  expect(payload.text).toContain("на новый вопрос бота");
+  expect(payload.text).toContain("отменит только незавершённое поле");
+  expect(payload.reply_markup.inline_keyboard.flat()).toEqual([
+    { text: "✏️ Повторить ввод", callback_data: "te:" + id + ":3:resume" },
+    { text: "⬅️ К черновику", callback_data: "te:" + id + ":3:home" },
+  ]);
+
+  mocks.rpc.mockClear();
+  mocks.tg.mockClear();
+  await technicalEditor(owner, chat, from, {
+    callback: payload.reply_markup.inline_keyboard[0][0].callback_data,
+  });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get", "prompt"]);
+  expect(mocks.rpc.mock.calls.at(-1)?.[1]).toMatchObject({
+    p_prompt_message_id: 222,
+    p_revision: 3,
+  });
+  expect(stored.data).toEqual(before.data);
+  expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply === true)).toBe(true);
+  expect(stored.prompt_message_id).toBe(222);
+
+  mocks.rpc.mockClear();
+  await technicalEditor(owner, chat, from, { text: "160", replyTo: 111 });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current"]);
+  expect(stored.data).toEqual(before.data);
+  mocks.rpc.mockClear();
+  await technicalEditor(owner, chat, from, { text: "160", replyTo: 222 });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current", "save"]);
+  expect(stored.data.pending?.value).toBe(160);
+});
+it("preserves the entered value when a measurement condition is invalid", async () => {
+  stored.data.document!.family_code = "tig_torch";
+  let d = editorAction(stored.data, "fields");
+  d = editorAction(
+    d,
+    "field",
+    fields(d).findIndex((f) => f.attribute_code === "tig_torch_max_dc_a"),
+  );
+  d = editorAction(editorAction(d, "process", 0), "new");
+  stored.data = editorReply(d, "160");
+  const before = structuredClone(stored);
+  await technicalEditor(owner, chat, from, { text: "101", replyTo: 111 });
+  expect(stored).toEqual(before);
+  expect(stored.data.pending?.value).toBe(160);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current"]);
+  expect(JSON.stringify(mocks.tg.mock.calls)).toContain("Повторить ввод");
+});
+it("does not repeat a save or promise no changes after a database timeout", async () => {
+  awaitingValue();
+  mocks.rpc.mockImplementation(async (_name: string, args: Record<string, unknown>) => {
+    if (args["p_op"] === "save") throw new Error("PRIVATE database timeout");
+    return { data: { ok: true, session: structuredClone(stored) }, error: null };
+  });
+  await technicalEditor(owner, chat, from, { text: "160", replyTo: 111 });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["current", "save"]);
+  const output = JSON.stringify(mocks.tg.mock.calls);
+  expect(output).toContain("проверить сохранённый черновик");
+  expect(output).not.toContain("Ответ не сохранён");
+  expect(output).not.toContain("Повторить ввод");
+  expect(output).not.toContain("PRIVATE");
+});
+it("an old recovery button reads the current step without replaying the answer", async () => {
+  awaitingValue();
+  await technicalEditor(owner, chat, from, { text: "-1", replyTo: 111 });
+  const callback = mocks.tg.mock.calls[0]![1].reply_markup.inline_keyboard[0][0].callback_data;
+  stored.data = editorReply(stored.data, "160");
+  stored.revision += 1;
+  stored.prompt_message_id = 222;
+  mocks.rpc.mockClear();
+  mocks.tg.mockClear();
+  await technicalEditor(owner, chat, from, { callback });
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+  expect(stored.data.screen).toBe("sources");
+  expect(stored.data.pending?.value).toBe(160);
+  expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply === true)).toBe(false);
 });
 it("resuming a value prompt binds the actual Telegram message ID without applying data", async () => {
   awaitingValue();
