@@ -265,6 +265,13 @@ it("shows complete old/new identities and separates the decision from actual imp
     row: 0,
   };
   const v = renderImport({ ...batch, model_comparison: comparison });
+  const correction = renderImport({
+    ...batch,
+    model_comparison: comparison,
+    document_can_return: true,
+  });
+  expect(correction.rows.flat().some((b) => b.callback_data === `ci:rp:${id}:3`)).toBe(true);
+  expect(correction.text).toContain("без повторной загрузки");
   expect(v.text).toContain("Old-380");
   expect(v.text).toContain("aB-220");
   expect(v.text).toContain("После этого отдельно подтвердите импорт");
@@ -306,4 +313,108 @@ it("rejects injected product/source callbacks and bounds pagination", () => {
   expect(parseProductModelCallback(`mp:${id}:1666`)?.page).toBe(1666);
   for (const value of [`mp:${id}:1667`, `mp:${id}:0:1`, "mp:../secret:0"])
     expect(parseProductModelCallback(value)).toBeNull();
+});
+
+it("offers a separate document-return confirmation with both versions, never an import", () => {
+  const prepared = {
+    ...batch,
+    document_can_return: true,
+    document_return_prepare: true,
+    document_review_revision: 17,
+  };
+  const v = renderImport(prepared);
+  expect(v.text).toContain("Текущий предпросмотр будет отменён");
+  expect(v.text).toContain("Повторно загружать файл не нужно");
+  expect(v.rows.flat().map((b) => b.callback_data)).toEqual([`ci:rr:${id}:3:17`, `ci:get:${id}:0`]);
+  expect(parseImportCallback(v.rows[0]![0]!.callback_data)).toEqual({
+    op: "return_confirm",
+    id,
+    revision: 3,
+    reviewRevision: 17,
+  });
+  for (const state of ["config", "preview", "canceled"]) {
+    const current = renderImport({ ...batch, state, document_can_return: true });
+    expect(current.rows.flat().some((b) => b.callback_data === `ci:rp:${id}:3`)).toBe(true);
+  }
+  for (const state of ["applied", "undone", "preview"]) {
+    const current = renderImport({ ...batch, state, document_can_return: false });
+    expect(current.rows.flat().some((b) => b.callback_data.startsWith("ci:rp:"))).toBe(false);
+  }
+});
+it("recovers a returned import through the current document without another confirmation", () => {
+  const v = renderImport({ ...batch, state: "canceled", document_returned: true });
+  expect(v.text).toContain("Повторное нажатие старой кнопки его не отменяет");
+  expect(v.rows.flat().map((b) => b.callback_data)).toEqual([`dr:${id}:0:get:0`, "ci:home"]);
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:rr:"))).toBe(false);
+});
+it("opens the editable review immediately after a successful return", () => {
+  const v = renderImport({
+    ...batch,
+    state: "canceled",
+    document_returned: true,
+    document_return_review: {
+      ok: true,
+      id,
+      document_id: id,
+      revision: 18,
+      file_name: "Прайс.tsv",
+      table_label: "Лист 1",
+      header: ["sku", "price"],
+      row: 0,
+      cells: ["aB-001", "10"],
+      original: ["aB-001", "10"],
+      decision: "approved",
+      counts: { total: 1, approved: 1, pending: 0, excluded: 0 },
+      warnings: [],
+    },
+  });
+  expect(v.text).toContain("Ниже — текущий разбор документа");
+  expect(v.text).toContain("aB-001");
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith(`dr:${id}:18:`))).toBe(true);
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+});
+it("routes return once with actual actor and both exact versions", async () => {
+  mocks.rpc.mockResolvedValue({
+    data: { ...batch, state: "canceled", document_returned: true },
+    error: null,
+  });
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_catalog_import", {
+    p_actor: 101,
+    p_op: "return_confirm",
+    p_id: id,
+    p_page: 0,
+    p_revision: 3,
+    p_payload: { review_revision: 17 },
+  });
+  expect(mocks.tg.mock.calls[0]![1].text).toContain("Оригинал и история сохранены");
+});
+it("denies return for sellers, inactive staff, another sender and groups before RPC", async () => {
+  for (const [m, c] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { id: 101, type: "group" }],
+  ] as const)
+    await showCatalogImport(m, c, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("offers read-only recovery after an uncertain return without replaying the mutation", async () => {
+  mocks.rpc.mockRejectedValue(new Error("unknown private failure"));
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:rr:${id}:3:17`));
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  const body = mocks.tg.mock.calls[0]![1];
+  expect(body.text).toContain("Результат не подтверждён");
+  expect(body.reply_markup.inline_keyboard[0][0].callback_data).toBe(`ci:get:${id}:0`);
+  expect(body.text).not.toContain("private failure");
+});
+it("bounds return callback fields and requires a review version only for confirmation", () => {
+  const value = `ci:rr:${id}:9999999:9999999`;
+  expect(Buffer.byteLength(value)).toBeLessThanOrEqual(64);
+  expect(parseImportCallback(value)?.reviewRevision).toBe(9999999);
+  expect(parseImportCallback(`ci:rp:${id}:3`)?.op).toBe("return_prepare");
+  for (const suffix of ["rp:3:17", "rr:3", "rr:3:-1", "rr:3:10000000", "rr:3:17:1"]) {
+    const [op, ...parts] = suffix.split(":");
+    expect(parseImportCallback(`ci:${op}:${id}:${parts.join(":")}`)).toBeNull();
+  }
 });
