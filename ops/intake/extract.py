@@ -192,17 +192,20 @@ def office_xml(path,kind):
 
 def text_tables(text,locator):
     """A text candidate is never a confirmed model, price or SKU."""
-    lines=[line for line in text.splitlines() if line.strip()]
+    # Keep physical positions in the saved text block before filtering empty lines.
+    numbered=[(i,line) for i,line in enumerate(text.splitlines(),1) if line.strip()]
+    lines=[line for _,line in numbered]
+    locators=[f"{locator}/line:{i}" for i,_ in numbered]
     if not lines:
         return []
     split=[re.split(r"\t| {2,}",line.strip()) for line in lines]
     width=len(split[0])
     if 2<=width<=30 and len(split)>1 and all(len(r)==width for r in split):
-        table=make_table(split,locator,[f"{locator}/line:{i}" for i in range(1,len(split)+1)],["TEXT_LAYOUT_REVIEW"])
+        table=make_table(split,locator,locators,["TEXT_LAYOUT_REVIEW"])
     else:
         # Retain each nonempty line as a candidate, with identifiers/prices deliberately empty.
         table=make_table([["sku","title","price"]]+[["",line,""] for line in lines],
-            locator,["derived:unconfirmed-header"]+[f"{locator}/line:{i}" for i,line in enumerate(text.splitlines(),1) if line.strip()],
+            locator,["derived:unconfirmed-header"]+locators,
             ["UNSTRUCTURED_TEXT","SKU_AND_PRICE_REQUIRE_REVIEW","LINES_MAY_NOT_BE_PRODUCTS"])
     return [table] if table else []
 
@@ -224,7 +227,7 @@ def extract(path,filename):
     original=path.read_bytes()
     if not 0<len(original)<=MAX_BYTES:
         raise ReviewRequired("FILE_SIZE")
-    result={"version":VERSION,"sha256":hashlib.sha256(original).hexdigest(),"bytes":len(original),
+    result={"version":VERSION,"text_locator_version":2,"sha256":hashlib.sha256(original).hexdigest(),"bytes":len(original),
             "tables":[],"blocks":[],"warnings":[],"coverage":{},"review_required":True,
             "enrichment":{"state":"provider_not_configured","automatic_publication":False,
               "steps":["identify_exact_model","find_primary_sources","review_minimum_specs",
