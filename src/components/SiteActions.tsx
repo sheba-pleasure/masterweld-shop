@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { createOrder } from "@/lib/orders/orders.functions";
-import { clearCart, useCart, OPEN_CART_EVENT } from "@/lib/cart";
+import { refreshCart, useCart, OPEN_CART_EVENT } from "@/lib/cart";
 import {
   ATTEMPT_STORAGE_KEY,
   UNKNOWN_ORDER_MESSAGE,
@@ -182,8 +182,10 @@ export function SiteActions() {
       ) {
         localStorage.setItem("mw_cart_v1", "[]");
         if (localStorage.getItem("mw_cart_v1") !== "[]") throw new Error("CART_STORAGE_FAILED");
-        clearCart();
       }
+      // Another tab may have changed or cleared the cart while the order was in flight.
+      // Show its current contents without writing our old in-memory snapshot back.
+      refreshCart();
       sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
       if (sessionStorage.getItem(ATTEMPT_STORAGE_KEY) !== null)
         throw new Error("ATTEMPT_CLEANUP_FAILED");
