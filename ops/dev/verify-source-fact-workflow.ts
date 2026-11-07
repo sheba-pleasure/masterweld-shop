@@ -156,14 +156,20 @@ const beforeShop = shopFingerprint(),
 const previousDocs = sql(
   "SELECT coalesce(jsonb_object_agg(id::text,md5(to_jsonb(d)::text)),'{}') FROM document_intakes d",
 );
-const messages: { id: number; text: string; buttons: string[]; question: boolean }[] = [];
+const messages: {
+  id: number;
+  text: string;
+  buttons: string[];
+  question: boolean;
+  keyboard: { text: string; callback_data?: string }[][];
+}[] = [];
 interface SendBody {
   chat_id: number;
   message_id?: number;
   text: string;
   reply_markup?: {
     force_reply?: boolean;
-    inline_keyboard?: { callback_data?: string }[][];
+    inline_keyboard?: { text: string; callback_data?: string }[][];
   };
 }
 const originalFetch = globalThis.fetch;
@@ -215,10 +221,14 @@ globalThis.fetch = (async (input, init) => {
       id: data.result.message_id,
       text: body.text,
       question: body.reply_markup?.force_reply === true,
+      keyboard: body.reply_markup?.inline_keyboard ?? [],
       buttons: (body.reply_markup?.inline_keyboard ?? [])
         .flat()
         .map((b) => b.callback_data)
         .filter((value): value is string => typeof value === "string"),
+    });
+    writeFileSync(new URL("messages.json", dir), JSON.stringify(messages, null, 2) + "\n", {
+      mode: 0o600,
     });
     return response;
   }
