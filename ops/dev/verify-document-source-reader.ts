@@ -72,7 +72,7 @@ const tables = JSON.parse(
 function fingerprint() {
   const result: Record<string, string> = {};
   for (const table of tables) {
-    assert.match(table, /^[a-z_]+$/);
+    assert.match(table, /^[a-z_][a-z0-9_]*$/);
     result[table] = sql(
       "SELECT md5(coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]')::text) FROM " +
         table +
