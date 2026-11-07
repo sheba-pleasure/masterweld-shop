@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # «Откати»: ops/rollback.sh [SHA]
 # Возвращает трафик на сохранённый предыдущий утверждённый slot+SHA. Работает ПОЛНОСТЬЮ
-# OFFLINE: без GitHub и без Docker-образа — по локальному журналу approved, меткам
-# существующего контейнера и smoke. Если SHA указан, он обязан совпасть с previous_sha.
+# OFFLINE: без GitHub, загрузки и тега Docker-образа — по локальному журналу approved,
+# неизменяемому образу существующего контейнера, схеме локальной БД и smoke. Если SHA указан, он обязан совпасть с previous_sha.
 # БД не откатывает: необратимые миграции этим скриптом не отменяются.
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
@@ -30,19 +30,29 @@ if [ -n "$ACTIVE" ]; then
     || die "активное состояние не соответствует контейнеру"
 fi
 workers_validate "$ACTIVE" "$ACTIVE_SHA"
+compatible_slot "$PREV" "$PREV_SHA" || die "предыдущий образ несовместим с базой — откат запрещён"
 workers_prepare
 
 [ "$(docker inspect --format '{{.State.Running}}' "$NAME")" = true ] || docker start "$NAME" >/dev/null
 { wait_healthy "http://$BIND_IP:$PORT" && smoke "http://$BIND_IP:$PORT" "$PREV_SHA"; } || die "slot $PREV не проходит проверку — откат не выполнен"
 
 workers_pause
-if ! { switch_gateway "$PREV" && smoke "http://$BIND_IP:$GATEWAY_PORT" "$PREV_SHA"; }; then
+if ! { compatible_slot "$PREV" "$PREV_SHA" && switch_gateway "$PREV" && \
+       smoke "http://$BIND_IP:$GATEWAY_PORT" "$PREV_SHA" && compatible_slot "$PREV" "$PREV_SHA"; }; then
   if [ -n "$ACTIVE" ]; then
+    if ! compatible_slot "$ACTIVE" "$ACTIVE_SHA"; then
+      release_maintenance
+      die "возврат после сбоя отката запрещён: несовместимый образ; вход 503, уведомления на паузе"
+    fi
     switch_gateway "$ACTIVE"
     smoke "http://$BIND_IP:$GATEWAY_PORT" "$ACTIVE_SHA" || die "возврат после сбоя отката не прошёл проверку; уведомления на паузе"
+    if ! compatible_slot "$ACTIVE" "$ACTIVE_SHA"; then
+      release_maintenance
+      die "совместимость активного образа изменилась; вход 503, уведомления на паузе"
+    fi
     workers_activate "$ACTIVE" "$ACTIVE_SHA"
   else
-    gateway_maintenance
+    release_maintenance
   fi
   die "после отката проверка не прошла — возвращено прежнее состояние"
 fi

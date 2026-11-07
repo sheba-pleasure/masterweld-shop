@@ -3,7 +3,7 @@
 # Все проверки (SHA, lock, ключи, gateway, GitHub merge+verify, образ, состояние) — ДО любых действий.
 # Новый образ в неактивном slot → health+smoke+noindex → переключение → smoke →
 # при сбое возврат прежнего slot (или 503, если прежнего нет). Предыдущий контейнер сохраняется.
-# БД не трогает и миграции не запускает.
+# Читает идентичность/схему БД; данные не изменяет и миграции не запускает.
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
@@ -30,6 +30,7 @@ fi
 TARGET="$(other_slot "${ACTIVE:-b}")"
 PORT="$(slot_port "$TARGET")"; NAME="$(slot_name "$TARGET")"
 workers_validate "$ACTIVE" "$ACTIVE_SHA"
+IMAGE_ID="$(compatible_image "$SHA")" || die "образ несовместим со схемой базы — выпуск остановлен"
 log "предусловия выполнены; активный: ${ACTIVE:-нет} ${ACTIVE_SHA:-}; новый slot $TARGET ($PORT) <- $SHA"
 
 # --- далее действия ---
@@ -45,7 +46,7 @@ docker run -d --name "$NAME" --restart unless-stopped \
   --env "MW_RELEASE_SLOT=$TARGET" --env "RELEASE_SHA=$SHA" \
   --mount "type=bind,source=$STATE_DIR/workers,target=/run/mw-workers,readonly" \
   --label "mw-shop.sha=$SHA" --label "mw-shop.slot=$TARGET" \
-  "$IMAGE_REPO:$SHA" >/dev/null
+  "$IMAGE_ID" >/dev/null
 
 if ! wait_healthy "http://$BIND_IP:$PORT" || ! smoke "http://$BIND_IP:$PORT" "$SHA"; then
   docker stop "$NAME" >/dev/null 2>&1 || true
@@ -53,7 +54,8 @@ if ! wait_healthy "http://$BIND_IP:$PORT" || ! smoke "http://$BIND_IP:$PORT" "$S
 fi
 
 workers_pause
-if switch_gateway "$TARGET" && smoke "http://$BIND_IP:$GATEWAY_PORT" "$SHA"; then
+if compatible_slot "$TARGET" "$SHA" && switch_gateway "$TARGET" && \
+   smoke "http://$BIND_IP:$GATEWAY_PORT" "$SHA" && compatible_slot "$TARGET" "$SHA"; then
   [ -n "$ACTIVE" ] && { state_set previous_slot "$ACTIVE"; state_set previous_sha "$ACTIVE_SHA"; }
   state_set active_slot "$TARGET"; state_set active_sha "$SHA"
   approved_append "$TARGET" "$SHA"
@@ -64,13 +66,22 @@ fi
 
 log "проверка после переключения не прошла — автооткат"
 if [ -n "$ACTIVE" ]; then
+  if ! compatible_slot "$ACTIVE" "$ACTIVE_SHA"; then
+    release_maintenance
+    docker stop "$NAME" >/dev/null 2>&1 || true
+    die "автооткат запрещён: прежний образ несовместим с базой; вход 503, уведомления на паузе"
+  fi
   switch_gateway "$ACTIVE"
   docker stop "$NAME" >/dev/null 2>&1 || true
   smoke "http://$BIND_IP:$GATEWAY_PORT" "$ACTIVE_SHA" || die "автооткат на slot $ACTIVE тоже не прошёл проверку — нужен человек"
+  if ! compatible_slot "$ACTIVE" "$ACTIVE_SHA"; then
+    release_maintenance
+    die "совместимость прежнего образа изменилась; вход 503, уведомления на паузе"
+  fi
   workers_activate "$ACTIVE" "$ACTIVE_SHA"
   log "автооткат выполнен: slot $ACTIVE, SHA $ACTIVE_SHA; состояние не изменено"
 else
-  gateway_maintenance
+  release_maintenance
   docker stop "$NAME" >/dev/null 2>&1 || true
   log "прежнего выпуска нет: вход переведён в 503, выпуск НЕ выполнен"
 fi

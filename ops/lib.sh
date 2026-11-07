@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Общие функции blue/green выпуска интернет-магазина «Мастер Сварщик».
-# Никогда не трогают БД, Caddy, DNS, firewall и чужие контейнеры.
+# Не изменяют БД, Caddy, DNS, firewall и чужие контейнеры. Схему БД читают для проверки совместимости.
 set -euo pipefail
 
 OPS_DIR="${OPS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -17,6 +17,8 @@ SLOT_B_PORT="${SLOT_B_PORT:-18082}"
 BACKEND_PORT="${BACKEND_PORT:-18084}"
 MW_CONTAINER_PREFIX="${MW_CONTAINER_PREFIX:-mw-shop}"
 APP_NETWORK="${APP_NETWORK:-mw-prod-edge}"
+MW_PRODUCTION_DB_CONTAINER="${MW_PRODUCTION_DB_CONTAINER:-mw-prod-db}"
+MW_PRODUCTION_DB_NAME="${MW_PRODUCTION_DB_NAME:-masterweld_production}"
 GATEWAY_NAME="$MW_CONTAINER_PREFIX-gateway"
 HEALTH_TRIES="${HEALTH_TRIES:-30}"
 HEALTH_SLEEP="${HEALTH_SLEEP:-2}"
@@ -83,6 +85,34 @@ require_image() {
   rev="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REPO:$sha" 2>/dev/null)" \
     || die "Docker-образ $IMAGE_REPO:$sha не найден"
   [ "$rev" = "$sha" ] || die "метка revision образа ($rev) не совпадает с $sha"
+}
+
+# Read-only capability check. Builds remain independent of a running database.
+compatible_image() {
+  python3 "$OPS_DIR/production/app_compatibility.py" --env-file "$SECRETS_ENV" \
+    --db-container "$MW_PRODUCTION_DB_CONTAINER" --db-name "$MW_PRODUCTION_DB_NAME" \
+    --sha "$1" --image "$IMAGE_REPO:$1"
+}
+compatible_slot() {
+  python3 "$OPS_DIR/production/app_compatibility.py" --env-file "$SECRETS_ENV" \
+    --db-container "$MW_PRODUCTION_DB_CONTAINER" --db-name "$MW_PRODUCTION_DB_NAME" \
+    --sha "$2" --container "$(slot_name "$1")" --slot "$1" >/dev/null
+}
+# Keep approved/previous history for a reviewed recovery; no slot is currently serving.
+release_maintenance() {
+  local i code
+  gateway_maintenance || die "не удалось включить 503; уведомления на паузе, нужен человек"
+  # nginx reload is asynchronous. Do not report maintenance from its exit code alone.
+  for i in $(seq "$HEALTH_TRIES"); do
+    code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+      -H 'Cache-Control: no-cache' "http://$BIND_IP:$GATEWAY_PORT/")" || code=""
+    if [ "$code" = 503 ]; then
+      state_set active_slot ""; state_set active_sha ""
+      return 0
+    fi
+    sleep "$HEALTH_SLEEP"
+  done
+  die "gateway не подтвердил 503; уведомления на паузе, нужен человек"
 }
 
 # Compare the exact running build, not just a successful response from an old upstream.

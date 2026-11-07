@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real Docker/nginx rehearsal of unchanged release/rollback scripts with synthetic HTTP applications.
 
-No production app startup, database or Telegram. GitHub responses are local fixtures.
+No production app startup, existing database or Telegram. GitHub and the isolated schema are fixtures.
 All containers/images/network/state are uniquely named; only loopback ports are published.
 """
 import fcntl
@@ -31,11 +31,13 @@ CONTEXT = BASE / "context"
 CONTEXT.mkdir(mode=0o700)
 SHAS = [digit * 40 for digit in "1234"]
 MODES = ["normal", "normal", "candidate-failure", "gateway-failure"]
-NAMES = [PREFIX + suffix for suffix in ("-gateway", "-slot-a", "-slot-b", "-backend")]
+DB = PREFIX + "-db"
+INSTANCE = str(uuid.uuid4())
+NAMES = [PREFIX + suffix for suffix in ("-gateway", "-slot-a", "-slot-b", "-backend")] + [DB]
 NETWORK = PREFIX + "-net"
 IMAGE_REPO = PREFIX
 REPORT = {"id": RUN_ID, "scope": "real release scripts, Docker, nginx and worker activation; synthetic app and GitHub",
-          "applicationStartupVerified": False, "databaseUsed": False, "telegramSent": False,
+          "applicationStartupVerified": False, "databaseUsed": True, "existingDatabaseUsed": False, "telegramSent": False,
           "productionPromotionAuthorized": False, "checks": [], "passed": False}
 OWNED_CONTAINERS = set()
 OWNED_IMAGES = set()
@@ -45,7 +47,8 @@ ports_reserved = []
 env = {k: v for k, v in os.environ.items()
        if k not in ("GITHUB_TOKEN", "GITHUB_API", "GITHUB_REPO", "OPS_DIR", "STATE_DIR", "SECRETS_ENV",
                     "IMAGE_REPO", "GATEWAY_PORT", "SLOT_A_PORT", "SLOT_B_PORT", "BACKEND_PORT",
-                    "MW_CONTAINER_PREFIX", "APP_NETWORK", "HEALTH_TRIES", "HEALTH_SLEEP")}
+                    "MW_CONTAINER_PREFIX", "APP_NETWORK", "HEALTH_TRIES", "HEALTH_SLEEP",
+                    "MW_PRODUCTION_DB_CONTAINER", "MW_PRODUCTION_DB_NAME")}
 github_online = True
 github_requests = []
 
@@ -59,6 +62,43 @@ def run(args, check=True, timeout=60, **kwargs):
 
 def docker(*args, **kwargs):
     return run(["docker", *args], **kwargs)
+
+
+def sql(statement):
+    return docker("exec", "-i", DB, "psql", "-X", "-Atq", "-U", "postgres",
+                  "-v", "ON_ERROR_STOP=1", input=statement).stdout.strip()
+
+
+def source_schema(enabled):
+    if enabled:
+        sql("""
+          CREATE SCHEMA mw_private;
+          CREATE TABLE source_fact_reviews(id integer);
+          CREATE TABLE source_fact_rows(id integer);
+          CREATE TABLE source_fact_prompts(id integer);
+          CREATE TABLE technical_fact_origins(id integer);
+          CREATE FUNCTION public.bot_source_fact_review(bigint,text,uuid,integer,integer,jsonb)
+            RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+          CREATE FUNCTION mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)
+            RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+        """)
+    else:
+        sql("""
+          DROP TABLE source_fact_reviews, source_fact_rows, source_fact_prompts, technical_fact_origins;
+          DROP FUNCTION public.bot_source_fact_review(bigint,text,uuid,integer,integer,jsonb);
+          DROP SCHEMA mw_private CASCADE;
+        """)
+
+
+def maintenance():
+    assert (STATE / "active_sha").read_text().strip() == ""
+    assert (STATE / "active_slot").read_text().strip() == ""
+    assert json.loads((STATE / "workers/active.json").read_text()) == {}
+    try:
+        urllib.request.urlopen(gateway, timeout=3)
+        raise AssertionError("Unsafe fallback did not leave maintenance")
+    except urllib.error.HTTPError as error:
+        assert error.code == 503
 
 
 def read_json(url, headers=None):
@@ -156,7 +196,7 @@ def check_standby_health(slot):
 
 try:
     # No implicit pull: the operator/CI provisions these public images explicitly.
-    for image in ("node:22-bookworm-slim", "nginx:1.27-alpine"):
+    for image in ("node:22-bookworm-slim", "nginx:1.27-alpine", "postgres:17.6-alpine"):
         docker("image", "inspect", image)
     before = baseline()
     REPORT["existingContainersBefore"] = before
@@ -180,7 +220,8 @@ try:
                 "GITHUB_REPO": "sheba-pleasure/masterweld-shop",
                 "GATEWAY_PORT": str(gateway_port), "SLOT_A_PORT": str(a_port), "SLOT_B_PORT": str(b_port),
                 "BACKEND_PORT": str(backend_port), "MW_CONTAINER_PREFIX": PREFIX,
-                "APP_NETWORK": NETWORK, "HEALTH_TRIES": "20", "HEALTH_SLEEP": "0.1"})
+                "APP_NETWORK": NETWORK, "HEALTH_TRIES": "20", "HEALTH_SLEEP": "0.1",
+                "MW_PRODUCTION_DB_CONTAINER": DB, "MW_PRODUCTION_DB_NAME": "postgres"})
     # Only the real activation guard is imported; no notification worker or transport exists in this image.
     run([str(ROOT / "node_modules/.bin/esbuild"),
          str(ROOT / "src/lib/orders/notification-environment.server.ts"),
@@ -188,24 +229,39 @@ try:
     shutil.copyfile(ROOT / "ops/tests/release-fixture.mjs", CONTEXT / "fixture.mjs")
     (CONTEXT / "Dockerfile").write_text(
         'FROM node:22-bookworm-slim\nWORKDIR /fixture\nCOPY *.mjs ./\n'
-        'ARG SHA\nARG MODE\nLABEL org.opencontainers.image.revision=$SHA\n'
+        'ARG SHA\nARG MODE\nARG CAP\nLABEL org.opencontainers.image.revision=$SHA mw.capabilities.source-facts=$CAP\n'
         'ENV FIXTURE_SHA=$SHA FIXTURE_MODE=$MODE\nUSER node\nCMD ["node","fixture.mjs"]\n')
     for sha, mode in zip(SHAS, MODES):
         image = IMAGE_REPO + ":" + sha
         assert docker("image", "inspect", image, check=False).returncode != 0
         OWNED_IMAGES.add(image)
         docker("build", "--network", "none", "--pull=false", "--build-arg", "SHA=" + sha,
-               "--build-arg", "MODE=" + mode, "-t", image, str(CONTEXT), timeout=90)
+               "--build-arg", "MODE=" + mode, "--build-arg", "CAP=" + ("0" if sha == SHAS[0] else "1"),
+               "-t", image, str(CONTEXT), timeout=90)
     fixture_env = {
         "APP_ENV": "production", "ORDER_NOTIFICATIONS_ENABLED": "true", "TELEGRAM_ENABLED": "true",
         "TELEGRAM_TRANSPORT": "direct", "TELEGRAM_BOT_ID": "8861999166",
         "TELEGRAM_BOT_USERNAME": "masterweldermanagerbot",
         "TELEGRAM_BOT_TOKEN": "8861999166:synthetic_not_a_secret_1234567890",
         "PUBLIC_ORIGIN": "https://shop.masterweld.ru", "SUPABASE_URL": "http://mw-prod-api:8080",
-        "MW_INSTANCE_ID": "11111111-1111-4111-8111-111111111111",
+        "MW_INSTANCE_ID": INSTANCE,
     }
     (BASE / "fixture.env").write_text("".join(k + "=" + v + "\n" for k, v in fixture_env.items()))
     (BASE / "fixture.env").chmod(0o600)
+    OWNED_CONTAINERS.add(DB)
+    docker("run", "-d", "--name", DB, "--network", "none",
+           "--label", "mw.environment=production", "--label", "mw.scope=isolated-qa",
+           "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:17.6-alpine")
+    for _ in range(100):
+        if docker("exec", DB, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", check=False).returncode == 0:
+            break
+        time.sleep(.1)
+    else:
+        raise RuntimeError("Fixture database not ready")
+    identity = json.dumps({"environment": "production", "instanceId": INSTANCE})
+    sql("CREATE FUNCTION public.mw_environment_identity() RETURNS jsonb LANGUAGE sql AS $$ SELECT '" +
+        identity + "'::jsonb $$; CREATE TABLE qa_preserve(id integer, value text); "
+        "INSERT INTO qa_preserve VALUES(1,'Keep exactly');")
     docker("network", "create", "--label", "mw.environment=production", NETWORK)
     network_created = True
     # A private bridge with explicit loopback publication reproduces the release topology.
@@ -219,7 +275,7 @@ try:
     run(["bash", str(ROOT / "ops/gateway-up.sh")], env={**env, "CONFIRM_SERVER_CHANGE": "yes"})
     # A failure after the very first switch must leave maintenance and no active worker.
     release(SHAS[3], expected=2)
-    assert not (STATE / "active_sha").exists()
+    assert not (STATE / "active_sha").read_text().strip()
     assert json.loads((STATE / "workers/active.json").read_text()) == {}
     try:
         urllib.request.urlopen(gateway, timeout=3)
@@ -293,13 +349,49 @@ try:
     assert readonly.returncode != 0 and worker("a") and not worker("b")
     record("application cannot rewrite read-only worker control")
 
+    # New source-fact tables are empty: compatibility is required even before their first write.
+    github_online = True
+    release(SHAS[1])
+    current(SHAS[1], "b")
+    docker("stop", PREFIX + "-slot-a")
+    source_schema(True)
+    rollback(SHAS[0], expected=1)
+    current(SHAS[1], "b")
+    assert not json.loads(docker("inspect", PREFIX + "-slot-a").stdout)[0]["State"]["Running"]
+    record("new empty schema refuses incompatible manual rollback before predecessor starts")
+    source_schema(False)
+    rollback(SHAS[0])
+    current(SHAS[0], "a")
+    source_schema(True)
+    release(SHAS[3], expected=1)
+    maintenance()
+    assert not worker("a")
+    assert not json.loads(docker("inspect", PREFIX + "-slot-b").stdout)[0]["State"]["Running"]
+    record("failed release refuses incompatible fallback, leaves 503 and pauses notifications")
+
+    # Restore only this disposable fixture's old schema to exercise rollback's own fallback branch.
+    source_schema(False)
+    release(SHAS[0])
+    release(SHAS[1])
+    rollback(SHAS[0])
+    source_schema(True)
+    docker("exec", PREFIX + "-slot-b", "node", "-e",
+           "require('fs').writeFileSync('/tmp/fail-gateway','yes')")
+    rollback(SHAS[1], expected=1)
+    maintenance()
+    assert not worker("a") and not worker("b")
+    record("failed rollback refuses incompatible current slot instead of resuming notifications")
+    assert sql("SELECT value FROM qa_preserve WHERE id=1") == "Keep exactly"
+    record("release and rollback preserve fixture database rows")
+
     assert baseline() == before, "An existing container changed during rehearsal"
     REPORT["existingContainersUnchanged"] = True
     REPORT["sourceSha"] = run(["git", "-C", str(ROOT), "rev-parse", "HEAD"]).stdout.strip()
     REPORT["sourceFiles"] = {
         str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in [ROOT / "ops" / f for f in ("lib.sh", "release.sh", "rollback.sh", "gateway-up.sh")] +
-        [ROOT / "ops/tests/release-fixture.mjs", ROOT / "src/lib/orders/notification-environment.server.ts"]}
+        [ROOT / "ops/tests/release-fixture.mjs", ROOT / "ops/production/app_compatibility.py",
+         ROOT / "src/lib/orders/notification-environment.server.ts"]}
     REPORT["passed"] = True
 except Exception as error:
     REPORT["error"] = str(error)
@@ -320,7 +412,7 @@ finally:
             container = json.loads(details.stdout)[0]
             (BASE / (name + "-runtime.json")).write_text(json.dumps({
                 "state": container["State"], "ports": container["NetworkSettings"]["Ports"]}, indent=2))
-        docker("rm", "-f", name, check=False)
+        docker("rm", "-fv", name, check=False)
         if docker("inspect", name, check=False).returncode == 0:
             cleanup_errors.append(name)
     if network_created:
