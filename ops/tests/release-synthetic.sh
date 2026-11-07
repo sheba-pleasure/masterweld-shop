@@ -7,7 +7,8 @@ mkdir -p "$T/bin" "$T/gh" "$T/secrets"
 S1=1111111111111111111111111111111111111111
 S2=2222222222222222222222222222222222222222
 S3=3333333333333333333333333333333333333333   # не одобрен
-echo X=1 > "$T/secrets/shop.env"; chmod 600 "$T/secrets/shop.env"
+printf 'APP_ENV=production\nMW_INSTANCE_ID=11111111-1111-4111-8111-111111111111\n' > "$T/secrets/shop.env"
+chmod 600 "$T/secrets/shop.env"
 
 approve() {
   mkdir -p "$T/gh/compare/main...$1" "$T/gh/commits/$1/pulls" "$T/gh/commits/$1/check-runs"
@@ -28,7 +29,16 @@ port="${url#http://127.0.0.1:}"; port="${port%%/*}"
 is_gateway=no; [ "$port" = 18080 ] && is_gateway=yes
 if [ "$port" = 18080 ]; then
   printf "gateway %s\\n" "$(cat "$STATE_DIR/workers/active.json")" >> "$FAKE_CONTROL_LOG"
-  grep -q 'return 503' "$STATE_DIR/gateway/default.conf" && exit 22
+  if grep -q 'return 503' "$STATE_DIR/gateway/default.conf"; then
+    if [[ "$*" == *'%{http_code}'* ]]; then
+      if [ -f "$FAKE_MODE/maintenance-stale-once" ]; then
+        rm "$FAKE_MODE/maintenance-stale-once"; echo 200
+      elif [ -f "$FAKE_MODE/maintenance-down" ]; then echo 000
+      else echo 503; fi
+      exit 0
+    fi
+    exit 22
+  fi
   port="$(grep -o '127.0.0.1:1808[12]' "$STATE_DIR/gateway/default.conf" | tail -1 | cut -d: -f2)"
   [ -f "$FAKE_MODE/gw-$port" ] && exit 22
 fi
@@ -54,21 +64,59 @@ fi
 html='<meta name="robots" content="noindex, nofollow"/>'; [ "$mode" = indexable ] && html='<meta name="robots" content="index"/>'
 [ -n "$out" ] && exit 0; echo "$html"
 EOF
+cat > "$T/bin/metadata.py" <<'PY'
+import json, os, pathlib, sys
+mode = pathlib.Path(os.environ["FAKE_MODE"])
+ct = pathlib.Path(os.environ["FAKE_CT"])
+images = pathlib.Path(os.environ["FAKE_IMAGES"])
+kind, name = sys.argv[1:]
+identity = {"environment": "production", "instanceId": "11111111-1111-4111-8111-111111111111"}
+def image_id(sha):
+    return "sha256:" + sha + sha[:24]
+if kind == "schema":
+    if (mode / "schema-down").exists():
+        sys.exit(1)
+    flags = [True] * 6 if (mode / "schema-new").exists() else [False] * 6
+    if (mode / "schema-partial").exists():
+        flags[0] = True
+    print(json.dumps({"identity": identity, "sourceFacts": flags}))
+elif kind == "image":
+    sha = name[7:47] if name.startswith("sha256:") else name.split(":")[-1]
+    if not (images / sha).exists() and not (name.startswith("sha256:") and any(
+            f.is_file() and f.read_text().strip() == sha for f in ct.iterdir())):
+        sys.exit(1)
+    cap = "0" if sha == "1"*40 or (mode / ("no-cap-" + sha)).exists() else "1"
+    print(json.dumps([{"Id": image_id(sha), "Config": {"Labels": {
+        "org.opencontainers.image.revision": sha, "mw.capabilities.source-facts": cap}}}]))
+elif name == "mw-prod-db":
+    print(json.dumps([{"Config": {"Labels": {"mw.environment": "production"}}, "State": {"Running": True}}]))
+else:
+    sha = (ct / name).read_text().strip()
+    print(json.dumps([{"Image": image_id(sha), "Config": {"Labels": {
+        "mw-shop.sha": sha, "mw-shop.slot": name[-1]},
+        "Env": ["APP_ENV=production", "MW_INSTANCE_ID=" + identity["instanceId"]]},
+        "State": {"Running": not (ct / (name + ".stopped")).exists()}}]))
+PY
 cat > "$T/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG"
 [ -n "${FAKE_DOCKER_SLEEP:-}" ] && [ "$1" = run ] && sleep "$FAKE_DOCKER_SLEEP"
 case "$1" in
-  exec) if [[ "$*" == *"nginx -s reload"* ]]; then
+  exec) if [ "${2:-}" = -i ]; then cat >/dev/null; exec python3 "$(dirname "$0")/metadata.py" schema ignored; fi
+    if [[ "$*" == *"nginx -s reload"* ]]; then
       port="$(grep -o '127.0.0.1:1808[12]' "$STATE_DIR/gateway/default.conf" | tail -1 | cut -d: -f2)"
       [ -f "$FAKE_MODE/reload-$port" ] && exit 1
     fi; exit 0 ;;
   network) [ -f "$FAKE_MODE/no-prod-network" ] && exit 1; echo production ;;
-  image) img="${@: -1}"; sha="${img#masterweld-shop:}"; [ -f "$FAKE_IMAGES/$sha" ] && echo "$sha" || exit 1 ;;
+  image) img="${@: -1}"
+    if [[ "$*" != *--format* ]]; then exec python3 "$(dirname "$0")/metadata.py" image "$img"; fi
+    sha="${img#masterweld-shop:}"; [ -f "$FAKE_IMAGES/$sha" ] && echo "$sha" || exit 1 ;;
+  container) exec python3 "$(dirname "$0")/metadata.py" container "${@: -1}" ;;
   inspect) name="${@: -1}"; [ "$name" = mw-shop-gateway ] && exit 0; [ -f "$FAKE_CT/$name" ] || exit 1
     if [[ "$*" == *State.Running* ]]; then [ -f "$FAKE_CT/$name.stopped" ] && echo false || echo true; else cat "$FAKE_CT/$name"; fi ;;
   run) printf "candidate %s\\n" "$(cat "$STATE_DIR/workers/active.json")" >> "$FAKE_CONTROL_LOG"; prev=""; name=""; for a in "$@"; do [ "$prev" = --name ] && name="$a"; prev="$a"; done; sha="${@: -1}"
-    echo "${sha#masterweld-shop:}" > "$FAKE_CT/$name"; rm -f "$FAKE_CT/$name.stopped"; echo id ;;
+    sha="${sha#masterweld-shop:}"; [[ "$sha" == sha256:* ]] && sha="${sha:7:40}"
+    echo "$sha" > "$FAKE_CT/$name"; rm -f "$FAKE_CT/$name.stopped"; echo id ;;
   rm) rm -f "$FAKE_CT/${@: -1}" "$FAKE_CT/${@: -1}.stopped" ;;
   stop) [ -f "$FAKE_CT/${@: -1}" ] && touch "$FAKE_CT/${@: -1}.stopped"; exit 0 ;;
   start) [ -f "$FAKE_CT/${@: -1}" ] && rm -f "$FAKE_CT/${@: -1}.stopped" || exit 1 ;;
@@ -90,7 +138,7 @@ run() { "$OPS/$1" "${@:2}" >"$T/last-run.log" 2>&1; echo $?; }
 st() { cat "$STATE_DIR/$1" 2>/dev/null; }
 gw() { grep -c "$1" "$STATE_DIR/gateway/default.conf" 2>/dev/null || echo 0; }
 dlog() { : > "$FAKE_LOG"; }
-nactions() { grep -Ec '^(run|rm|stop|start|exec)' "$FAKE_LOG" 2>/dev/null || true; }
+nactions() { grep -E '^(run|rm|stop|start|exec)' "$FAKE_LOG" | grep -vc '^exec -i mw-prod-db psql ' || true; }
 
 # --- предусловия до любых действий ---
 check "короткий SHA отклонён" "$(run release.sh abc)" 1
@@ -123,6 +171,18 @@ ln -s "$SECRETS_ENV" "$STATE_DIR/workers/active.json"; dlog
 check "control symlink — отказ" "$(run release.sh $S1)" 1
 check "  … без действий docker" "$(nactions)" 0
 rm "$STATE_DIR/workers/active.json"
+
+# --- чтение схемы не может быть пропущено или заменено успехом HTTP ---
+for schema_mode in schema-down schema-partial; do
+  touch "$FAKE_MODE/$schema_mode"; dlog
+  check "$schema_mode — отказ до запуска candidate" "$(run release.sh $S2)" 1
+  check "  … без изменений контейнеров" "$(nactions)" 0
+  rm "$FAKE_MODE/$schema_mode"
+done
+touch "$FAKE_MODE/schema-new"; dlog
+check "новая схема отклоняет старый образ до действий" "$(run release.sh $S1)" 1
+check "  … без изменений контейнеров" "$(nactions)" 0
+rm "$FAKE_MODE/schema-new"
 
 # --- первый выпуск: сбой после переключения → 503, не успех ---
 mkdir -p "$STATE_DIR"; touch "$FAKE_MODE/gw-18081"
@@ -162,6 +222,14 @@ check "предыдущий a/S1 сохранён" "$(st previous_slot)/$(st pre
 check "контейнер a не удалён" "$(cat "$FAKE_CT/mw-shop-slot-a")" "$S1"
 check "старый контейнер работает, но очередь у b/S2" "$(st workers/active.json)" "{\"slot\":\"b\",\"sha\":\"$S2\"}"
 
+# --- несовместимый previous не запускается и не меняет очередь ---
+touch "$FAKE_MODE/schema-new" "$FAKE_CT/mw-shop-slot-a.stopped"; dlog
+check "новая схема запрещает ручной откат к S1" "$(run rollback.sh)" 1
+check "  … прежний контейнер не запущен" "$(test -f "$FAKE_CT/mw-shop-slot-a.stopped"; echo $?)" 0
+check "  … без изменений контейнеров" "$(nactions)" 0
+check "  … worker остаётся b/S2" "$(st workers/active.json)" "{\"slot\":\"b\",\"sha\":\"$S2\"}"
+rm "$FAKE_MODE/schema-new" "$FAKE_CT/mw-shop-slot-a.stopped"
+
 # --- «Откати» ---
 check "откат на чужой SHA отклонён" "$(run rollback.sh $S2)" 1
 check "откат на неутверждённый SHA отклонён" "$(run rollback.sh $S3)" 1
@@ -173,11 +241,11 @@ check "previous нет в журнале — отказ" "$(run rollback.sh)" 1
 cp "$T/approved.bak" "$STATE_DIR/approved"
 # офлайн: GitHub недоступен, образ S1 удалён, контейнер a остановлен
 rm "$FAKE_IMAGES/$S1"; touch "$FAKE_CT/mw-shop-slot-a.stopped"; dlog
-check "«Откати» без аргумента — OFFLINE, без образа" "$(GITHUB_API=fake-off run rollback.sh)" 0
+check "«Откати» без аргумента — OFFLINE, без тега образа" "$(GITHUB_API=fake-off run rollback.sh)" 0
 check "активен a/S1" "$(st active_slot)/$(st active_sha)" "a/$S1"
 check "previous стал b/S2" "$(st previous_slot)/$(st previous_sha)" "b/$S2"
 check "офлайн откат передал очередь a/S1" "$(st workers/active.json)" "{\"slot\":\"a\",\"sha\":\"$S1\"}"
-check "откат не обращался к образам" "$(grep -c '^image' "$FAKE_LOG")" 0
+check "откат не использовал изменяемый тег образа" "$(grep '^image' "$FAKE_LOG" | grep -vc 'inspect sha256:' || true)" 0
 touch "$FAKE_IMAGES/$S1"
 # возврат вперёд через откат с явным SHA
 check "откат с явным SHA = previous" "$(run rollback.sh $S2)" 0
@@ -245,6 +313,31 @@ check "  … контекст = git archive (без .env)" "$(tr '\n' ' ' < "$FA
 check "  … GIT_SHA передан" "$(grep -c "GIT_SHA=$B" "$FAKE_BUILD")" 1
 check "  … рабочие файлы не тронуты" "$(cat "$R/a.txt")" dirty
 check "повторная сборка — отказ" "$(CONFIRM_BUILD=yes run build-approved.sh $B)" 1
+
+# --- смена схемы запрещает несовместимый аварийный возврат ---
+check "подготовка a/S1 к проверке аварийного возврата" "$(run rollback.sh $S1)" 0
+touch "$FAKE_MODE/schema-new" "$FAKE_MODE/gw-18082" "$FAKE_MODE/maintenance-stale-once"
+check "после сбоя выпуска несовместимый автооткат запрещён" "$(run release.sh $S2)" 1
+check "  … gateway отвечает 503" "$(gw 'return 503')" 1
+check "  … дождались 503 после старого HTTP 200" "$(test -e "$FAKE_MODE/maintenance-stale-once"; echo $?)" 1
+check "  … активный выпуск не заявлен" "$(st active_slot)/$(st active_sha)" "/"
+check "  … уведомления на паузе" "$(st workers/active.json)" "{}"
+rm "$FAKE_MODE/schema-new" "$FAKE_MODE/gw-18082"
+check "после восстановления схемы можно выпустить S1" "$(run release.sh $S1)" 0
+check "подготовка S2 для ручного отката" "$(run release.sh $S2)" 0
+check "подготовка активного S1" "$(run rollback.sh $S1)" 0
+touch "$FAKE_MODE/schema-new" "$FAKE_MODE/gw-18082"
+check "после сбоя отката несовместимый возврат запрещён" "$(run rollback.sh $S2)" 1
+check "  … gateway отвечает 503" "$(gw 'return 503')" 1
+check "  … active очищен" "$(st active_slot)/$(st active_sha)" "/"
+check "  … уведомления на паузе" "$(st workers/active.json)" "{}"
+
+rm "$FAKE_MODE/schema-new" "$FAKE_MODE/gw-18082"
+check "подготовка проверки недоступной паузы" "$(run release.sh $S1)" 0
+touch "$FAKE_MODE/schema-new" "$FAKE_MODE/gw-18082" "$FAKE_MODE/maintenance-down"
+check "503 не подтверждён — отказ" "$(run release.sh $S2)" 1
+check "  … нет ложного сообщения об успешной паузе" "$(grep -c 'gateway не подтвердил 503' "$T/last-run.log")" 1
+check "  … worker остаётся на паузе" "$(st workers/active.json)" "{}"
 
 check "ни один скрипт не вызывает psql/миграции" "$(grep -El 'psql|supabase db|migrat' "$OPS"/*.sh | wc -l | tr -d ' ')" 0
 check "на всех проверках gateway очередь на паузе" "$(grep '^gateway ' "$FAKE_CONTROL_LOG" | grep -vc '^gateway {}$' || true)" 0
