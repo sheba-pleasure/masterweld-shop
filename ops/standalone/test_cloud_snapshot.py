@@ -140,16 +140,16 @@ class CloudSnapshotTest(unittest.TestCase):
         (root / "docs/migrations").mkdir(parents=True)
         for name in ("0003_order_status_and_events.sql", "0004_lock_shop_orders_insert.sql"):
             (root / "drizzle/migrations" / name).write_text("-- fixture")
-        for number in range(5, 29):
+        for number in range(5, 32):
             (root / "docs/migrations" / f"{number:04d}_fixture.sql").write_text("-- fixture")
         return root
 
     def test_future_migration_not_picked_up(self):
         root = self.fake_migration_tree()
-        (root / "docs/migrations/0029_not_reviewed.sql").write_text("-- future")
+        (root / "docs/migrations/0032_not_reviewed.sql").write_text("-- future")
         with patch.object(snapshot, "ROOT", root):
             paths = snapshot.migration_paths()
-        self.assertEqual([int(p.name[:4]) for p in paths], list(range(3, 29)))
+        self.assertEqual([int(p.name[:4]) for p in paths], list(range(3, 32)))
 
     def test_ambiguous_migration_rejected(self):
         root = self.fake_migration_tree()
@@ -202,7 +202,7 @@ class CloudSnapshotTest(unittest.TestCase):
 
     def test_missing_document_migrations_rejected(self):
         root = self.fake_migration_tree()
-        for number in (26, 27, 28):
+        for number in (26, 27, 28, 29, 30, 31):
             path = root / "docs/migrations" / f"{number:04d}_fixture.sql"
             with self.subTest(number=number):
                 path.unlink()

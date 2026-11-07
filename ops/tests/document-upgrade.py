@@ -46,7 +46,7 @@ try:
     created = True
     ready()
     paths = [ROOT / "ops/dev/bootstrap.sql", *sorted((ROOT / "drizzle/migrations").glob("*.sql")),
-             *[p for p in sorted((ROOT / "docs/migrations").glob("*.sql")) if p.name[:4] <= "0028"]]
+             *[p for p in sorted((ROOT / "docs/migrations").glob("*.sql")) if p.name[:4] <= "0031"]]
     sql("BEGIN;\n" + "\n".join(p.read_text() for p in paths) + "\nCOMMIT;")
     before = fingerprints()
     probe = (ROOT / "ops/standalone/check-document-upgrade.sql").read_text()

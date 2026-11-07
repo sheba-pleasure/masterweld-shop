@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0028.
+"""Restore the empty standalone production backup in an offline disposable PG, rehearse 0014-0031.
 Never changes the source database, webhooks, app containers or release approvals.
 """
 import hashlib
@@ -26,7 +26,9 @@ PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_
            "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
            "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql",
            "0025_pending_preview_requests.sql", "0026_document_intake.sql",
-           "0027_document_review.sql", "0028_document_structure.sql")
+           "0027_document_review.sql", "0028_document_structure.sql",
+           "0029_document_model_review.sql", "0030_document_model_import_links.sql",
+           "0031_document_model_conflicts.sql")
 
 
 def run(args, **kwargs):
@@ -172,7 +174,7 @@ def main():
             "backupSha256": hashlib.sha256(backup).hexdigest(),
             "rolesSha256": hashlib.sha256(roles).hexdigest(),
             "sourceUnchanged": True, "restoredInSeparateOfflineCluster": True,
-            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0028",
+            "sourceSchema": "0000-0013", "rehearsedSchema": "0000-0031",
             "technicalChecks": technical,
             "documentChecks": documents,
             "documentChecksSha256": hashlib.sha256(document_sql.encode()).hexdigest(),
