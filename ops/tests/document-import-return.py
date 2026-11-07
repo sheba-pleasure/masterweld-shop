@@ -172,6 +172,21 @@ try:
     assert fingerprint("products")==products
     assert json.loads(sql("SELECT source FROM catalog_imports WHERE id="+lit(b["id"])))==source
     assert originals()==immutable
+    # Structural correction may retire a row referenced by an old frozen model snapshot.
+    fs,rs,bs=batch([["STRUCTURE","Training","10"]],"MODEL-220")
+    finish_return(begin_return(bs))
+    rs=review("get",rs["id"])
+    rs=review("st_split",rs["id"],rs["revision"],col=2)
+    for column in [0,1,2,30,31,32]:
+        rs=review("st_focus",rs["id"],rs["revision"],col=column)
+        rs=review("st_copy",rs["id"],rs["revision"],col=column)
+    rs=review("st_preview",rs["id"],rs["revision"])
+    rs=review("st_apply",rs["id"],rs["revision"])
+    assert rs["counts"]["pending"]==2 and rs["counts"]["total"]==2
+    old=catalog("get",bs["id"])
+    assert old["document_returned"] and old["state"]=="canceled"
+    assert old["items"][0]["document_model"]["identity"]["model"]=="MODEL-220"
+    assert sql("SELECT retired FROM document_review_rows WHERE review_id="+lit(rs["id"])+" AND row_index=0")=="t"
     # Expired or explicitly canceled previews can return; applied/undone ones cannot.
     f2,r2,b2=batch([["EXPIRED","Training","10"]])
     sql("UPDATE catalog_imports SET expires_at=now()-interval '1 minute' WHERE id="+lit(b2["id"]))
@@ -215,7 +230,7 @@ try:
         else:
             assert current["state"]=="canceled" and count=="0" and pointer is None
     print(json.dumps({"ok":True,"checks":["prepare read-only","exact revisions","permissions","atomic rollback",
-       "concurrent duplicate","original and frozen source preserved","model invalidation","new human review",
+       "concurrent duplicate","original and frozen source preserved","model invalidation","new human review","split retired row preserves old model history",
        "old receipt after new handoff/restart","expired/canceled recovery","applied/undone denied",
        "direct CSV denied","apply/return race"],"live_data_touched":False}))
 finally:
