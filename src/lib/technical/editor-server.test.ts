@@ -37,6 +37,11 @@ const session = () => ({
   prompt_message_id: 111,
   expires_at: new Date(Date.now() + 86400000).toISOString(),
   review_state: null,
+  model_binding: {
+    captured: { state: "unselected", revision: 0, usable: false },
+    current: { state: "unselected", revision: 0, usable: false },
+    matches: true,
+  },
 });
 let stored = session();
 beforeEach(() => {
@@ -57,6 +62,20 @@ it.each([
 ])("does not access storage before private sender and permission checks", async (m, c, f) => {
   await technicalEditor(m, c, f, { command: "/technical" });
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("shows model context before confirmation and hides apply for stale evidence", async () => {
+  stored.phase = "preview";
+  stored.model_binding.matches = false;
+  stored.model_binding.current = { state: "withdrawn", revision: 1, usable: false };
+  await technicalEditor(owner, chat, from, { callback: "te:" + id + ":3:resume" });
+  const payloads = mocks.tg.mock.calls.map((c) => c[1]);
+  expect(JSON.stringify(payloads)).toContain("подтверждение недоступно");
+  expect(
+    payloads
+      .flatMap((p) => p.reply_markup?.inline_keyboard?.flat() ?? [])
+      .some((b: { callback_data?: string }) => b.callback_data?.endsWith(":apply")),
+  ).toBe(false);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
 });
 it("rejects stale callbacks without persisting or confirming", async () => {
   await technicalEditor(owner, chat, from, { callback: "te:" + id + ":2:pending" });

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { consumableGuidance } from "./dictionary";
+import {
+  technicalModelBinding,
+  technicalModelContext,
+  modelBindingText,
+  modelContextText,
+} from "./model-binding";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "@/lib/bot/permissions";
 import { isPrivateChat } from "@/lib/bot/catalog";
@@ -33,11 +39,20 @@ const sessionSchema = z.object({
   prompt_message_id: z.number().int().positive().nullable(),
   expires_at: z.string(),
   review_state: z.string().nullable(),
+  model_binding: technicalModelBinding.optional(),
 });
 type Session = z.infer<typeof sessionSchema>;
 type Chat = { id: number; type?: string };
 type Button = { text: string; callback_data: string };
 const safeErrors: Record<string, string> = {
+  TECH_MODEL_CONTEXT_REQUIRED:
+    "В старом черновике не сохранён выбор модели. Отмените черновик через /cancel и начните проверку заново. Сведения останутся в истории.",
+  TECH_MODEL_CHANGED:
+    "⚠️ Выбор модели или её источники изменились. Черновик сохранён. Отмените его через /cancel, проверьте модель и начните заново; прежние значения можно открыть из истории.",
+  TECH_MODEL_REVIEW_REQUIRED:
+    "⚠️ Сначала нужно проверить выбор модели. Отмените черновик через /cancel. Затем откройте «Модель и исходные документы» в карточке товара.",
+  TECH_MODEL_UNDO_REVIEW:
+    "Прежние характеристики относятся к другому выбору модели. Такой откат недоступен. Откройте их из истории и проверьте заново.",
   DOCUMENT_INPUT_ACTIVE:
     "✏️ Сначала завершите исправление строки документа. /input — продолжить, /cancel — отменить ввод. Уже сохранённые строки останутся в разборе.",
   EDITOR_ORDINARY_ACTIVE:
@@ -146,12 +161,20 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
       (s.review_state === "verified"
         ? "Будут подтверждены данные для витрины."
         : "Будет отправлено предложение на проверку. Витрина не изменится.") +
-      "\nПроверьте значения и источники перед подтверждением.";
+      "\nПроверьте значения и источники перед подтверждением.\n\n" +
+      modelBindingText(s.model_binding);
     add("📋 Значения и источники", "review");
-    add(
-      s.review_state === "verified" ? "✅ Подтвердить публикацию" : "📨 Отправить на проверку",
-      "apply",
-    );
+    if (
+      s.model_binding?.matches &&
+      (s.review_state !== "verified" ||
+        !["stale", "excluded"].includes(s.model_binding.current.state))
+    )
+      add(
+        s.review_state === "verified"
+          ? "✅ Подтверждаю: модель и сведения верны"
+          : "📨 Отправить на проверку",
+        "apply",
+      );
     add("✏️ Вернуться к редактированию", "edit");
     add("Отменить черновик", "cancel_now");
   } else if (d.screen === "home") {
@@ -166,13 +189,21 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
           d.document.values.length
         : "Выберите семейство по паспорту изделия, а не только по названию.") +
       "\n\n" +
-      factDiff(s);
+      factDiff(s) +
+      "\n\n" +
+      modelBindingText(s.model_binding);
     add("🗂 Выбрать семейство", "families");
     if (d.document) {
       add("➕ Добавить / изменить значение", "fields");
       add("📋 Проверить значения и источники", "inspect");
-      add("📨 Предпросмотр предложения", "pending");
-      if (can(member, "publish_products")) add("✅ Предпросмотр публикации", "verified");
+      if (s.model_binding?.matches) {
+        add("📨 Предпросмотр предложения", "pending");
+        if (
+          can(member, "publish_products") &&
+          !["stale", "excluded"].includes(s.model_binding.current.state)
+        )
+          add("✅ Предпросмотр публикации", "verified");
+      }
     }
     add("🗑 Отменить черновик", "cancel");
   } else if (d.screen === "families") {
@@ -301,6 +332,11 @@ async function inspectPreview(chat: Chat, s: Session, page: number, before = fal
     (v ? describeFact(v) : "Значений нет.");
   const source = doc?.sources.find((a) => a.key === v?.source_key);
   if (source) text += "\n\n📎 " + sourceSummary(source);
+  if (!before)
+    text +=
+      "\n\n" +
+      modelBindingText(s.model_binding) +
+      "\n\nСверьте производителя, модель и модификацию источника. Похожее название не доказывает соответствие товара.";
   if (page > 0) rows.push([button(s, "⬅️ Предыдущее", before ? "before" : "review", page - 1)]);
   if (page + 1 < values.length)
     rows.push([button(s, "Следующее ➡️", before ? "before" : "review", page + 1)]);
@@ -361,6 +397,10 @@ export async function technicalEditor(
         .object({
           card: z
             .object({
+              model_context: technicalModelContext.optional(),
+              model_review: z
+                .object({ required: z.boolean(), previous_revision: z.string().uuid().nullable() })
+                .optional(),
               identity_review: z
                 .object({
                   required: z.boolean(),
@@ -378,25 +418,24 @@ export async function technicalEditor(
             .nullable(),
         })
         .parse(data).card;
+      const needsReview = card?.identity_review?.required || card?.model_review?.required;
+      const previousRevision =
+        card?.model_review?.previous_revision ?? card?.identity_review?.previous_revision;
       const rows: Button[][] = [
         [
           {
-            text: card?.identity_review?.required
+            text: needsReview
               ? "✏️ Начать проверку текущего товара"
               : "✏️ Править текущую опубликованную карточку",
             callback_data: "te:start:" + id,
           },
         ],
       ];
-      if (
-        can(member, "publish_products") &&
-        card?.identity_review?.required &&
-        card.identity_review.previous_revision
-      ) {
+      if (can(member, "publish_products") && needsReview && previousRevision) {
         rows.push([
           {
             text: "🔎 Проверить прежние характеристики",
-            callback_data: "te:proposal:" + card.identity_review.previous_revision,
+            callback_data: "te:proposal:" + previousRevision,
           },
         ]);
       }
@@ -410,13 +449,17 @@ export async function technicalEditor(
               },
             ]);
         }
-      await tg("sendMessage", {
-        chat_id: chat.id,
-        text: card?.identity_review?.required
+      if (can(member, "import_prices") && can(member, "view_costs"))
+        rows.push([{ text: "🎯 Проверить выбор модели", callback_data: "pm:view:" + id }]);
+      await sendLong(
+        chat,
+        (needsReview
           ? "⚠️ Товар изменён — характеристики нужно проверить заново.\nПрежние подтверждённые сведения скрыты, история сохранена. Сверьте точную модель, значения и источники. Открытие прежней подборки не возвращает её на витрину: нужны исправления по необходимости, предпросмотр и отдельное подтверждение владельцем."
-          : "⚙️ Проверенные характеристики\nНачните от текущей карточки или выберите предложение для проверки. При проверке предложение сравнивается с текущей опубликованной карточкой.",
-        reply_markup: { inline_keyboard: rows },
-      });
+          : "⚙️ Проверенные характеристики\nНачните от текущей карточки или выберите предложение для проверки. При проверке предложение сравнивается с текущей опубликованной карточкой.") +
+          "\n\n" +
+          modelContextText(card?.model_context),
+        rows,
+      );
       return true;
     }
     const start = input.callback?.match(/^te:(start|proposal):([0-9a-f-]{36})$/);

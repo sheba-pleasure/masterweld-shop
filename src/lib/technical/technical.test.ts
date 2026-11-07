@@ -193,6 +193,29 @@ it("passes the version that the editor actually read instead of looking up a new
     p_expected_version: 7,
   });
 });
+it("passes the exact model snapshot read by the caller without fetching a newer choice", async () => {
+  const expectedModel = {
+    state: "unselected" as const,
+    revision: 0,
+    usable: false,
+    sources_version: 3,
+  };
+  await technicalOperation(
+    member,
+    chat,
+    { id: 101 },
+    {
+      op: "preview",
+      productId: id,
+      document: doc,
+      reviewState: "pending_review",
+      expectedVersion: 7,
+      expectedModel,
+    },
+  );
+  expect(mocks.adminRpc).toHaveBeenCalledOnce();
+  expect(mocks.adminRpc.mock.calls[0]?.[1].p_expected_model).toEqual(expectedModel);
+});
 it.each(["TECH_CONFLICT", "TECH_VERSION_REQUIRED"])(
   "preserves only allowlisted conflict codes: %s",
   async (message) => {

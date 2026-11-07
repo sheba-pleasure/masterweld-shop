@@ -118,7 +118,8 @@ it("shows a separate confirmation and keeps the old choice when canceling", () =
   const view = renderModelChoice(prepared);
   expect(view.text).toContain("aB-220");
   expect(view.text).toContain("другие модели: 1");
-  expect(view.text).toContain("Цена, название и публикация товара не изменятся");
+  expect(view.text).toContain("Цена, название и статус товара не изменятся");
+  expect(view.text).toContain("Прежние характеристики могут быть скрыты");
   expect(view.text).toContain("пока не подключены");
   const buttons = view.rows.flat();
   expect(buttons).toContainEqual({

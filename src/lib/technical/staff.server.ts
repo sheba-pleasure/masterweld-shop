@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { can, type StaffMember } from "@/lib/bot/permissions";
 import { isPrivateChat } from "@/lib/bot/catalog";
 import { technicalDocument, technicalReviewState } from "./schema";
+import { technicalModelContext } from "./model-binding";
 
 const requestSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("read"), productId: z.string().uuid() }).strict(),
@@ -13,6 +14,7 @@ const requestSchema = z.discriminatedUnion("op", [
       document: technicalDocument,
       expectedVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
       reviewState: technicalReviewState,
+      expectedModel: technicalModelContext.optional(),
     })
     .strict(),
   z.object({ op: z.literal("apply"), changeId: z.string().uuid() }).strict(),
@@ -53,6 +55,7 @@ export async function technicalOperation(
           p_document: request.document,
           p_review_state: request.reviewState,
           p_expected_version: request.expectedVersion,
+          ...(request.expectedModel ? { p_expected_model: request.expectedModel } : {}),
         }
       : {}),
   });

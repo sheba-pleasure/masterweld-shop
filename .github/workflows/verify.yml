@@ -82,6 +82,8 @@ jobs:
         run: python3 ops/tests/consumable-characteristics.py
       - name: Technical facts require recheck after product identity changes
         run: python3 ops/tests/technical-identity-review.py
+      - name: Technical facts bound to the reviewed model
+        run: python3 ops/tests/technical-model-binding.py
       - name: Telegram bot receipts (isolated PostgreSQL)
         run: python3 ops/tests/telegram-bots.py
       - name: Order notification claims and restart (isolated PostgreSQL)
