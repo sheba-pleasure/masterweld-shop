@@ -306,6 +306,13 @@ export function renderSourceReview(v: SourceReviewResponse) {
     text += r.usable
       ? "✅ Соответствие файла этой модели подтверждено вами. Содержимое отдельных характеристик ещё нужно проверить."
       : "⚠️ Решение сохранено в истории, но сейчас использовать эту связь нельзя. Проверьте актуальную модель и источник.";
+    if (r.usable && r.source_id)
+      rows.push([
+        {
+          text: "🧾 Проверить характеристики",
+          callback_data: "sf:f:" + compactId(r.id) + ":" + r.revision + ":0",
+        },
+      ]);
     add("❔ Снять подтверждение этого файла…", "askoff");
   } else if (r.phase === "withdraw_preview") {
     text +=
@@ -321,6 +328,7 @@ export function renderSourceReview(v: SourceReviewResponse) {
           ? "↩️ Проверка отменена. Новая связь не создана."
           : "⌛ Черновик истёк. Начните новую проверку из списка документов модели.";
   if (r.document) {
+    rows.push([{ text: "🧾 Открыть мой сохранённый разбор", callback_data: "sf:current" }]);
     add("📖 Читать текст и страницы", "blocks", 0);
     rows.push([
       { text: "📎 Скачать оригинал для сверки", callback_data: "di:original:" + r.document.id },

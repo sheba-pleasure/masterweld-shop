@@ -42,6 +42,7 @@ beforeEach(() => {
     Response.json({ ok: true, result: { message_id: ++delivered } }),
   );
   mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "bot_source_fact_review") return { data: { ok: true, idle: true }, error: null };
     if (name === "bot_editor_preview") {
       if (beforeWrite) {
         const f = beforeWrite;

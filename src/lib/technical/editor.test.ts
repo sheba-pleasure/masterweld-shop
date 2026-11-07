@@ -115,6 +115,42 @@ it("edits only the selected fact and keeps its existing conditions until explici
     context: { current_a: 200, temperature_c: 40 },
   });
 });
+it("Preserves document provenance through editing, JSON storage and source selection", () => {
+  let s = source(reply(field(family("power_mma"), "mma_current_max_a"), "160"));
+  const origin = "10000000-0000-4000-8000-000000000001";
+  s.document!.values[0]!.origin_ref = origin;
+  s = act(s, "fields");
+  s = act(
+    s,
+    "field",
+    fields(s).findIndex((f) => f.attribute_code === "mma_current_max_a"),
+  );
+  s = act(act(s, "process"), "existing", 0);
+  s = reply(editorData.parse(JSON.parse(JSON.stringify(s))), "170");
+  expect(s.pending!.origin_ref).toBe(origin);
+  s = act(s, "source", 0);
+  expect(s.document!.values[0]).toMatchObject({ value: 170, origin_ref: origin });
+  for (const action of ["unknown", "na"]) {
+    let draft = act(s, "fields");
+    draft = act(
+      draft,
+      "field",
+      fields(draft).findIndex((f) => f.attribute_code === "mma_current_max_a"),
+    );
+    draft = act(act(draft, "process"), "existing", 0);
+    const retracted = act(draft, action);
+    expect(retracted.document!.values[0]!.origin_ref).toBeUndefined();
+    expect(retracted.document!.values[0]!.value).toBeNull();
+    expect(s.document!.values[0]!.origin_ref).toBe(origin);
+  }
+});
+it("Rejects invalid provenance metadata and tags on unknown values", () => {
+  const s = act(field(family("power_mma"), "mma_current_max_a"), "unknown");
+  s.document!.values[0]!.origin_ref = "10000000-0000-4000-8000-000000000001";
+  expect(editorData.safeParse(s).success).toBe(false);
+  s.document!.values[0]!.origin_ref = "Not a reference";
+  expect(editorData.safeParse(s).success).toBe(false);
+});
 it("parses semicolon lists with decimal commas, rejects duplicates and malformed numbers", () => {
   const s = field(family("power_mig"), "mig_wire_diameters_mm");
   expect(reply(s, "0,8; 1,0").pending?.value).toEqual([0.8, 1]);

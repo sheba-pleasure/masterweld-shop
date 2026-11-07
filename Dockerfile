@@ -32,7 +32,8 @@ FROM node:22-bookworm-slim AS runtime
 ARG GIT_SHA
 RUN test -n "$GIT_SHA" && echo "$GIT_SHA" | grep -Eq '^[0-9a-f]{40}$'
 LABEL org.opencontainers.image.revision=$GIT_SHA \
-      org.opencontainers.image.title="masterweld-shop"
+      org.opencontainers.image.title="masterweld-shop" \
+      mw.capabilities.source-facts="1"
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 RELEASE_SHA=$GIT_SHA
 WORKDIR /app
 COPY --from=build --chown=node:node /app/.output ./.output

@@ -82,10 +82,10 @@ const contextLabels: Record<string, string> = {
   material: "Материал",
   diameter_mm: "Диаметр, мм",
 };
-export function definition(state: EditorData) {
-  const attr = dictionary.attributes.find((a) => a.code === state.field);
+export function technicalFieldDefinition(familyCode: string, attributeCode: string) {
+  const attr = dictionary.attributes.find((a) => a.code === attributeCode);
   const binding = dictionary.bindings.find(
-    (b) => b.family_code === state.document?.family_code && b.attribute_code === state.field,
+    (b) => b.family_code === familyCode && b.attribute_code === attributeCode,
   );
   if (!attr || !binding) throw new EditorInputError("Выберите характеристику заново.");
   return {
@@ -93,6 +93,9 @@ export function definition(state: EditorData) {
     label: binding.label ?? attr.label,
     options: binding.options_override ?? attr.options,
   };
+}
+export function definition(state: EditorData) {
+  return technicalFieldDefinition(state.document?.family_code ?? "", state.field ?? "");
 }
 export function fields(state: EditorData) {
   return dictionary.bindings.filter((b) => b.family_code === state.document?.family_code);
@@ -139,8 +142,13 @@ function numeric(text: string) {
     throw new EditorInputError("Число вне допустимого диапазона.");
   return value;
 }
-function parseValue(state: EditorData, text: string): Fact["value"] {
-  const a = definition(state);
+export function parseTechnicalFieldValue(
+  familyCode: string,
+  attributeCode: string,
+  raw: string,
+): Fact["value"] {
+  const text = raw.trim();
+  const a = technicalFieldDefinition(familyCode, attributeCode);
   const number = (s: string) => {
     const n = numeric(s);
     if (
@@ -174,6 +182,14 @@ function parseValue(state: EditorData, text: string): Fact["value"] {
     throw new EditorInputError("Выберите код из предложенного списка.");
   if (!text || text.length > 500) throw new EditorInputError("Введите от 1 до 500 символов.");
   return text;
+}
+export function parseTechnicalContextValue(key: keyof Fact["context"], raw: string) {
+  const text = raw.trim();
+  const value = ["gas", "cooling", "material"].includes(key) ? text : numeric(text);
+  const parsed = technicalContext.safeParse({ [key]: value });
+  if (!parsed.success || (typeof value === "number" && value > 1000000))
+    throw new EditorInputError("Проверьте значение условия и указанную единицу измерения.");
+  return parsed.data[key]!;
 }
 function nextAfterValue(s: EditorData) {
   s.screen = missingContext(s) ? "context" : "sources";
@@ -211,13 +227,13 @@ export function editorReply(input: EditorData, raw: string): EditorData {
   const s = structuredClone(input),
     text = raw.trim();
   if (s.screen === "value" && s.pending) {
-    s.pending.value = parseValue(s, text);
+    s.pending.value = parseTechnicalFieldValue(s.document?.family_code ?? "", s.field ?? "", text);
     s.pending.state = "known";
     nextAfterValue(s);
   } else if (s.screen === "context" && s.pending) {
     const key = missingContext(s);
     if (!key) throw new EditorInputError("Условия уже заполнены.");
-    const value = ["gas", "cooling", "material"].includes(key) ? text : numeric(text);
+    const value = parseTechnicalContextValue(key as keyof Fact["context"], text);
     const parsed = technicalContext.safeParse({ ...s.pending.context, [key]: value });
     if (!parsed.success)
       throw new EditorInputError("Проверьте значение условия и указанную единицу измерения.");
@@ -321,6 +337,7 @@ export function editorAction(input: EditorData, action: string, index = 0): Edit
     s.screen = "value";
   } else if (action === "unknown" && s.screen === "value" && s.pending) {
     s.pending = { ...s.pending, state: "unknown", value: null, source_key: null, context: {} };
+    delete s.pending.origin_ref;
     commitFact(s);
   } else if (action === "na" && s.screen === "value" && s.pending) {
     s.pending = {
@@ -330,6 +347,7 @@ export function editorAction(input: EditorData, action: string, index = 0): Edit
       source_key: null,
       context: {},
     };
+    delete s.pending.origin_ref;
     commitFact(s);
   } else if (
     action === "conditions" &&
