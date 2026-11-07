@@ -38,6 +38,30 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(r["tables"][0]["rows"][0],["","Аппарат, модель не указана",""])
         self.assertEqual(r["tables"][0]["row_locators"],["document:1/line:1","document:1/line:3"])
         self.assertEqual(r["enrichment"]["state"],"provider_not_configured")
+    def test_text_table_locators_keep_original_blank_lines(self):
+        for separator in ("\n", "\r\n", "\r"):
+            raw=separator.join(["", "  ", "sku  title  price", "", "001-A  ТЕСТ  10", " ", "001-B  ТЕСТ  20", ""])
+            for origin in ("document:1", "page:2", "image:1"):
+                with self.subTest(separator=repr(separator),origin=origin):
+                    table=engine.text_tables(raw,origin)[0]
+                    self.assertEqual(table["header_locator"],origin+"/line:3")
+                    self.assertEqual(table["row_locators"],[origin+"/line:5",origin+"/line:7"])
+                    self.assertEqual(table["rows"],[["001-A","ТЕСТ","10"],["001-B","ТЕСТ","20"]])
+                    for row,locator in zip(table["rows"],table["row_locators"]):
+                        source_line=raw.splitlines()[int(locator.rsplit(":",1)[1])-1]
+                        self.assertEqual(row,engine.re.split(r"\t| {2,}",source_line.strip()))
+        self.assertEqual(engine.text_tables(" \n\t\n","document:1"),[])
+    def test_extracted_text_keeps_original_block_and_provenance_version(self):
+        raw="\nАртикул  Название  Цена\n\n001  ТЕСТ  10\n"
+        for suffix in ("txt","md"):
+            p=self.file("input."+suffix,raw.encode())
+            result=engine.extract(p,p.name)
+            self.assertEqual(result["blocks"][0]["text"],raw)
+            self.assertEqual(result["text_locator_version"],2)
+            self.assertEqual(result["tables"][0]["header_locator"],"document:1/line:2")
+            self.assertEqual(result["tables"][0]["row_locators"],["document:1/line:4"])
+            self.assertEqual(p.read_bytes(),raw.encode())
+            self.assertTrue(result["review_required"])
     def test_xlsx_multisheet_and_raw_formulas(self):
         p=self.root/"input.xlsx"
         with zipfile.ZipFile(p,"w") as z:
