@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { removeItem, setQty, type CartItem } from "@/lib/cart";
+import { removeItem, adjustQty, type CartItem } from "@/lib/cart";
 import { rub } from "@/lib/catalog";
 
 export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate: () => void }) {
@@ -29,7 +29,7 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
                 aria-label={`Убрать одну: ${item.title}`}
                 title="Убрать одну"
                 className="checkout-icon"
-                onClick={() => setQty(item.id, item.qty - 1)}
+                onClick={() => adjustQty(item.id, -1)}
               >
                 <Minus />
               </Button>
@@ -40,7 +40,7 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
                 aria-label={`Добавить одну: ${item.title}`}
                 title="Добавить одну"
                 className="checkout-icon"
-                onClick={() => setQty(item.id, item.qty + 1)}
+                onClick={() => adjustQty(item.id, 1)}
               >
                 <Plus />
               </Button>

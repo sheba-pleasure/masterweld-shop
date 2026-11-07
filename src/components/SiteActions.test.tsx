@@ -182,6 +182,35 @@ it("reloads an unfinished local cleanup through the same persisted attempt", asy
   expect(sessionStorage.getItem(ATTEMPT_STORAGE_KEY)).toBeNull();
 });
 
+it("refreshes the cart cleared elsewhere before completing a saved order", async () => {
+  mocks.order.mockImplementationOnce(async () => {
+    localStorage.setItem("mw_cart_v1", "[]");
+    return success;
+  });
+  await checkout();
+  expect(await screen.findByText("Спасибо! Заказ #QA-123 принят.")).toBeVisible();
+  expect(screen.getByLabelText("Корзина: 0 шт.")).toBeInTheDocument();
+  expect(mocks.order).toHaveBeenCalledTimes(1);
+});
+
+it("preserves a different cart from another tab after completing a saved order", async () => {
+  const other = {
+    ...item,
+    id: "22222222-2222-4222-8222-222222222222",
+    title: "Другой товар",
+    qty: 3,
+  };
+  mocks.order.mockImplementationOnce(async () => {
+    localStorage.setItem("mw_cart_v1", JSON.stringify([other]));
+    return success;
+  });
+  await checkout();
+  expect(await screen.findByText("Спасибо! Заказ #QA-123 принят.")).toBeVisible();
+  expect(screen.getByLabelText("Корзина: 3 шт.")).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem("mw_cart_v1")!)).toEqual([other]);
+  expect(mocks.order).toHaveBeenCalledTimes(1);
+});
+
 it("does not reuse the previous confirmation for a new order with a lost response", async () => {
   await checkout();
   expect(await screen.findByText("Спасибо! Заказ #QA-123 принят.")).toBeVisible();
