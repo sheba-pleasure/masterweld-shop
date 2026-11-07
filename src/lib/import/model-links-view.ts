@@ -57,6 +57,9 @@ export function renderProductModelLinks(r: ProductModelLinks) {
   if (!r.items.length)
     text +=
       "Связей с вашими документами пока нет. Они появляются после проверки строк и отдельного подтверждения импорта.";
+  rows.push([
+    { text: "🎯 Прочитать актуальный выбор модели", callback_data: `pm:view:${r.product_id}` },
+  ]);
   for (const [index, l] of r.items.entries()) {
     text += `${index + 1}. ${l.file_name}\n${modelLinkState[l.state] ?? "Требуется проверка"}\n${modelIdentityText(l)}\n\n`;
     rows.push([
@@ -65,6 +68,13 @@ export function renderProductModelLinks(r: ProductModelLinks) {
         callback_data: `dm:${l.review_id}:0:get:${l.row}`,
       },
     ]);
+    if (!r.excluded && l.state === "linked" && l.import_id && l.line)
+      rows.push([
+        {
+          text: `🎯 ${index + 1}. Выбрать эту модель…`,
+          callback_data: `pm:pick:${l.import_id}:${l.line}`,
+        },
+      ]);
     if (l.import_id)
       rows.push([
         { text: `📥 ${index + 1}. Открыть импорт`, callback_data: `ci:get:${l.import_id}:0` },
@@ -74,7 +84,7 @@ export function renderProductModelLinks(r: ProductModelLinks) {
     ]);
   }
   text +=
-    "\nЭто история ваших источников, а не автоматический выбор модели, характеристик или фотографии. Изменённые и противоречивые сведения требуют нового решения человека.";
+    "\nЭто история ваших источников. «Выбрать эту модель» сначала покажет отдельное подтверждение. Выбор не меняет карточку и не запускает поиск или публикацию. Изменённые и противоречивые сведения требуют нового решения человека.";
   text += `\nСтраница ${r.page + 1} из ${r.pages}.`;
   if (r.page > 0)
     rows.push([
