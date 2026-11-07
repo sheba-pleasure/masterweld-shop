@@ -14,6 +14,7 @@ import {
   saveAttempt,
   submissionSchema,
   type Submission,
+  type CreateOrderResult,
 } from "@/lib/orders/submission";
 import { rub } from "@/lib/catalog";
 
@@ -49,6 +50,10 @@ export function SiteActions() {
     }
   }, []);
   const [done, setDone] = useState(false);
+  const [resolvedAttempt, setResolvedAttempt] = useState<{
+    requestId: string;
+    result: CreateOrderResult;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [doneInfo, setDoneInfo] = useState<{
     number?: string | undefined;
@@ -63,6 +68,8 @@ export function SiteActions() {
   } | null>(null);
   const { items, count, total } = useCart();
   const placeOrder = useServerFn(createOrder);
+  const resolution =
+    attempt && resolvedAttempt?.requestId === attempt.requestId ? resolvedAttempt.result : null;
 
   const change = (next: boolean) => {
     setOpen(next);
@@ -131,15 +138,23 @@ export function SiteActions() {
     sendingRef.current = true;
     setSending(true);
     setError(null);
+    // A definitive response stays attached to its attempt even if browser cleanup fails.
+    // Retry only the unfinished local work; do not submit or re-read this known result.
+    let confirmedResult =
+      resolvedAttempt?.requestId === current.requestId ? resolvedAttempt.result : null;
     try {
-      const res = await placeOrder({ data: current });
+      const res = confirmedResult ?? (await placeOrder({ data: current }));
       if (!res.ok && res.code !== "PRICE_CHANGED" && res.code !== "REJECTED") {
         setError(res.message ?? UNKNOWN_ORDER_MESSAGE);
         return;
       }
+      confirmedResult = res;
+      setResolvedAttempt({ requestId: current.requestId, result: res });
       // Only a durable, definitive server result allows a new attempt.
       if (!res.ok) {
         sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+        if (sessionStorage.getItem(ATTEMPT_STORAGE_KEY) !== null)
+          throw new Error("ATTEMPT_CLEANUP_FAILED");
         attemptRef.current = null;
         setAttempt(null);
         if (res.code === "PRICE_CHANGED" && typeof res.total === "number") {
@@ -170,11 +185,17 @@ export function SiteActions() {
         clearCart();
       }
       sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+      if (sessionStorage.getItem(ATTEMPT_STORAGE_KEY) !== null)
+        throw new Error("ATTEMPT_CLEANUP_FAILED");
       attemptRef.current = null;
       setAttempt(null);
       setDone(true);
     } catch {
-      setError(UNKNOWN_ORDER_MESSAGE);
+      setError(
+        confirmedResult
+          ? "Результат уже получен, но браузер не завершил оформление. Нажмите «Завершить в браузере». Повторного заказа не будет."
+          : UNKNOWN_ORDER_MESSAGE,
+      );
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -208,7 +229,7 @@ export function SiteActions() {
         </SheetTrigger>
         <SheetContent
           side="right"
-          className="checkout-sheet menu-panel inset-y-2 right-2 h-auto w-[calc(100vw-16px)] overflow-y-auto rounded-md border border-brand-yellow/60 bg-brand-deep p-0 text-primary-foreground sm:max-w-3xl"
+          className="checkout-sheet menu-panel inset-y-2 right-2 h-auto w-[calc(100%-16px)] overflow-y-auto rounded-md border border-brand-yellow/60 bg-brand-deep p-0 text-primary-foreground sm:max-w-3xl"
         >
           <SheetHeader className="border-b border-brand-yellow/20 px-4 py-3 text-left">
             <SheetTitle className="menu-label menu-label--title text-brand-yellow">
@@ -244,33 +265,69 @@ export function SiteActions() {
               )}
             </div>
           ) : attempt ? (
-            <div className="px-5 pb-6 text-sm">
+            <div className="px-5 pb-6 pt-4 text-sm">
               <p className="font-semibold text-brand-yellow">
-                {sending ? "Проверяем оформление…" : "Проверим результат оформления"}
+                {resolution?.ok
+                  ? `Заказ ${resolution.number ?? ""} сохранён.`
+                  : resolution?.code === "PRICE_CHANGED"
+                    ? "Цены изменились — заказ не оформлен."
+                    : resolution
+                      ? "Заказ не оформлен."
+                      : sending
+                        ? "Проверяем оформление…"
+                        : "Проверим результат оформления"}
               </p>
-              <p className="mt-2">
+              <p className="mt-2 break-words">
                 {attempt.name} · {attempt.phone}
               </p>
+              {import.meta.env["VITE_APP_ENV"] === "dev" && (
+                <p className="mt-2 text-primary-foreground/70">
+                  Учебный магазин · DEV. Звонка, оплаты и доставки не будет.
+                </p>
+              )}
               <p className="mt-1">
-                Позиций: {attempt.items.length}. Сумма при отправке:{" "}
-                {rub(attempt.expected?.total ?? 0)}.
+                Позиций: {attempt.items.length}.{" "}
+                {resolution?.ok && resolution.total !== undefined
+                  ? "Сумма заказа: "
+                  : "Сумма при отправке: "}
+                <span className="whitespace-nowrap">
+                  {rub(
+                    resolution?.ok && resolution.total !== undefined
+                      ? resolution.total
+                      : (attempt.expected?.total ?? 0),
+                  )}
+                </span>
+                .
               </p>
               <p role="status" className="mt-3">
                 {error ??
-                  (sending
-                    ? "Проверяем сохранённую попытку. Дождитесь ответа."
-                    : "Нажмите кнопку ниже, чтобы получить результат сохранённой попытки.")}
+                  (resolution
+                    ? "Завершаем оформление в браузере. Новый заказ не отправляется."
+                    : sending
+                      ? "Проверяем сохранённую попытку. Дождитесь ответа."
+                      : "Нажмите кнопку ниже, чтобы получить результат сохранённой попытки.")}
               </p>
               <Button
                 onClick={send}
                 disabled={sending}
-                className="checkout-submit mt-4 h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep"
+                className="checkout-submit mt-4 h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep hover:bg-brand-yellow/90"
               >
-                {sending ? "Проверяем…" : "Проверить и завершить заказ"}
+                {resolution
+                  ? sending
+                    ? "Завершаем…"
+                    : "Завершить в браузере"
+                  : sending
+                    ? "Проверяем…"
+                    : "Проверить и завершить заказ"}
               </Button>
               <p className="mt-3 text-xs text-primary-foreground/70">
-                Не закрывайте эту вкладку и не оформляйте тот же заказ в другой. При повторной
-                проверке вернётся результат этой попытки.
+                {resolution?.ok
+                  ? "Заказ уже сохранён. Не оформляйте его заново. Кнопка выше завершит работу с этой корзиной."
+                  : resolution?.code === "PRICE_CHANGED"
+                    ? "После завершения проверьте новую сумму. Заказ появится только после вашего согласия."
+                    : resolution
+                      ? "После завершения исправьте данные заказа. Затем его можно отправить заново."
+                      : "Не закрывайте эту вкладку и не оформляйте тот же заказ в другой. При повторной проверке вернётся результат этой попытки."}
               </p>
               <p className="mt-2 break-all text-xs text-primary-foreground/60">
                 Код для проверки магазином: {attempt.requestId}
