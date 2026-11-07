@@ -13,6 +13,17 @@ import uuid
 
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 NAME="mw-source-fact-qa-"+uuid.uuid4().hex[:12]
+compatibility_spec=importlib.util.spec_from_file_location("app_compatibility",ROOT/"ops/dev/app_compatibility.py")
+compatibility=importlib.util.module_from_spec(compatibility_spec)
+compatibility_spec.loader.exec_module(compatibility)
+def check_app_schema(expected):
+    # Run the exact deployment query against this isolated database, never DEV.
+    state=json.loads(sql(compatibility.SCHEMA_SQL))
+    if expected=="incomplete":
+        try: compatibility.validate_schema(state)
+        except RuntimeError as error: assert str(error)=="DEV_SOURCE_FACT_SCHEMA_INCOMPLETE"
+        else: raise AssertionError("PARTIAL_SCHEMA_ACCEPTED")
+    else: assert compatibility.validate_schema(state) is expected
 def command(args):
     return subprocess.run(args,check=True,capture_output=True,text=True)
 def sql(q,error=None):
@@ -154,6 +165,7 @@ try:
       *[p for p in sorted((ROOT/"docs/migrations").glob("*.sql")) if p.name[:4]<="0038"]]
     sql("BEGIN;\n"+"\n".join(p.read_text() for p in paths)+"\nCOMMIT;")
     sql((ROOT/"ops/dev/identity.sql").read_text())
+    check_app_schema(False)
     sql("INSERT INTO staff(telegram_id,name,role,elevated) VALUES (101,'Admin','admin',false),(102,'Other','admin',false),(103,'Seller','seller',false)")
     pid,b,r=imported("MODEL-220")
     confirm_choice(prepare(pid,b))
@@ -181,6 +193,7 @@ try:
     before=snapshot()
     migration=(ROOT/"docs/migrations/0039_source_fact_review.sql").read_text()
     sql("BEGIN;"+migration+"COMMIT;")
+    check_app_schema("incomplete")
     assert snapshot()==before,"MIGRATION_DATA_CHANGED"
     for role in ["anon","authenticated","service_role"]:
         for table_name in ["source_fact_reviews","source_fact_rows","source_fact_prompts"]:
@@ -523,6 +536,7 @@ try:
     origin_baseline=snapshot()
     origin_migration=(ROOT/"docs/migrations/0040_technical_source_origins.sql").read_text()
     sql("BEGIN;"+origin_migration+"COMMIT;")
+    check_app_schema("incomplete")
     origin_after=snapshot();origin_after.pop("technical_fact_origins")
     assert origin_after==origin_baseline,"ORIGIN_MIGRATION_CHANGED_DATA"
     for role in ["anon","authenticated","service_role"]:
@@ -666,6 +680,7 @@ try:
     handoff_baseline=snapshot()
     handoff_migration=(ROOT/"docs/migrations/0041_source_fact_handoff.sql").read_text()
     sql("BEGIN;"+handoff_migration+"COMMIT;")
+    check_app_schema(True)
     assert snapshot()==handoff_baseline,"HANDOFF_MIGRATION_CHANGED_DATA"
     for role in ["anon","authenticated","service_role"]:
         assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)','EXECUTE')")=="f"
@@ -805,6 +820,6 @@ try:
        "handoff_permissions","handoff_confirmation","handoff_expiry","handoff_changed_base","handoff_frozen_plan",
        "handoff_withdrawn_source","handoff_preserves_existing_editor","handoff_audit_atomicity","handoff_concurrency",
        "handoff_no_publication","handoff_restart_receipt","handoff_retained_stale_facts","handoff_family_consent",
-       "handoff_receipt_not_later_session","handoff_ui_contract"]}))
+       "handoff_receipt_not_later_session","handoff_ui_contract","application_schema_compatibility"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)

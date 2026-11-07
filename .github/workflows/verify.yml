@@ -72,6 +72,10 @@ jobs:
         run: |
           docker build --target qa --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
           docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --memory 1g --cpus 1 -v "$PWD/ops/intake:/tests:ro" mw-document-qa /usr/bin/python3 /tests/test_extract.py
+      - name: DEV application compatibility and rollback guards
+        run: |
+          python3 -m unittest discover -s ops/dev -p test_app_restart.py
+          python3 ops/tests/dev-app-restart.py
       - name: DEV parser replacement and rollback guards
         run: python3 -m unittest discover -s ops/dev -p test_document_parser_update.py
       - name: Database backup snapshot and restore (isolated PostgreSQL)
