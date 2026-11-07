@@ -209,7 +209,9 @@ function longPreview(): DocumentReview {
       rows: Array.from({ length: 4 }, (_, part) =>
         header.map(
           (_, column) =>
-            `Товар ${part + 1}, поле ${column + 1}\r\n` + "🧰".repeat(900) + "\nПоследнее значение",
+            `Товар ${part + 1}, поле ${column + 1}\r\n` +
+            "🧰".repeat(1900) +
+            "\nПоследнее значение",
         ),
       ),
       note: "Лист 1, строка 2",
@@ -237,7 +239,7 @@ it("pages the entire maximum-width preview without losing source or corrected Un
     expect(page).toBeLessThan(999);
     page = next.arg!;
   }
-  expect(page).toBeGreaterThan(1);
+  expect(page).toBeGreaterThan(119);
   for (const cell of [...review.cells, ...review.structure_draft!.rows!.flat()])
     expect(body).toContain(cell);
   expect(JSON.stringify(review)).toBe(snapshot);
