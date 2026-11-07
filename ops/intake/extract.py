@@ -4,6 +4,8 @@ import csv
 import hashlib
 import io
 import json
+import math
+import struct
 import pathlib
 import re
 import resource
@@ -155,6 +157,113 @@ def xlsx(path):
             else:
                 blocks.append({"locator":f"sheet:{index}","text":"\n".join("\t".join(r) for r in rows),"review_required":True})
     return tables,blocks
+
+
+def xls(path):
+    # xlrd normally returns formula caches as ordinary values. Intercept BIFF records
+    # on this book instance before any sheet is loaded, and replace every formula cell.
+    # This relies on the pinned reader's record API; never silently upgrade it.
+    import xlrd
+    from xlrd.biffh import XL_FORMULA_OPCODES
+    if xlrd.__version__ != "2.0.2":
+        raise ReviewRequired("XLS_READER_VERSION")
+    book = None
+    try:
+        book = xlrd.open_workbook(filename=str(path), use_mmap=False, logfile=io.StringIO(),
+                                  formatting_info=True, on_demand=True, ragged_rows=True,
+                                  ignore_workbook_corruption=False)
+        if book.biff_version not in (50, 70, 80) or not book.on_demand:
+            raise ReviewRequired("XLS_VERSION_REVIEW")
+        if book.nsheets > 30:
+            raise ReviewRequired("SHEET_LIMIT")
+        tables, blocks = [], []
+        original_reader = book.get_record_parts
+        formula_cells = {}
+        def read_record():
+            code, length, data = original_reader()
+            if len(data) != length:
+                raise ReviewRequired("XLS_DAMAGED")
+            if code in XL_FORMULA_OPCODES:
+                if length < 22:
+                    raise ReviewRequired("XLS_DAMAGED")
+                row, col = struct.unpack_from("<HH", data)
+                if row > MAX_ROWS or col >= 30:
+                    raise ReviewRequired("TABLE_LIMIT")
+                formula_cells[(row, col)] = hashlib.sha256(data).hexdigest()
+            return code, length, data
+        book.get_record_parts = read_record
+        for index in range(book.nsheets):
+            formula_cells.clear()
+            sheet = book.sheet_by_index(index)
+            if sheet.nrows > MAX_ROWS + 1 or sheet.ncols > 30:
+                raise ReviewRequired("TABLE_LIMIT")
+            warnings = ["XLS_NONCELL_CONTENT_REVIEW"]
+            if sheet.visibility:
+                warnings.append("HIDDEN_SHEET")
+            if sheet.merged_cells:
+                warnings.append("MERGED_CELLS")
+            if any(info.hidden for info in sheet.rowinfo_map.values()):
+                warnings.append("HIDDEN_ROWS")
+            if any(info.hidden for info in sheet.colinfo_map.values()):
+                warnings.append("HIDDEN_COLUMNS")
+            if formula_cells:
+                warnings.append("XLS_FORMULA_VALUE_REQUIRED")
+            rows, locators = [], []
+            for row_index in range(sheet.nrows):
+                values = []
+                for col_index in range(sheet.ncols):
+                    if (row_index, col_index) in formula_cells:
+                        # Deliberate marker, not the original formula text or its cached result.
+                        value = "=Формула XLS: введите проверенное значение"
+                    elif col_index >= sheet.row_len(row_index):
+                        value = ""
+                    else:
+                        cell = sheet.cell(row_index, col_index)
+                        if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
+                            value = ""
+                        elif cell.ctype == xlrd.XL_CELL_TEXT:
+                            value = cell.value
+                        elif cell.ctype == xlrd.XL_CELL_NUMBER:
+                            if not math.isfinite(cell.value):
+                                raise ReviewRequired("XLS_DAMAGED")
+                            value = str(int(cell.value)) if cell.value.is_integer() else str(cell.value)
+                            style = book.xf_list[cell.xf_index]
+                            if style.format_key != 0:
+                                warnings.append("FORMATTED_CELL_REVIEW")
+                        elif cell.ctype == xlrd.XL_CELL_BOOLEAN:
+                            value = "1" if cell.value else "0"
+                        elif cell.ctype == xlrd.XL_CELL_DATE:
+                            value = "Дата Excel: " + str(cell.value)
+                            warnings.append("XLS_DATE_REVIEW")
+                        elif cell.ctype == xlrd.XL_CELL_ERROR:
+                            value = "Ошибка Excel: " + xlrd.error_text_from_code.get(cell.value, "неизвестная")
+                            warnings.append("XLS_CELL_ERROR_REVIEW")
+                        else:
+                            raise ReviewRequired("XLS_CELL_REVIEW")
+                    values.append(string_cell(value))
+                rows.append(values)
+                locators.append(f"sheet:{index+1}/row:{row_index+1}")
+            table = make_table(rows, sheet.name, locators, sorted(set(warnings)))
+            if table:
+                table["formula_cells"] = [
+                    {"locator": f"sheet:{index+1}/row:{row+1}/column:{col+1}", "record_sha256": digest}
+                    for (row, col), digest in sorted(formula_cells.items())
+                ]
+                tables.append(table)
+            else:
+                blocks.append({"locator": f"sheet:{index+1}", "text": "\n".join("\t".join(r) for r in rows),
+                               "review_required": True})
+            book.unload_sheet(index)
+        return tables, blocks
+    except xlrd.XLRDError as exc:
+        if "encrypt" in str(exc).lower() or "password" in str(exc).lower():
+            raise ReviewRequired("XLS_PASSWORD_REQUIRED") from None
+        raise ReviewRequired("XLS_DAMAGED") from None
+    except (struct.error, AssertionError, UnicodeError):
+        raise ReviewRequired("XLS_DAMAGED") from None
+    finally:
+        if book is not None:
+            book.release_resources()
 
 
 def direct_child(element, name):
@@ -317,6 +426,9 @@ def extract(path,filename):
             if table: result["tables"]=[table]
         elif suffix==".xlsx":
             result["tables"],result["blocks"]=xlsx(path)
+        elif suffix==".xls":
+            result["tables"],result["blocks"]=xls(path)
+            result["xls_table_version"]=1
         elif suffix in (".docx",".ods"):
             result["tables"],result["blocks"]=office_xml(path,suffix[1:])
             if suffix==".docx":

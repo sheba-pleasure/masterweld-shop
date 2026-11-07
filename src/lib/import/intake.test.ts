@@ -167,3 +167,77 @@ it("review UI exposes missing coverage and no automatic publication", () => {
   expect(view.rows.flat().some((b) => b.callback_data.startsWith("di:table:"))).toBe(true);
   expect(JSON.stringify(view)).not.toContain("ci:apply");
 });
+
+it("gives an actionable empty-result path without offering nonexistent tables", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  for (const [warning, explanation] of [
+    ["XLS_PASSWORD_REQUIRED", "защищена паролем"],
+    ["XLS_DAMAGED", "Книгу XLS не удалось прочитать"],
+    ["XLS_VERSION_REVIEW", "слишком старый формат"],
+    ["HEADER_REVIEW", "названия колонок"],
+    ["TABLE_LIMIT", "Разделите его на части"],
+    ["FORMAT_REQUIRES_MANUAL_CONVERSION", "Этот формат пока не распознаётся"],
+    ["UNKNOWN_INTERNAL_DETAIL", "Не удалось выделить строки товаров"],
+  ]) {
+    const view = renderIntake({
+      ok: true,
+      id,
+      state: "review",
+      file_name: "Прайс.xls",
+      extraction: { tables: [], blocks: [], warnings: [warning!], coverage: { complete: false } },
+    });
+    expect(view.text).toContain(explanation);
+    expect(view.text).toContain("Таблиц для проверки пока нет");
+    expect(view.text).toContain("тех же байтов вернёт прежний результат");
+    expect(view.text).not.toContain("Выберите таблицу");
+    expect(view.text).not.toContain("UNKNOWN_INTERNAL_DETAIL");
+    expect(view.rows.flat().some((b) => b.callback_data === `di:original:${id}`)).toBe(true);
+    expect(view.rows.flat().some((b) => b.callback_data.startsWith("di:table:"))).toBe(false);
+  }
+});
+
+it("delivers complete XLS guidance within the Telegram message limit", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const warnings = [
+    "HIDDEN_SHEET",
+    "HIDDEN_ROWS",
+    "HIDDEN_COLUMNS",
+    "MERGED_CELLS",
+    "MERGED_CELLS_REVIEW",
+    "FORMULA_NOT_EVALUATED",
+    "XLS_FORMULA_VALUE_REQUIRED",
+    "XLS_DATE_REVIEW",
+    "XLS_CELL_ERROR_REVIEW",
+    "XLS_NONCELL_CONTENT_REVIEW",
+    "FORMATTED_CELL_REVIEW",
+    "MIXED_PDF_IMAGES_REQUIRE_VISUAL_REVIEW",
+    "TEXT_LAYOUT_REVIEW",
+    "UNSTRUCTURED_TEXT",
+    "COLUMN_MAPPING_REVIEW",
+    "FORMAT_REQUIRES_MANUAL_CONVERSION",
+    "PRIVATE_UNRECOGNIZED_FLAG",
+  ];
+  const data = {
+    ok: true as const,
+    id,
+    state: "review",
+    file_name: "Я".repeat(200),
+    extraction: {
+      tables: [{ label: "Я".repeat(200), header: ["sku", "price"], rows: [["A", "10"]], warnings }],
+      blocks: [],
+      warnings: [],
+      coverage: { complete: false },
+    },
+  };
+  mocks.rpc.mockResolvedValue({ data, error: null });
+  await showIntake(admin, chat, `di:checks:${id}:0`);
+  const { renderIntakeChecks } = await import("./intake-view");
+  const expected = renderIntakeChecks(data, 0);
+  const bodies = mocks.tg.mock.calls.map(([, body]) => body);
+  expect(bodies).toHaveLength(1);
+  expect(bodies.map((b) => b.text).join("")).toBe(expected.text);
+  expect(bodies.every((b) => Array.from(b.text).length <= 3500)).toBe(true);
+  expect(bodies.slice(0, -1).every((b) => b.reply_markup === undefined)).toBe(true);
+  expect(bodies.at(-1).reply_markup.inline_keyboard).toEqual(expected.rows);
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+});

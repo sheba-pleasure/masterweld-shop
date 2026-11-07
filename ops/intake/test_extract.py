@@ -1,7 +1,11 @@
 import hashlib
 import importlib.util
 import json
+import io
+import struct
 import pathlib
+import xlwt
+import xlrd
 import tempfile
 import unittest
 import zipfile
@@ -27,11 +31,116 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(r["tables"][0]["row_locators"],["record:2"])
         self.assertTrue(r["review_required"])
     def test_unknown_format_never_claims_success(self):
-        p=self.file("input.xls",b"legacy format")
+        p=self.file("input.xlsb",b"unsupported format")
         r=engine.extract(p,p.name)
         self.assertFalse(r["coverage"]["complete"])
         self.assertIn("FORMAT_REQUIRES_MANUAL_CONVERSION",r["warnings"])
         self.assertFalse(r["tables"])
+    def binary_workbook(self):
+        book=xlwt.Workbook(encoding="utf-8")
+        sheet=book.add_sheet("Прайс")
+        for col,value in enumerate(["sku","title","price"]):sheet.write(0,col,value)
+        sheet.write(1,0,"0007");sheet.write(1,1,"Учебный аппарат");sheet.write(1,2,123.45)
+        sheet.write(3,0,"B");sheet.write(3,1,"Проверить формулу");sheet.write(3,2,xlwt.Formula("1+2"))
+        sheet.write(4,0,7,xlwt.easyxf(num_format_str="00000"))
+        sheet.write(4,1,"Числовой артикул");sheet.write(4,2,10)
+        sheet.row(3).hidden=True;sheet.col(2).hidden=True
+        sheet.write_merge(5,5,0,1,"Объединённая ячейка");sheet.write(5,2,20)
+        hidden=book.add_sheet("Скрытый");hidden.visibility=1
+        for row,values in enumerate([["sku","price"],["HIDDEN",30]]):
+            for col,value in enumerate(values):hidden.write(row,col,value)
+        return book
+
+    def test_xls_original_coordinates_hidden_and_merged_cells(self):
+        book=self.binary_workbook();buffer=io.BytesIO();book.save(buffer)
+        original=buffer.getvalue();p=self.file("Прайс.XLS",original)
+        result=engine.extract(p,p.name)
+        self.assertTrue(result["coverage"]["complete"])
+        self.assertEqual(result["xls_table_version"],1)
+        self.assertEqual(result["sha256"],hashlib.sha256(original).hexdigest())
+        self.assertEqual(p.read_bytes(),original)
+        first,hidden=result["tables"]
+        self.assertEqual(first["rows"][0],["0007","Учебный аппарат","123.45"])
+        self.assertEqual(first["rows"][1],["","",""])
+        self.assertEqual(first["row_locators"][2],"sheet:1/row:4")
+        self.assertEqual(first["rows"][2][2],"=Формула XLS: введите проверенное значение")
+        self.assertEqual(first["rows"][3][0],"7")
+        self.assertEqual(first["rows"][4],["Объединённая ячейка","","20"])
+        self.assertTrue({"HIDDEN_ROWS","HIDDEN_COLUMNS","MERGED_CELLS","FORMATTED_CELL_REVIEW",
+                         "XLS_FORMULA_VALUE_REQUIRED","XLS_NONCELL_CONTENT_REVIEW"}.issubset(first["warnings"]))
+        self.assertIn("HIDDEN_SHEET",hidden["warnings"])
+        self.assertEqual(first["formula_cells"][0]["locator"],"sheet:1/row:4/column:3")
+        self.assertEqual(len(first["formula_cells"][0]["record_sha256"]),64)
+        self.assertTrue(first["review_required"])
+        self.assertFalse(result["enrichment"]["automatic_publication"])
+
+    def test_xls_cached_formula_result_cannot_become_a_price(self):
+        # Produce a valid raw BIFF workbook with a plausible but stale formula cache.
+        raw=bytearray(self.binary_workbook().get_biff_data())
+        offset=0;changed=0
+        while offset+4<=len(raw):
+            code,length=struct.unpack_from("<HH",raw,offset)
+            if code==0x0006:
+                raw[offset+4+6:offset+4+14]=struct.pack("<d",9999.5)
+                changed+=1
+            offset+=4+length
+        self.assertEqual(changed,1)
+        p=self.file("cache.xls",bytes(raw))
+        native=xlrd.open_workbook(str(p))
+        self.assertEqual(native.sheet_by_index(0).cell_value(3,2),9999.5)
+        native.release_resources()
+        result=engine.extract(p,p.name)
+        self.assertTrue(result["coverage"]["complete"])
+        self.assertTrue(result["tables"][0]["rows"][2][2].startswith("=Формула XLS"))
+        self.assertNotIn("9999.5",json.dumps(result,ensure_ascii=False))
+
+    def test_xls_dates_and_errors_are_not_plain_numbers(self):
+        book=xlwt.Workbook();sheet=book.add_sheet("Даты")
+        for col,value in enumerate(["sku","date","error"]):sheet.write(0,col,value)
+        sheet.write(1,0,"A")
+        sheet.write(1,1,45292,xlwt.easyxf(num_format_str="DD.MM.YYYY"))
+        sheet.row(1).set_cell_error(2,"#DIV/0!")
+        buffer=io.BytesIO();book.save(buffer)
+        p=self.file("dates.xls",buffer.getvalue());result=engine.extract(p,p.name)
+        self.assertTrue(result["coverage"]["complete"])
+        row=result["tables"][0]["rows"][0]
+        self.assertTrue(row[1].startswith("Дата Excel:"))
+        self.assertEqual(row[2],"Ошибка Excel: #DIV/0!")
+        self.assertIn("XLS_DATE_REVIEW",result["tables"][0]["warnings"])
+        self.assertIn("XLS_CELL_ERROR_REVIEW",result["tables"][0]["warnings"])
+
+    def test_xls_encryption_has_a_specific_manual_recovery_reason(self):
+        raw=self.binary_workbook().get_biff_data()
+        first_length=struct.unpack_from("<H",raw,2)[0]+4
+        # FILEPASS marks encryption; no attempt to guess or remove the password.
+        protected=raw[:first_length]+struct.pack("<HHHHH",0x002f,6,0,0,0)+raw[first_length:]
+        p=self.file("protected.xls",protected);result=engine.extract(p,p.name)
+        self.assertFalse(result["coverage"]["complete"])
+        self.assertFalse(result["tables"])
+        self.assertIn("XLS_PASSWORD_REQUIRED",result["warnings"])
+        self.assertEqual(p.read_bytes(),protected)
+
+    def test_xls_limits_and_damaged_input_do_not_claim_complete(self):
+        for name,content in [("broken.xls",b"not an Excel file"),
+                             ("truncated.xls",self.binary_workbook().get_biff_data()[:100])]:
+            with self.subTest(name=name):
+                p=self.file(name,content);r=engine.extract(p,p.name)
+                self.assertFalse(r["coverage"]["complete"])
+                self.assertFalse(r["tables"])
+        for axis,index in [("row",5001),("column",30),("sheets",31)]:
+            with self.subTest(axis=axis):
+                book=xlwt.Workbook();sheet=book.add_sheet("Data")
+                sheet.write(0,0,"sku");sheet.write(0,1,"price");sheet.write(1,0,"A");sheet.write(1,1,10)
+                if axis=="row":sheet.write(index,0,"OVER")
+                if axis=="column":sheet.write(1,index,"OVER")
+                if axis=="sheets":
+                    for n in range(index-1):book.add_sheet("Extra"+str(n))
+                buffer=io.BytesIO();book.save(buffer)
+                p=self.file(axis+".xls",buffer.getvalue());r=engine.extract(p,p.name)
+                self.assertFalse(r["coverage"]["complete"])
+                self.assertFalse(r["tables"])
+                self.assertTrue(set(r["warnings"]) & {"TABLE_LIMIT","SHEET_LIMIT"})
+
     def test_text_is_unconfirmed_not_invented_product(self):
         p=self.file("input.txt","Аппарат, модель не указана\n\nИтого 10000".encode())
         r=engine.extract(p,p.name)

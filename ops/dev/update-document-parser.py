@@ -86,6 +86,19 @@ assert result['docx_table_version']==2
 assert result['tables'][0]['rows']==[['TEST-A\\nTEST-B','','100']]
 assert result['tables'][0]['row_locators']==['table:1/row:2']
 """
+    fixture=json.loads((ROOT/"ops/intake/fixtures/legacy-excel.json").read_text())
+    code+="\nfixture=json.loads("+repr(json.dumps(fixture))+")\n"+"""
+req=urllib.request.Request('http://127.0.0.1:8090/extract',
+ data=json.dumps({'base64':fixture['base64'],'file_name':fixture['file_name']}).encode(),
+ headers={'Content-Type':'application/json'})
+with urllib.request.urlopen(req,timeout=10) as response: result=json.load(response)
+assert result['sha256']==fixture['sha256']
+assert result['xls_table_version']==1 and result['coverage']['complete']
+assert result['tables'][0]['rows'][0]==['TEST-XLS-001','Учебный аппарат','10']
+assert result['tables'][0]['rows'][1][2]=='=Формула XLS: введите проверенное значение'
+assert result['tables'][0]['row_locators']==['sheet:1/row:2','sheet:1/row:3']
+assert result['tables'][0]['formula_cells'][0]['locator']=='sheet:1/row:3/column:3'
+"""
     for attempt in range(10):
         try:
             run(["docker", "exec", name, "/usr/bin/python3", "-c", code.replace("127.0.0.1", host)])
@@ -182,7 +195,7 @@ def main():
             archive = run(["git", "archive", sha, "ops/intake"], cwd=ROOT).stdout
             run(["tar", "-xf", "-", "-C", directory], input=archive)
             # The private artifact umask must not make public source unreadable to UID 65534.
-            for source in ("extract.py", "parser.py", "worker.py", "Dockerfile"):
+            for source in ("extract.py", "parser.py", "worker.py", "Dockerfile", "requirements-parser.txt", "requirements-test.txt"):
                 (pathlib.Path(directory) / "ops/intake" / source).chmod(0o644)
             run(["docker", "build", "--label", "mw.environment=dev", "--label",
                  "org.opencontainers.image.revision=" + sha, "--build-arg", "GIT_SHA=" + sha,
