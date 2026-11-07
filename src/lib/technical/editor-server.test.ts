@@ -146,13 +146,28 @@ it("no active draft lets ordinary text reach the legacy editor", async () => {
   expect(await technicalEditor(owner, chat, from, { text: "title" })).toBe(false);
   expect(mocks.tg).not.toHaveBeenCalled();
 });
-it("all generated family buttons fit Telegram's 64-byte callback limit", async () => {
+it("paginates families with stable absolute indices and Telegram-sized callbacks", async () => {
   stored.data = editorAction(base(), "families");
-  await technicalEditor(owner, chat, from, { command: "/technical" });
-  const rows = mocks.tg.mock.calls[0]?.[1].reply_markup.inline_keyboard as {
-    callback_data: string;
-  }[][];
-  expect(rows.flat().length).toBeGreaterThanOrEqual(families.length);
-  for (const button of rows.flat())
-    expect(new TextEncoder().encode(button.callback_data).length).toBeLessThanOrEqual(64);
+  const indices: number[] = [];
+  for (let page = 0; page < Math.ceil(families.length / 8); page++) {
+    mocks.tg.mockClear();
+    await technicalEditor(owner, chat, from, {
+      callback: "te:" + id + ":" + stored.revision + ":families:" + page,
+    });
+    const message = mocks.tg.mock.calls[0]?.[1];
+    const buttons = (message.reply_markup.inline_keyboard as { callback_data: string }[][]).flat();
+    const choices = buttons.filter((b) => b.callback_data.includes(":family:"));
+    expect(choices.length).toBeGreaterThan(0);
+    expect(choices.length).toBeLessThanOrEqual(8);
+    expect(message.text).toContain("Страница " + (page + 1));
+    expect(buttons.some((b) => b.callback_data.endsWith(":families:" + (page + 1)))).toBe(
+      page + 1 < Math.ceil(families.length / 8),
+    );
+    expect(buttons.some((b) => b.callback_data.endsWith(":families:" + (page - 1)))).toBe(page > 0);
+    for (const button of buttons)
+      expect(new TextEncoder().encode(button.callback_data).length).toBeLessThanOrEqual(64);
+    indices.push(...choices.map((b) => Number(b.callback_data.split(":").at(-1))));
+  }
+  expect(indices).toEqual(families.map((_, i) => i));
+  expect(stored.data.document).toEqual(base().document);
 });

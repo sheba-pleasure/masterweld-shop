@@ -43,6 +43,7 @@ export function formatTechnicalValue(fact: TechnicalValue): string {
     : fact.value === null
       ? "Не указано"
       : scalar(fact.value);
+  if (fact.unit.code === "size_number") return `№ ${value}`;
   return fact.unit.code === "none" ? value : `${value} ${fact.unit.label}`;
 }
 export function formatTechnicalContext(context: TechnicalValue["context"]): string[] {

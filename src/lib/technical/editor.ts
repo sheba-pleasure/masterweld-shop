@@ -1,5 +1,5 @@
 import { z } from "zod";
-import dictionary from "./pilot-dictionary.json";
+import dictionary, { attributeGuidance } from "./dictionary";
 import {
   technicalDocument,
   technicalFact,
@@ -88,7 +88,11 @@ export function definition(state: EditorData) {
     (b) => b.family_code === state.document?.family_code && b.attribute_code === state.field,
   );
   if (!attr || !binding) throw new EditorInputError("Выберите характеристику заново.");
-  return { ...attr, options: binding.options_override ?? attr.options };
+  return {
+    ...attr,
+    label: binding.label ?? attr.label,
+    options: binding.options_override ?? attr.options,
+  };
 }
 export function fields(state: EditorData) {
   return dictionary.bindings.filter((b) => b.family_code === state.document?.family_code);
@@ -258,8 +262,11 @@ export function editorAction(input: EditorData, action: string, index = 0): Edit
     s.pending = null;
     s.fact = null;
     s.page = 0;
-  } else if (action === "families" && s.screen === "home") s.screen = "families";
-  else if (action === "family" && s.screen === "families") {
+  } else if (action === "families" && ["home", "families"].includes(s.screen)) {
+    if (index * 8 >= families.length) throw new EditorInputError("Страница не найдена.");
+    s.screen = "families";
+    s.page = index;
+  } else if (action === "family" && s.screen === "families") {
     const family = families[index];
     if (!family) throw new EditorInputError("Семейство не найдено.");
     if (s.document && s.document.family_code !== family.code && s.document.values.length) {
@@ -383,7 +390,8 @@ export function editorQuestion(s: EditorData): string | null {
       (a.unit_code !== "none"
         ? "\nЕдиница: " + unit + ". Не пересчитывайте из другой единицы."
         : "") +
-      (a.options.length ? "\nДопустимые коды: " + a.options.join("; ") : "")
+      (a.options.length ? "\nДопустимые коды: " + a.options.join("; ") : "") +
+      (attributeGuidance(a.code) ? "\n\n" + attributeGuidance(a.code) : "")
     );
   }
   if (s.screen === "context")
