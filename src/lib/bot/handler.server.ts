@@ -17,6 +17,7 @@ import {
 } from "@/lib/import/review.server";
 import { parseImportCallback } from "@/lib/import/catalog-view";
 import { showDocumentModel } from "@/lib/import/model.server";
+import { showProductModelLinks } from "@/lib/import/model-links.server";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
@@ -324,6 +325,7 @@ async function sendProductCard(chatId: number, productId: string, m: StaffMember
     canEditCard:
       can(m, "edit_products") || can(m, "manage_categories") || can(m, "publish_products"),
     canManagePhotos: can(m, "upload_photos"),
+    canReviewDocuments: can(m, "import_prices") && can(m, "view_costs"),
   });
   return tg("sendMessage", { chat_id: chatId, text, reply_markup: { inline_keyboard: rows } });
 }
@@ -2371,6 +2373,7 @@ export async function handleUpdate(update: TgUpdate) {
     return sendMenu(chat.id, { ...m, elevated });
   }
   if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
+  if (cb.data?.startsWith("mp:")) return showProductModelLinks(m, chat, cb.data);
   if (cb.data?.startsWith("dm:")) return showDocumentModel(m, chat, cb.data);
   if (cb.data?.startsWith("ds:")) return showDocumentStructure(m, chat, cb.data);
   if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
