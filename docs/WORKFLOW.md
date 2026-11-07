@@ -35,6 +35,7 @@ deploy-production: только успешный verify от push main.
 Production-образ собирается с production public-настройками; DEV-образ не переносится.
 Передача по SSH с закреплённым host key; forced command принимает только check/deploy и полный SHA.
 Сервер повторно проверяет merge/CI, SHA и среду образа; release.sh выполняет blue/green, smoke и автооткат. Smoke требует точный SHA и production-среду из readiness до/после переключения; старый HTTP 200 не подтверждает новый выпуск. Manifest и runtime RELEASE_SHA обязаны совпасть. Подробности и границы: [RELEASE-HEALTH.md](RELEASE-HEALTH.md).
+Выпуск и откат дополнительно читают схему локальной production-базы и проверяют совместимость неизменяемого образа. Несовместимый аварийный возврат оставляет вход в подтверждённом 503 и уведомления на паузе; [порядок и ограничения](PRODUCTION-SCHEMA-COMPATIBILITY.md).
 Разрешение одноразовое, срок 24 часа. После сбоя нужен новый разбор. Миграции/данные не переносятся.
 
 ## Настройка автодеплоя пока не завершена
@@ -57,14 +58,15 @@ python3 -m unittest discover -s ops/production -p 'test_*.py'
 npm run build
 NITRO_PRESET=node-server npm run build
 bash ops/tests/release-synthetic.sh
+python3 ops/tests/production-compatibility.py
 python3 ops/tests/release-containers.py
 
-Последняя команда требует локальные node:22-bookworm-slim и nginx:1.27-alpine; создаёт отдельные учебные ресурсы, проверяет настоящий gateway и удаляет их. Состав, настройки и ограничения: [RELEASE-CONTAINER-REHEARSAL.md](RELEASE-CONTAINER-REHEARSAL.md).
+Последняя команда требует локальные node:22-bookworm-slim, nginx:1.27-alpine и postgres:17.6-alpine; создаёт отдельные учебные ресурсы, проверяет настоящий gateway и удаляет их. Состав, настройки и ограничения: [RELEASE-CONTAINER-REHEARSAL.md](RELEASE-CONTAINER-REHEARSAL.md).
 
 Инфраструктура: HTTPS/сертификат/noindex, заказ DEV, SQL-права, маркер базы, возврат предыдущей версии.
 TypeScript: npm run typecheck — обязательный этап verify сразу после установки зависимостей. Действует неизменённый строгий tsconfig: src/**/*.ts/tsx (включая тесты), vite.config.ts и vitest.config.ts. Отдельные ops/*.ts этим tsconfig не охвачены; для них сохраняются собственные проверки. Не отключать strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes или noPropertyAccessFromIndexSignature ради зелёной проверки. Полный lint имеет старый долг; изменённые участки проверяются отдельно.
 
 ## Откат
 
-ops/rollback.sh возвращает предыдущий утверждённый контейнер offline. БД не откатывает.
+ops/rollback.sh возвращает предыдущий утверждённый совместимый контейнер offline: без GitHub и загрузки образа, но с чтением схемы локальной базы и неизменяемого образа контейнера. Несовместимый контейнер не запускается. БД не откатывает.
 При первом неудачном выпуске без предыдущего контейнера вход должен честно отвечать недоступностью.
