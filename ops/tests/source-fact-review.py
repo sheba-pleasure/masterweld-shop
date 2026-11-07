@@ -803,6 +803,98 @@ try:
     subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",handoff_ui_script],cwd=ROOT,
       input=json.dumps([handoff,transferred_view,retained_review,retained_transfer,family_review,family_transfer]),
       capture_output=True,text=True,check=True)
+    # Combined import/identity/model/provenance path, exclusively in this isolated DB.
+    # Real service RPCs perform changes; no fixture UPDATE repairs invalidated history.
+    def plain_import(patch,sku="CHOICE-A"):
+        header=["sku",*patch]
+        rows=[[sku,*[str(v) for v in patch.values()]]]
+        batch=catalog("upload",payload={"request_key":str(uuid.uuid4().int % 10**18),
+          "file_name":"[Учебный] Повторный импорт.csv",
+          "checksum":hashlib.sha256(json.dumps(rows).encode()).hexdigest(),
+          "source":{"header":header,"rows":rows},"mapping":{key:i for i,key in enumerate(header)}})
+        batch=catalog("preview",batch["id"],batch["revision"],{"rows":[
+          {"line":2,"sku":sku,"values":patch,"errors":[]}]})
+        assert batch["counts"]["error"]==0
+        return catalog("apply",batch["id"],batch["revision"])
+    def undo_import(batch):
+        prepared=catalog("undo_preview",batch["id"],batch["revision"])
+        undone=catalog("undo",prepared["id"],prepared["revision"])
+        assert undone["state"]=="undone"
+        assert catalog("undo",prepared["id"],prepared["revision"])["state"]=="undone"
+        return undone
+    def public_facts():
+        raw=sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")")
+        return json.loads(raw) if raw else None
+    def stable_history():
+        return sql("""SELECT jsonb_build_object(
+          'origins',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM technical_fact_origins t),
+          'revisions',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM technical_revisions t),
+          'documents',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM document_intakes t))""")
+    existing_facts=public_facts()
+    assert existing_facts["values"][0]["value"]==195
+    histories=stable_history()
+    price_import=plain_import({"price":17,"stock_qty":3,"in_stock":True})
+    assert public_facts()==existing_facts
+    undo_import(price_import)
+    assert public_facts()==existing_facts and stable_history()==histories
+    # Changing identity invalidates the technical card; restoring the text is not approval.
+    title_import=plain_import({"title":"[Учебный] Другая модификация","price":12})
+    assert public_facts() is None
+    undo_import(title_import)
+    assert public_facts() is None and stable_history()==histories
+    assert technical("read")["card"]["identity_review"]["required"]
+    editor("apply",retained_session) # Completed receipt only.
+    assert step("handoff",retained_review,payload=consent)["review"]["editor_session_id"]==retained_session["id"]
+    assert public_facts() is None and stable_history()==histories
+    # A fresh explicit preview/apply is required even when identity text was restored.
+    identity_review=editor("start",source_revision=retained_session["applied_revision"])
+    identity_review=editor("apply",editor("preview",identity_review))
+    assert public_facts()["values"][0]["value"]==195
+    # An imported model source changes the generation even if title and price are unchanged.
+    previous_context=technical("read")["card"]["model_context"]
+    pid_again,model_import,_=imported("MODEL-330")
+    assert pid_again==pid and choice("get",pid)["current"]["state"]=="stale"
+    assert public_facts() is None
+    undo_import(model_import)
+    assert choice("get",pid)["current"]["state"]=="selected"
+    assert technical("read")["card"]["model_context"]!=previous_context
+    assert public_facts() is None
+    stale_copy=editor("start",source_revision=identity_review["applied_revision"])
+    assert not stale_copy["source_binding"]["usable"]
+    editor("preview",stale_copy,error="TECH_SOURCE_REVIEW_REQUIRED")
+    editor("cancel",stale_copy)
+    # Old source/handoff/apply receipts cannot refresh the source generation.
+    act("confirm",third_approval)
+    editor("apply",identity_review)
+    step("handoff",retained_review,payload=consent)
+    assert public_facts() is None
+    # Exclusion is an explicit audited assortment action, never a raw fixture update.
+    def assortment(op,batch=None,value="",revision=None):
+        args=["101",lit(op),lit(batch) if batch else "NULL",lit(value),"0",lit("CHOICE-A"),
+          str(revision) if revision is not None else "NULL"]
+        return json.loads(sql("SET ROLE service_role; SELECT bot_assortment("+",".join(args)+")"))
+    excluded=assortment("start",value="all")
+    excluded=assortment("all",excluded["id"])
+    assert excluded["selected"]==1
+    excluded=assortment("preview",excluded["id"],"exclude",excluded["revision"])
+    assortment("apply",excluded["id"])
+    def assert_excluded():
+        assert sql("SELECT status||':'||assortment_decision FROM products WHERE id="+lit(pid))=="hidden:excluded"
+        assert public_facts() is None
+        assert sql("SET ROLE anon; SELECT count(*) FROM products WHERE id="+lit(pid))=="0"
+    assert_excluded()
+    excluded_history=stable_history()
+    repeat=plain_import({"title":"[Учебный] Повторная поставка","price":25,"stock_qty":10,"in_stock":True})
+    assert repeat["counts"]["excluded"]==1
+    assert_excluded()
+    undo_import(repeat)
+    assert_excluded()
+    assert stable_history()==excluded_history
+    editor("apply",identity_review)
+    assert_excluded()
+    command(["docker","restart",NAME]);ready()
+    assert_excluded()
+    assert stable_history()==excluded_history
     print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
       "handoff_migration_sha256":hashlib.sha256(handoff_migration.encode()).hexdigest(),
       "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
@@ -820,6 +912,9 @@ try:
        "handoff_permissions","handoff_confirmation","handoff_expiry","handoff_changed_base","handoff_frozen_plan",
        "handoff_withdrawn_source","handoff_preserves_existing_editor","handoff_audit_atomicity","handoff_concurrency",
        "handoff_no_publication","handoff_restart_receipt","handoff_retained_stale_facts","handoff_family_consent",
-       "handoff_receipt_not_later_session","handoff_ui_contract","application_schema_compatibility"]}))
+       "handoff_receipt_not_later_session","handoff_ui_contract","application_schema_compatibility",
+       "price_import_preserves_facts","price_undo_preserves_facts","identity_import_and_undo_require_review",
+       "identity_old_receipts_no_republish","model_reimport_and_undo_keep_stale_origins","old_source_receipts_no_refresh",
+       "excluded_reimport_and_undo_stay_hidden","import_preserves_immutable_history","excluded_restart"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)
