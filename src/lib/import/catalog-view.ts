@@ -1,5 +1,7 @@
 import { FIELDS, FIELD_LABEL, catalogColumnLabel, type Field, type Mapping } from "./catalog-file";
 
+import { modelIdentityText, modelLinkState, type DocumentModelLink } from "./model-links-view";
+
 type Button = { text: string; callback_data: string };
 type Product = Partial<Record<Field | "category_id", string | number | boolean | null>>;
 export interface ImportView {
@@ -18,6 +20,9 @@ export interface ImportView {
   page: number;
   pages: number;
   recent?: { id: string; file_name: string; state: string }[];
+  document_review_id?: string;
+  model_count?: number;
+  model_capture_ready?: boolean;
   items: {
     line: number;
     sku: string;
@@ -28,6 +33,7 @@ export interface ImportView {
     after_product: Product | null;
     before_cost: { cost_price: number } | null;
     after_cost: { cost_price: number } | null;
+    document_model?: DocumentModelLink | null;
   }[];
 }
 export interface ImportRequest {
@@ -189,11 +195,35 @@ export function renderImport(
         ? "Исправьте ошибки в файле или сопоставление колонок. Ни одна строка не будет применена при наличии ошибок."
         : "Проверьте все страницы. Подтверждение действует 30 минут. Товары вне файла не меняются.",
     );
+  if (r.document_review_id && r.model_capture_ready === false)
+    lines.push(
+      r.state === "preview"
+        ? "В этом прежнем предпросмотре сведения о моделях ещё не сохранены. Обновите предпросмотр перед подтверждением."
+        : "Для этого прежнего импорта снимки моделей не создавались. История не дополняется задним числом.",
+    );
+  else if (r.document_review_id)
+    lines.push(
+      `🏷 Подтверждённых моделей в этом предпросмотре: ${r.model_count ?? 0}. Связь с исходными строками сохраняется при подтверждении. Автопоиск и публикация не запускаются. Если исправили модель, обновите предпросмотр.`,
+    );
   lines.push("Ниже — снимок предложений исходного импорта:");
   for (const i of r.items) {
     lines.push(
       `\nСтрока ${i.line} · ${short(i.sku, 60)} · ${{ new: "новый", update: "изменение", unchanged: "без изменений", error: "ошибка" }[i.kind]}\n${short(i.after_product?.title, 90)}`,
     );
+    if (i.document_model) {
+      const l = i.document_model;
+      lines.push(modelLinkState[l.state] ?? "Модель требует проверки", modelIdentityText(l));
+      rows.push([
+        {
+          text: `🏷 Строка ${i.line}: проверить модель`,
+          callback_data: `dm:${l.review_id}:0:get:${l.row}`,
+        },
+      ]);
+      if (l.product_id)
+        rows.push([
+          { text: `📎 Строка ${i.line}: источники товара`, callback_data: `mp:${l.product_id}:0` },
+        ]);
+    }
     const oldPrice = Number(i.before_product?.price ?? 0),
       newPrice = Number(i.after_product?.price ?? 0);
     if (oldPrice > 0 && Math.abs(newPrice - oldPrice) / oldPrice >= 0.3)
@@ -228,12 +258,23 @@ export function renderImport(
         : []),
     ]);
   if (r.state === "preview") {
-    if (!r.counts.error && r.counts.new + r.counts.update > 0)
+    if (
+      !r.counts.error &&
+      r.model_capture_ready !== false &&
+      (r.counts.new + r.counts.update > 0 || (r.model_count ?? 0) > 0)
+    )
       rows.push([
         {
-          text: `✅ Подтвердить: ${r.counts.new + r.counts.update} товаров`,
+          text:
+            r.counts.new + r.counts.update > 0
+              ? `✅ Подтвердить: ${r.counts.new + r.counts.update} товаров`
+              : "✅ Сохранить связи с моделями",
           callback_data: `ci:apply:${r.id}:${r.revision}`,
         },
+      ]);
+    if (r.document_review_id)
+      rows.push([
+        { text: "🔄 Обновить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` },
       ]);
     rows.push(
       [{ text: "Изменить колонки", callback_data: `ci:config:${r.id}` }],
@@ -248,6 +289,12 @@ export function renderImport(
   return { text: lines.join("\n"), rows };
 }
 const ERRORS: Record<string, string> = {
+  IMPORT_MODEL_CHANGED:
+    "Решение о модели изменилось после предпросмотра. Откройте импорт и обновите предпросмотр, затем проверьте сведения заново.",
+  IMPORT_MODEL_PREVIEW_REQUIRED:
+    "Этот предпросмотр ещё не сохраняет сведения о модели. Обновите его и проверьте строки перед подтверждением.",
+  IMPORT_MODEL_SOURCE:
+    "Не удалось точно связать строку с исходным документом. Импорт остановлен. Нужна проверка владельцем.",
   DOCUMENT_REVIEW_REQUIRED:
     "Сначала проверьте строки через «Документы». Этот старый импорт создан до обязательной проверки. Отмените его и продолжите разбор документа.",
   IMPORT_DENIED: "Нет права импортировать товары и просматривать закупочные данные.",

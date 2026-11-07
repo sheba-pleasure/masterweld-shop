@@ -211,6 +211,7 @@ export interface ProductCardOpts {
   canEditStock?: boolean;
   canEditCard?: boolean;
   canManagePhotos?: boolean;
+  canReviewDocuments?: boolean;
   backCallback?: string;
 }
 
@@ -247,6 +248,10 @@ export function buildProductCardBot(
     rows.push([{ text: "📦 Изменить наличие", callback_data: makeCallback(`ps:${p.id}`) }]);
   if (opts.canEditCard)
     rows.push([{ text: "✏️ Изменить карточку", callback_data: makeCallback(`edit:${p.id}`) }]);
+  if (opts.canReviewDocuments)
+    rows.push([
+      { text: "📎 Модель и исходные документы", callback_data: makeCallback(`mp:${p.id}:0`) },
+    ]);
   if (opts.canManagePhotos)
     rows.push([{ text: "🖼 Посмотреть фотографии", callback_data: makeCallback(`ph:${p.id}`) }]);
   rows.push([{ text: "⬅️ К каталогу", callback_data: makeCallback(opts.backCallback ?? "cat:0") }]);

@@ -41,6 +41,16 @@ async function deliver(
 ) {
   const view = renderImport(data, screen);
   const body = { chat_id: chat.id, text: view.text, reply_markup: { inline_keyboard: view.rows } };
+  const chars = Array.from(view.text);
+  if (chars.length > 3500) {
+    for (let i = 0; i < chars.length; i += 3500)
+      await tg("sendMessage", {
+        chat_id: chat.id,
+        text: chars.slice(i, i + 3500).join(""),
+        ...(i + 3500 >= chars.length ? { reply_markup: body.reply_markup } : {}),
+      });
+    return;
+  }
   if (Number.isSafeInteger(messageId) && messageId! > 0) {
     try {
       return await tg("editMessageText", { ...body, message_id: messageId });
@@ -131,6 +141,17 @@ export async function showCatalogImport(
     return tg("sendMessage", {
       chat_id: chat.id,
       text: importError(error instanceof Error ? error.message : undefined),
+      ...(request.id &&
+      error instanceof Error &&
+      ["IMPORT_MODEL_CHANGED", "IMPORT_MODEL_PREVIEW_REQUIRED"].includes(error.message)
+        ? {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "📥 Открыть текущий импорт", callback_data: `ci:get:${request.id}:0` }],
+              ],
+            },
+          }
+        : {}),
     });
   }
   return deliver(
