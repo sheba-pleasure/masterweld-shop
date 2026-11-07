@@ -32,7 +32,7 @@ export function parseIntakeCallback(
       return { op: "read", id: source[2]!, index: Number(source[3]), page: Number(source[4]) };
     return null;
   }
-  let match = data.match(new RegExp(`^di:(get|cancel|text|original):(${id})$`));
+  let match = data.match(new RegExp(`^di:(get|cancel|stop|text|original):(${id})$`));
   if (match) return { op: match[1]!, id: match[2]! };
   match = data.match(new RegExp(`^di:get:(${id}):([0-9]{1,2})$`));
   if (match) return { op: "get", id: match[1]!, page: Number(match[2]) };
@@ -157,17 +157,48 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
       { text: "🛠 Скачать технический разбор (JSON)", callback_data: `di:text:${data.id}` },
     ]);
   }
+  if (data.state === "canceled")
+    lines.push(
+      "Обработка остановлена. Оригинал сохранён; товары и цены этим действием не изменены.",
+      "Повторная отправка этого же файла не запустит распознавание заново. Если остановили обработку по ошибке, нужен разбор администратором. Для проверки исходного файла нажмите «Получить оригинал».",
+    );
   if (data.state === "failed")
     lines.push(
       "Результат не подтверждён. Оригинал сохранён. Требуется разбор администратором; автоматических повторов нет.",
     );
   if (["queued", "extracting"].includes(data.state ?? ""))
-    rows.push([{ text: "✖️ Отменить обработку", callback_data: `di:cancel:${data.id}` }]);
+    rows.push([{ text: "✖️ Остановить обработку…", callback_data: `di:cancel:${data.id}` }]);
   rows.push(
     [{ text: "🔄 Обновить результат", callback_data: `di:get:${data.id}` }],
     [{ text: "📚 Все документы", callback_data: "di:home" }],
   );
   return { text: lines.join("\n\n"), rows };
+}
+
+export function renderIntakeCancellation(data: IntakeView) {
+  if (!["queued", "extracting"].includes(data.state ?? "")) {
+    const view = renderIntake(data);
+    return {
+      ...view,
+      text:
+        "ℹ️ Документ уже не ожидает обработки. Дополнительная отмена не требуется. Ниже — сохранённое состояние.\n\n" +
+        view.text,
+    };
+  }
+  return {
+    text: [
+      "✋ Остановить обработку документа?",
+      "📄 " + short(data.file_name),
+      "Распознавание этого файла будет остановлено. Оригинал останется доступен. Товары, цены и другие документы не изменятся.",
+      "Повторная отправка этого же файла не запустит его заново. Если хотите дождаться результата, нажмите «Не останавливать».",
+      "Обработка пока продолжается. Для остановки нужно отдельное подтверждение ниже.",
+    ].join("\n\n"),
+    rows: [
+      [{ text: "↩️ Не останавливать — к документу", callback_data: `di:get:${data.id}` }],
+      [{ text: "✖️ Да, остановить этот файл", callback_data: `di:stop:${data.id}` }],
+      [{ text: "📎 Получить оригинал", callback_data: `di:original:${data.id}` }],
+    ],
+  };
 }
 
 export function renderIntakeChecks(data: IntakeView, index: number) {

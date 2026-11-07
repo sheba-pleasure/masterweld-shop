@@ -1,5 +1,6 @@
 import { z } from "zod";
 import dictionary, { attributeGuidance } from "./dictionary";
+import { technicalOptionsHelp } from "./options";
 import {
   EditorInputError,
   parseTechnicalContextValue,
@@ -58,11 +59,7 @@ export function parseSourceFactAnswer(
     if (parsed === null) throw new EditorInputError("Не удалось прочитать значение.");
     return parsed;
   }
-  const normalized =
-    field === "cooling"
-      ? ({ воздушное: "air", жидкостное: "liquid" }[text.toLocaleLowerCase("ru-RU")] ?? text)
-      : text;
-  return parseTechnicalContextValue(field, normalized);
+  return parseTechnicalContextValue(field, text);
 }
 
 export function sourceFactQuestion(
@@ -117,9 +114,7 @@ export function sourceFactQuestion(
     (attribute.unit_code !== "none"
       ? "\nЕдиница: " + unit + ". Не пересчитывайте из другой единицы."
       : "") +
-    (attribute.options.length
-      ? "\nДопустимые обозначения: " + attribute.options.join("; ") + "."
-      : "") +
+    technicalOptionsHelp(attribute.code, attribute.options) +
     (attributeGuidance(attribute.code) ? "\n" + attributeGuidance(attribute.code) : "") +
     "\nЕсли значение не определено, отмените ввод и пропустите строку." +
     suffix

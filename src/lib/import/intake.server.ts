@@ -8,6 +8,7 @@ import { renderSourceBlocks, renderSourceText } from "./source-reader";
 import {
   renderIntake,
   renderIntakeChecks,
+  renderIntakeCancellation,
   type IntakeView,
   parseIntakeCallback,
 } from "./intake-view";
@@ -48,7 +49,10 @@ export async function receiveIntakeDocument(m: StaffMember, chat: Chat, document
   } catch {
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "⚠️ Файл не принят или результат приёма неизвестен. Проверьте /documents. Можно повторно отправить тот же файл: копия с тем же содержимым вернёт прежнюю обработку. Лимит — 5 МБ, до пяти ожидающих файлов.",
+      text: "⚠️ Файл не принят или результат приёма неизвестен. Нажмите «Проверить мои документы» (/documents). Можно повторно отправить тот же файл: копия с тем же содержимым вернёт прежнюю обработку. Лимит — 5 МБ, до пяти ожидающих файлов.",
+      reply_markup: {
+        inline_keyboard: [[{ text: "📚 Проверить мои документы", callback_data: "di:home" }]],
+      },
     });
   }
   return deliver(chat, result);
@@ -66,21 +70,47 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
   try {
     const r = await rpc("bot_document_intake", {
       p_actor: m.telegram_id,
-      p_op: ["checks", "blocks", "read"].includes(request.op) ? "get" : request.op,
+      p_op:
+        request.op === "stop"
+          ? "cancel"
+          : ["checks", "blocks", "read", "cancel"].includes(request.op)
+            ? "get"
+            : request.op,
       p_id: request.id,
       p_payload: request.index === undefined ? {} : { index: request.index },
     });
     if (
       r.error ||
       !r.data?.ok ||
-      (["blocks", "read"].includes(request.op) && r.data.id !== request.id)
+      (["blocks", "read", "cancel", "stop"].includes(request.op) && r.data.id !== request.id)
     )
       throw new Error("DOCUMENT_READ");
     result = r.data;
   } catch {
     return tg("sendMessage", {
       chat_id: chat.id,
-      text: "⚠️ Не удалось прочитать результат. Откройте /documents; не начинайте новый импорт для восстановления старого.",
+      text:
+        request.op === "stop"
+          ? "⚠️ Результат остановки пока неизвестен. Нажмите «Проверить состояние файла». Мы прочитаем сохранённый результат, не повторяя остановку. Не загружайте другой файл для восстановления этого действия."
+          : request.id
+            ? "⚠️ Не удалось прочитать результат. Нажмите «Проверить состояние файла» или «Мои документы» (/documents). Не начинайте новый импорт для восстановления старого."
+            : "⚠️ Не удалось прочитать список документов. Нажмите «Мои документы» (/documents), чтобы проверить его снова. Повторно загружать файлы для этого не нужно.",
+      reply_markup: {
+        inline_keyboard: [
+          ...(request.id
+            ? [[{ text: "🔄 Проверить состояние файла", callback_data: `di:get:${request.id}` }]]
+            : []),
+          [{ text: "📚 Мои документы", callback_data: "di:home" }],
+        ],
+      },
+    });
+  }
+  if (request.op === "cancel") {
+    const view = renderIntakeCancellation(result);
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: view.text,
+      reply_markup: { inline_keyboard: view.rows },
     });
   }
   if (request.op === "blocks" || request.op === "read") {

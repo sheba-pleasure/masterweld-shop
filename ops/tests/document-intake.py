@@ -71,6 +71,10 @@ try:
     worker("finish",claim["id"],claim["lease"],content)
     worker("finish",claim["id"],claim["lease"],content,error="DOCUMENT_LEASE")
     assert rpc("get",id=first["id"])["state"]=="review"
+    # Completion before the confirmation wins: cancel must preserve the actual extraction.
+    finished=rpc("get",id=first["id"])
+    assert rpc("cancel",id=first["id"])==finished
+    assert sql("SELECT count(*) FROM staff_audit_log WHERE action='document_cancel'")=="0"
     linked=rpc("table",id=first["id"],payload={"index":0})
     assert linked["state"]=="config"
     assert rpc("table",id=first["id"],payload={"index":0})["id"]==linked["id"]
@@ -145,7 +149,17 @@ try:
     assert review("get",rid)["original"]==["DEV-ONLY","Training","10"]
     second=worker("claim")
     assert second["id"]!=claim["id"]
-    rpc("cancel",102,second["id"])
+    stopped=rpc("cancel",102,second["id"]);assert stopped["state"]=="canceled"
+    # A lost result/repeated confirmation never revives the job or creates another cancellation.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        repeated=list(pool.map(lambda _: rpc("cancel",102,second["id"]),range(8)))
+    assert all(result==stopped for result in repeated)
+    assert rpc("get",102,second["id"])==stopped
+    assert upload(actor=102)["id"]==second["id"]
+    assert upload(actor=102)["state"]=="canceled"
+    assert sql("SELECT count(*) FROM staff_audit_log WHERE action='document_cancel'")=="1"
+    original=rpc("original",102,second["id"])
+    assert hashlib.sha256(base64.b64decode(original["original_base64"])).hexdigest()==stopped["checksum"]
     worker("finish",second["id"],second["lease"],content,error="DOCUMENT_LEASE")
     third=upload(b"different")
     thirdclaim=worker("claim");assert thirdclaim["id"]==third["id"]
@@ -189,6 +203,6 @@ try:
     assert source["rows"]==[["A","Product A","25"],["C","Product C","40"]]
     assert [p["source_row"] for p in source["provenance"]]==[0,2]
     assert sql("SELECT count(*) FROM products")=="0"
-    print("PASS: private originals, enrollment, review ownership, exact questions, stale edits, approval invalidation, skipped rows, provenance, legacy gate, restart, one reviewed handoff, no catalog/order mutations")
+    print("PASS: cancellation/completion race, duplicate cancellation, canceled upload receipt, private originals, enrollment, review ownership, exact questions, stale edits, approval invalidation, skipped rows, provenance, legacy gate, restart, one reviewed handoff, no catalog/order mutations")
 finally:
     if created: subprocess.run(["docker","rm","-fv",NAME],capture_output=True)
