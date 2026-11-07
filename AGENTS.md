@@ -43,6 +43,10 @@
 ## Type safety
 - npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
 
+## Document parser updates — 07.11.2026
+- Text locators count lines in the original saved text block before empty-line filtering; do not confuse extracted PDF/OCR line numbers with image coordinates. New outputs include text_locator_version=2; document-v1 remains the transport/storage schema.
+- Never rewrite old immutable extractions or reset leases to rerun them. A repeated upload of identical bytes returns the existing document. Parser replacements use ops/dev/update-document-parser.py with the expected current SHA, candidate HTTP validation, graceful worker drain, old-container retention and document fingerprint checks. An uncertain drain requires review, not forced job replay. Application, parser and worker revisions may differ; record each actual version in STATUS.md.
+
 ## Document structure correction — 07.11.2026
 - 0028 adds derived header corrections, manually added rows and split rows through an actor-bound draft with preview/confirmation. Originals/extraction stay immutable. Stable row IDs never move to a neighbour; retired rows remain in history.
 - Structural edits never approve, apply imports or publish products. Header changes withdraw existing approvals; added/split rows begin pending. Preserve skipped decisions, lineage, revision checks, exact question binding and mutation receipts. Undo only the latest unchanged structure revision; never overwrite later decisions.
