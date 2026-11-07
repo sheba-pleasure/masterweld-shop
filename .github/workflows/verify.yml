@@ -80,6 +80,8 @@ jobs:
         run: python3 ops/tests/technical-catalog.py
       - name: Consumable dictionary and reviewed values (isolated PostgreSQL)
         run: python3 ops/tests/consumable-characteristics.py
+      - name: Technical facts require recheck after product identity changes
+        run: python3 ops/tests/technical-identity-review.py
       - name: Telegram bot receipts (isolated PostgreSQL)
         run: python3 ops/tests/telegram-bots.py
       - name: Order notification claims and restart (isolated PostgreSQL)

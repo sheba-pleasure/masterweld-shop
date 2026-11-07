@@ -96,6 +96,14 @@ const view: ImportView = {
   })),
 };
 describe("import confirmation screens", () => {
+  it.each(["preview", "undo_preview"])(
+    "explains identity consequences before %s confirmation",
+    (state) => {
+      const result = renderImport({ ...view, state, items: [] });
+      expect(result.text).toContain("снимает прежние подтверждённые характеристики");
+      expect(result.text).toContain("не подтверждает характеристики автоматически");
+    },
+  );
   it.each(["config", "preview", "applied", "undo_preview", "undone", "canceled"])(
     "%s fits Telegram",
     (state) => {

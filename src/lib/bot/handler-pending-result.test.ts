@@ -84,6 +84,27 @@ it("does not call a mutation after the initial lookup fails", async () => {
   expect(mocks.rpc).not.toHaveBeenCalled();
   expect(sent().text).toContain("Результат пока не подтверждён");
 });
+it.each(["pending", "applied"])(
+  "explains technical recheck in the %s identity-change receipt",
+  async (state) => {
+    mocks.rpc.mockResolvedValue({ data: result(state), error: null });
+    await callback("pcr");
+    expect(sent().text).toContain("снимает прежние подтверждённые характеристики");
+    expect(sent().text).toContain("«Проверенные характеристики»");
+    expect(JSON.stringify(sent().reply_markup).includes("te:open:" + product)).toBe(
+      state === "applied",
+    );
+  },
+);
+it("does not report identity invalidation for a price-only edit", async () => {
+  action = "price";
+  mocks.rpc.mockResolvedValue({
+    data: { ...result("pending"), before: { price: 100 }, after: { price: 120 } },
+    error: null,
+  });
+  await callback("pcr");
+  expect(sent().text).not.toContain("снимает прежние подтверждённые характеристики");
+});
 it("reads a pending result without automatically applying it", async () => {
   mocks.rpc.mockResolvedValue({ data: result("pending"), error: null });
   await callback("pcr");

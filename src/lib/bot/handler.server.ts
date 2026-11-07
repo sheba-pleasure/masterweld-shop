@@ -62,6 +62,10 @@ import {
   type BotProduct,
 } from "./catalog";
 import {
+  changesTechnicalIdentity,
+  technicalIdentityConsequence,
+} from "@/lib/technical/identity-review";
+import {
   describePendingChange,
   isMissingTableError,
   PENDING_PERMISSION,
@@ -915,21 +919,27 @@ async function pendingOperation(
   if (!r.before || typeof r.before !== "object" || !r.after || typeof r.after !== "object")
     return uncertain();
   const change = describePendingChange(act, r.before, r.after);
+  const technicalNotice = changesTechnicalIdentity(r.before, r.after)
+    ? "\n\n" + technicalIdentityConsequence
+    : "";
   if (r.state === "pending")
     return tg("sendMessage", {
       chat_id: chatId,
-      text: `📝 Проверьте изменение\n\n${r.title ?? "Товар"}\n${change}\n\nПока ничего не сохранено. «Сохранить изменение» применит показанные значения. «Отмена — не сохранять» закроет эту правку без применения.`,
+      text: `📝 Проверьте изменение\n\n${r.title ?? "Товар"}\n${change}\n\nПока ничего не сохранено. «Сохранить изменение» применит показанные значения. «Отмена — не сохранять» закроет эту правку без применения.${technicalNotice}`,
       reply_markup: { inline_keyboard: CONFIRM_ROWS(pendingId) },
     });
   return tg("sendMessage", {
     chat_id: chatId,
-    text: `✅ ${r.replayed ? "Изменение уже сохранено" : "Изменение сохранено"}.\n\nРезультат этой операции: ${change}.\nКарточка покажет текущее состояние товара.\n\nЕсли ошиблись, нажмите «Вернуть прежние значения». Сначала бот покажет обратное изменение для проверки. Позднейшие чужие правки не перезаписываются.`,
+    text: `✅ ${r.replayed ? "Изменение уже сохранено" : "Изменение сохранено"}.\n\nРезультат этой операции: ${change}.\nКарточка покажет текущее состояние товара.\n\nЕсли ошиблись, нажмите «Вернуть прежние значения». Сначала бот покажет обратное изменение для проверки. Позднейшие чужие правки не перезаписываются.${technicalNotice}`,
     reply_markup: {
       inline_keyboard: [
         [
           { text: "↩️ Вернуть прежние значения", callback_data: rollbackCallback(pendingId) },
           { text: "📄 Карточка", callback_data: `prd:${r.product_id}` },
         ],
+        ...(technicalNotice
+          ? [[{ text: "⚙️ Проверить характеристики", callback_data: `te:open:${r.product_id}` }]]
+          : []),
       ],
     },
   });
