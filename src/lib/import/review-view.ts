@@ -206,6 +206,9 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     add("🔎 Что проверить в таблице", "checks");
     add("🔎 Прочитать значения целиком", "values", r.row, 0);
     add("📎 Посмотреть исходную строку", "raw");
+    rows.push([
+      { text: "🏷 Модель для поиска источников", callback_data: `dm:${r.id}:0:get:${r.row}` },
+    ]);
     add("✏️ Исправить поле", "cols", r.row, 0);
     rows.push([
       { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },

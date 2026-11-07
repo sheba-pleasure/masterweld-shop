@@ -56,6 +56,8 @@ jobs:
         run: python3 ops/tests/document-intake.py
       - name: Human table structure correction (isolated PostgreSQL)
         run: python3 ops/tests/document-structure.py
+      - name: Human document model confirmation (isolated PostgreSQL)
+        run: python3 ops/tests/document-model.py
       - name: Document upgrade and restore probe (isolated PostgreSQL)
         run: python3 ops/tests/document-upgrade.py
       - name: Offline document extraction and real OCR
