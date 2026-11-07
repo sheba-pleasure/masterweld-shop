@@ -572,7 +572,30 @@ export async function technicalEditor(
         throw new EditorInputError(
           "Ответ не привязан к текущему вопросу. /technical — продолжить черновик. Затем ответьте именно на сообщение бота.",
         );
-      const next = await operation(member, "save", s, { p_data: editorReply(s.data, input.text) });
+      // Only local validation proves this answer was not saved. An uncertain
+      // database result must keep the existing read-only recovery path.
+      let data: ReturnType<typeof editorReply>;
+      try {
+        data = editorReply(s.data, input.text);
+      } catch (error) {
+        if (!(error instanceof EditorInputError)) throw error;
+        await tg("sendMessage", {
+          chat_id: chat.id,
+          text:
+            "⚠️ " +
+            error.message +
+            "\n\nОтвет не сохранён. Нажмите «Повторить ввод» и ответьте на новый вопрос бота. Уже заполненные поля сохранятся." +
+            "\n«К черновику» отменит только незавершённое поле.",
+          reply_markup: {
+            inline_keyboard: [
+              [button(s, "✏️ Повторить ввод", "resume")],
+              [button(s, "⬅️ К черновику", "home")],
+            ],
+          },
+        });
+        return true;
+      }
+      const next = await operation(member, "save", s, { p_data: data });
       if (next) await render(member, chat, next);
       return true;
     }
