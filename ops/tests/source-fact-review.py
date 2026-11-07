@@ -11,6 +11,7 @@ import pathlib
 import subprocess
 import time
 import uuid
+from unittest import mock
 
 parser=argparse.ArgumentParser()
 parser.add_argument("--documentary-conditions",action="store_true")
@@ -705,10 +706,65 @@ try:
         def all_rows():
             tables=sql("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename").splitlines()
             return {t:sql('SELECT md5(coalesce(string_agg(row_to_json(t)::text,chr(10) ORDER BY row_to_json(t)::text),\'\')) FROM public."'+t+'" t') for t in tables}
+        sql("CREATE TABLE public.documentary_install_empty(id integer)")
         baseline=all_rows()
         acl_before=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
           FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')""")
-        sql("BEGIN;"+proposal+"COMMIT;")
+        installer_spec=importlib.util.spec_from_file_location("documentary_conditions_installation",
+          ROOT/"ops/dev/documentary_conditions_installation.py")
+        installer=importlib.util.module_from_spec(installer_spec)
+        installer_spec.loader.exec_module(installer)
+        sql("""CREATE TABLE mw_private.dev_migration_receipts(
+          path text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now());
+          INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES ('previous-test','unchanged');""")
+        assert installer.IDENTITY==compatibility.IDENTITY
+        for revision,image,error in [
+          ("short","sha256:"+"b"*64,"DOCUMENTARY_INSTALL_REVISION"),
+          ("a"*40,"mutable:tag","DOCUMENTARY_INSTALL_IMAGE"),
+        ]:
+            try: installer.transaction(revision,image)
+            except RuntimeError as failure: assert str(failure)==error
+            else: raise AssertionError("INVALID_INSTALL_IDENTITY_ACCEPTED")
+        with mock.patch.object(installer,"PROPOSAL_SHA256","0"*64):
+            try: installer.transaction("a"*40,"sha256:"+"b"*64)
+            except RuntimeError as failure: assert str(failure)=="DOCUMENTARY_INSTALL_CHECKSUM"
+            else: raise AssertionError("MODIFIED_INSTALL_PROPOSAL_ACCEPTED")
+        install_sql=installer.transaction("a"*40,"sha256:"+"b"*64)
+        def unchanged_installation():
+            assert all_rows()==baseline
+            assert sql("SELECT to_regprocedure('mw_private.documentary_conditions_version()') IS NULL")=="t"
+            assert sql("SELECT jsonb_object_agg(path,sha256) FROM mw_private.dev_migration_receipts")=='{"previous-test": "unchanged"}'
+            validate_measurement(measurement,"TECH_BAD_CONTEXT")
+        # Corruption after proposal execution must roll back both schema and data.
+        for injected,expected_error in [
+          ("UPDATE public.staff SET name='Unexpected' WHERE telegram_id=101;", "DOCUMENTARY_INSTALL_ROWS_CHANGED"),
+          ("UPDATE mw_private.dev_migration_receipts SET sha256='Changed';", "DOCUMENTARY_INSTALL_ROWS_CHANGED"),
+          ("GRANT EXECUTE ON FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) TO anon;", "DOCUMENTARY_INSTALL_FUNCTIONS_CHANGED"),
+          ("CREATE FUNCTION public.unexpected_install_function() RETURNS int LANGUAGE sql AS 'SELECT 1';", "DOCUMENTARY_INSTALL_FUNCTIONS_CHANGED"),
+          ("GRANT UPDATE ON public.products TO anon;", "DOCUMENTARY_INSTALL_RELATIONS_CHANGED"),
+          ("CREATE POLICY unexpected_install_policy ON public.products FOR UPDATE TO anon USING(true);", "DOCUMENTARY_INSTALL_ACCESS_CHANGED"),
+          ("CREATE ROLE unexpected_install_role;", "DOCUMENTARY_INSTALL_ACCESS_CHANGED"),
+          ("ALTER TABLE public.technical_attributes ADD CONSTRAINT unexpected_install_check CHECK(true);", "DOCUMENTARY_INSTALL_CONSTRAINTS_CHANGED"),
+          ("ALTER TABLE public.documentary_install_empty ADD COLUMN unexpected_install_column text;", "DOCUMENTARY_INSTALL_COLUMNS_CHANGED"),
+        ]:
+            sql(install_sql.replace("-- All checks precede",injected+"\n-- All checks precede"),error=expected_error)
+            unchanged_installation()
+        # Wrong instance and modified baseline fail before the proposal can commit.
+        sql(install_sql.replace("DO $identity$", "UPDATE mw_private.environment SET environment='production'; DO $identity$",1),
+          error="DOCUMENTARY_INSTALL_DEV_REQUIRED")
+        unchanged_installation()
+        assert json.loads(sql("SELECT public.mw_environment_identity()"))==installer.IDENTITY
+        bad_baseline="ALTER FUNCTION mw_private.validate_technical_document_before_origins(jsonb,text) COST 101;"
+        sql(install_sql.replace(proposal,bad_baseline+proposal),error="DOCUMENTARY_CONDITIONS_BASELINE")
+        unchanged_installation()
+        # Late failure prevents the receipt and proposed functions from surviving.
+        sql(install_sql.replace("NOTIFY pgrst","SELECT 1/0; NOTIFY pgrst"),error="division by zero")
+        unchanged_installation()
+        result=sql(install_sql)
+        assert json.loads(result)["state"]=="recorded"
+        assert sql("SELECT sha256 FROM mw_private.dev_migration_receipts WHERE path="+lit(installer.PROPOSAL_PATH))==installer.PROPOSAL_SHA256
+        sql(install_sql,error="DOCUMENTARY_INSTALL_ALREADY_PRESENT")
+        assert sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="2"
         assert all_rows()==baseline,"DOCUMENTARY_CONDITIONS_CHANGED_ROWS"
         assert compatibility.validate_schema(json.loads(sql(compatibility.SCHEMA_SQL)))==frozenset({
           compatibility.CAPABILITY,compatibility.DOCUMENTARY_CAPABILITY})
@@ -988,7 +1044,9 @@ try:
     print(json.dumps({"ok":True,"documentary_conditions":({
       "proposal_sha256":hashlib.sha256(proposal.encode()).hexdigest(),
       "checks":["exact_unicode","existing_rows_unchanged","existing_acl_unchanged","distinct_conditions",
-        "required_condition","bound_human_reply","decision_withdrawal","restart_question","handoff_receipt"]
+        "required_condition","bound_human_reply","decision_withdrawal","restart_question","handoff_receipt",
+        "atomic_install_preservation","install_corruption_rollback","wrong_instance_rollback",
+        "changed_baseline_rollback","late_failure_no_receipt","installed_repeat_refused"]
       } if documentary_conditions else None),"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
       "handoff_migration_sha256":hashlib.sha256(handoff_migration.encode()).hexdigest(),
       "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
