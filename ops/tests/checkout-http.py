@@ -244,13 +244,21 @@ try:
         report["checks"]["startupGuards"] = True
         report["checks"]["loss"] = browser_phase("loss")
         assert counts() == {"orders": 1, "notifications": 1}
+        assert sql("SELECT count(*) FROM order_submissions") == "1"
+        saved_attempt = json.loads(json.loads((artifacts / "attempt.json").read_text())["raw"])
+        request_id = str(uuid.UUID(saved_attempt["requestId"]))
+        assert sql("SELECT count(*) FROM order_submissions WHERE request_id=" + literal(request_id) +
+                   "::uuid AND order_id IS NOT NULL") == "1"
         report["checks"]["parallelRequestsOneOrder"] = True
+        report["checks"]["browserAttemptMatchesReceipt"] = True
         sql("UPDATE products SET price=950 WHERE sku='QA-HTTP'")
         run(["docker", "restart", app]); health()
         report["checks"]["recovery"] = browser_phase("recovery")
         assert counts() == {"orders": 2, "notifications": 2}
         assert json.loads(sql("SELECT json_agg(total ORDER BY total) FROM shop_orders")) == [900, 950]
         assert sql("SELECT bool_and(state='pending' AND attempts=0) FROM order_notifications") == "t"
+        assert sql("SELECT count(*) FROM order_submissions") == "3"
+        assert sql("SELECT count(*) FROM order_submissions WHERE result->>\'code\'=\'PRICE_CHANGED\'") == "1"
         report["checks"]["explicitRepeatAtNewPrice"] = True
         report["checks"]["notificationsUnsent"] = True
         report["passed"] = True
