@@ -131,6 +131,7 @@ describe("Source fact callback boundaries", () => {
       ["stop", []],
       ["resume", []],
       ["issues", []],
+      ["changes", [255]],
     ] as const) {
       v.review.revision = 2147483647;
       const data = sourceFactButton(v.review, action, 255, ...args);
@@ -157,6 +158,7 @@ describe("Source fact callback boundaries", () => {
       base + "fields:0",
       base + "publish:0",
       base + "quote:0:1000000",
+      base + "changes:0:256",
       base.replace(":4:", ":2147483648:") + "row:0",
       base.replace(":4:", ":04:") + "row:0",
       "sf:r:" + compactId(id) + "=:4:row:0",
@@ -344,6 +346,46 @@ describe("Human review screens", () => {
     expect(detail.text).toContain("160 А");
     expect(actions(detail)).not.toContain("accept");
     expect(actions(detail)).not.toContain("prompt");
+  });
+  it("Offers a read-only comparison from preview and keeps it readable after the source becomes stale", () => {
+    const v = fixture();
+    accepted(v);
+    v.review.phase = "preview";
+    v.review.merge_preview = {
+      version: "source-fact-merge-v1",
+      before_revision: null,
+      before_document: null,
+      after_document: {
+        family_code: "power_mma",
+        sources: [
+          {
+            key: "new",
+            kind: "manual",
+            publisher: "Учебный",
+            model: "DEV-160",
+            title: "Паспорт",
+            url: "",
+            sha256: "a".repeat(64),
+            locator: "Страница 1",
+            checked_on: "2026-11-07",
+          },
+        ],
+        values: [{ ...v.row!.draft!, process: "mma", state: "known", source_key: "new" }],
+      },
+      changes: [{ kind: "added", before_index: null, after_index: 0 }],
+    };
+    expect(actions(renderSourceFactReview(v, "list", 0, 0, now))).toContain("changes");
+    expect(renderSourceFactReview(v, "list", 0, 0, now).text).toContain("Добавится: 1");
+    for (const usable of [true, false]) {
+      v.usable = usable;
+      const detail = renderSourceFactReview(v, "changes", 0, 0, now);
+      expect(detail.text).toContain("160 А");
+      expect(actions(detail)).toEqual(["list"]);
+      expect(actions(detail)).not.toContain("preview");
+    }
+    const wrongFamily = structuredClone(v);
+    wrongFamily.review.family_code = "power_tig_dc";
+    expect(sourceFactReviewResponse.safeParse(wrongFamily).success).toBe(false);
   });
   it("Uses parsed timestamps instead of comparing timezone strings", () => {
     const v = fixture();

@@ -11,6 +11,11 @@ import {
 } from "./presentation";
 import { technicalContext, technicalDocument, technicalProcess } from "./schema";
 import { sourceFactInputField, sourceFactInputFields } from "./source-review-input";
+import {
+  sourceFactMergePreview,
+  sourceFactMergeSummary,
+  sourceFactMergeDetail,
+} from "./source-review-merge";
 
 const revision = z.number().int().min(0).max(2147483647);
 const index = z.number().int().min(0).max(255);
@@ -85,6 +90,7 @@ export const sourceFactReviewResponse = z
       phase: z.enum(["reviewing", "preview", "handed", "canceled", "expired"]),
       editor_session_id: z.string().uuid().nullable(),
       prepared_document: technicalDocument.nullable(),
+      merge_preview: sourceFactMergePreview.nullable().default(null),
       created_at: timestamp,
       expires_at: timestamp,
       preview_expires_at: timestamp.nullable(),
@@ -127,6 +133,8 @@ export const sourceFactReviewResponse = z
     const c = v.counts,
       p = v.prompt;
     if (
+      (v.review.merge_preview !== null &&
+        v.review.merge_preview.after_document.family_code !== v.review.family_code) ||
       c.total !== c.pending + c.accepted + c.skipped ||
       c.total < 1 ||
       new Set(v.rows.map((r) => r.row_index)).size !== v.rows.length ||
@@ -169,6 +177,7 @@ export const sourceFactActions = [
   "cancel",
   "stop",
   "resume",
+  "changes",
 ] as const;
 export type SourceFactAction = (typeof sourceFactActions)[number];
 export type SourceFactCallback =
@@ -191,6 +200,7 @@ function validArgs(action: SourceFactAction, args: number[]) {
     return args.length === 2 && !!dictionary.attributes[args[0]!] && !!processes[args[1]!];
   if (action === "prompt") return args.length === 1 && !!sourceFactInputFields[args[0]!];
   if (action === "modes") return args.length === 1 && !!dictionary.attributes[args[0]!];
+  if (action === "changes") return args.length === 1 && args[0]! <= 255;
   if (["fields", "quote", "missing"].includes(action))
     return args.length === 1 && args[0]! <= 999999;
   return args.length === 0;
@@ -448,7 +458,7 @@ export function renderSourceFactReview(
         },
       ]);
     text += "\n\n";
-    if (!["row", "quote", "missing", "issues", "askcancel"].includes(screen)) {
+    if (!["row", "quote", "missing", "issues", "askcancel", "changes"].includes(screen)) {
       for (const line of v.rows)
         add(
           icon[line.decision] +
@@ -494,6 +504,16 @@ export function renderSourceFactReview(
     original();
     return { text, rows };
   }
+  if (screen === "changes") {
+    if (!r.merge_preview) throw new Error("SOURCE_FACT_MERGE_RESULT");
+    text += sourceFactMergeDetail(r.merge_preview, arg);
+    if (arg) add("⬅️ Предыдущее изменение", "changes", rowIndex, arg - 1);
+    if (arg + 1 < r.merge_preview.changes.length)
+      add("➡️ Следующее изменение", "changes", rowIndex, arg + 1);
+    add("↩️ К итогу проверки", "list", rowIndex);
+    original();
+    return { text, rows };
+  }
   if (r.phase === "preview" && !["row", "missing", "issues"].includes(screen)) {
     text +=
       "📋 Предпросмотр\nПроверено: " +
@@ -505,6 +525,14 @@ export function renderSourceFactReview(
       "\n\nЭто выбранные предложения, ещё не характеристики на сайте.";
     if (!r.preview_expires_at || Date.parse(r.preview_expires_at) <= now)
       text += "\nВремя предпросмотра истекло. Вернитесь к строкам и проверьте итог заново.";
+    if (r.merge_preview) {
+      text += "\n\n" + sourceFactMergeSummary(r.merge_preview);
+      if (r.merge_preview.changes.length)
+        add("🔎 Посмотреть каждое изменение", "changes", rowIndex, 0);
+    } else {
+      text +=
+        "\n\nСравнение с прежними характеристиками недоступно. Передача невозможна; вернитесь к строкам и проверьте итог заново.";
+    }
     // Handoff is intentionally absent until source dependency guards and the atomic transfer are ready.
     text += "\nПередача в редактор пока недоступна в этой разрабатываемой версии.";
     for (const line of v.rows)

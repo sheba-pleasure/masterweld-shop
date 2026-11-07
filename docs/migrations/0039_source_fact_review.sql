@@ -14,6 +14,7 @@ CREATE TABLE public.source_fact_reviews (
  phase text NOT NULL DEFAULT 'reviewing' CHECK(phase IN('reviewing','preview','handed','canceled','expired')),
  editor_session_id uuid REFERENCES public.technical_editor_sessions(id),
  prepared_document jsonb,
+ merge_preview jsonb,
  created_at timestamptz NOT NULL DEFAULT now(),
  expires_at timestamptz NOT NULL DEFAULT now()+interval '24 hours',
  preview_expires_at timestamptz
@@ -157,12 +158,87 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION mw_private.source_fact_validate_value(text,jsonb) FROM PUBLIC,anon,authenticated,service_role;
 
+-- The plan is a frozen derivative, never a catalog write. Compare facts by exact
+-- field/process/conditions; equal numbers in JSONB compare equally despite decimal spelling.
+CREATE FUNCTION mw_private.source_fact_merge_preview(p_before jsonb,p_incoming jsonb,p_review uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $merge$
+DECLARE item jsonb; old_fact jsonb; new_fact jsonb; old_index integer; new_index integer;
+ next_values jsonb:='[]'; next_sources jsonb:='[]'; incoming_values jsonb:='[]'; changes jsonb:='[]';
+ source_map jsonb:='{}'; matched integer[]:='{}'; source_key text; source_number integer:=0;
+ same_family boolean; result_document jsonb;
+BEGIN
+ IF p_review IS NULL OR p_incoming IS NULL THEN RAISE EXCEPTION 'SOURCE_FACT_MERGE_INPUT'; END IF;
+ PERFORM validate_technical_document(p_incoming,'pending_review');
+ IF p_before IS NOT NULL THEN PERFORM validate_technical_document(p_before,'pending_review'); END IF;
+ same_family:=p_before->>'family_code'=p_incoming->>'family_code';
+ -- Give each new source a key that cannot overwrite any old source, including an unused one.
+ FOR item IN SELECT value FROM jsonb_array_elements(p_incoming->'sources') LOOP
+  LOOP
+   source_key:='sf'||replace(p_review::text,'-','')||'_'||source_number;
+   source_number:=source_number+1;
+   EXIT WHEN NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(p_before->'sources','[]')) s
+    WHERE s->>'key'=source_key);
+  END LOOP;
+  source_map:=source_map||jsonb_build_object(item->>'key',source_key);
+  next_sources:=next_sources||jsonb_build_array(item||jsonb_build_object('key',source_key));
+ END LOOP;
+ FOR item IN SELECT value FROM jsonb_array_elements(p_incoming->'values') LOOP
+  incoming_values:=incoming_values||jsonb_build_array(CASE WHEN item->>'source_key' IS NOT NULL
+   THEN item||jsonb_build_object('source_key',source_map->>(item->>'source_key')) ELSE item END);
+ END LOOP;
+ FOR old_fact,old_index IN SELECT value,(ordinality-1)::integer
+  FROM jsonb_array_elements(coalesce(p_before->'values','[]')) WITH ORDINALITY LOOP
+  IF same_family THEN
+   SELECT value,(ordinality-1)::integer INTO new_fact,new_index
+    FROM jsonb_array_elements(incoming_values) WITH ORDINALITY
+    WHERE jsonb_build_array(value->'attribute_code',value->'process',value->'context')
+     =jsonb_build_array(old_fact->'attribute_code',old_fact->'process',old_fact->'context');
+   IF FOUND THEN
+    changes:=changes||jsonb_build_array(jsonb_build_object('kind','replaced',
+     'before_index',old_index,'after_index',jsonb_array_length(next_values)));
+    next_values:=next_values||jsonb_build_array(new_fact);
+    matched:=array_append(matched,new_index);
+   ELSE
+    changes:=changes||jsonb_build_array(jsonb_build_object('kind','retained',
+     'before_index',old_index,'after_index',jsonb_array_length(next_values)));
+    next_values:=next_values||jsonb_build_array(old_fact);
+   END IF;
+  ELSE
+   changes:=changes||jsonb_build_array(jsonb_build_object('kind','removed',
+    'before_index',old_index,'after_index',NULL));
+  END IF;
+ END LOOP;
+ FOR new_fact,new_index IN SELECT value,(ordinality-1)::integer
+  FROM jsonb_array_elements(incoming_values) WITH ORDINALITY LOOP
+  IF NOT new_index=ANY(matched) THEN
+   changes:=changes||jsonb_build_array(jsonb_build_object('kind','added','before_index',NULL,
+    'after_index',jsonb_array_length(next_values)));
+   next_values:=next_values||jsonb_build_array(new_fact);
+  END IF;
+ END LOOP;
+ -- Keep every still-used old source exactly; drop only references no resulting fact uses.
+ SELECT coalesce(jsonb_agg(s.value ORDER BY s.ordinality),'[]') INTO next_sources
+  FROM jsonb_array_elements(coalesce(p_before->'sources','[]')||next_sources) WITH ORDINALITY s
+  WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(next_values) v WHERE v->>'source_key'=s.value->>'key');
+ IF jsonb_array_length(next_values)>128 THEN RAISE EXCEPTION 'SOURCE_FACT_MERGE_VALUE_LIMIT'; END IF;
+ IF jsonb_array_length(next_sources)>32 THEN RAISE EXCEPTION 'SOURCE_FACT_MERGE_SOURCE_LIMIT'; END IF;
+ result_document:=jsonb_build_object('family_code',p_incoming->'family_code',
+  'sources',next_sources,'values',next_values);
+ IF octet_length(result_document::text)>131072 THEN RAISE EXCEPTION 'SOURCE_FACT_MERGE_SIZE_LIMIT'; END IF;
+ PERFORM validate_technical_document(result_document,'pending_review');
+ RETURN jsonb_build_object('version','source-fact-merge-v1','before_document',p_before,
+  'after_document',result_document,'changes',changes);
+END $merge$;
+REVOKE ALL ON FUNCTION mw_private.source_fact_merge_preview(jsonb,jsonb,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
 CREATE FUNCTION public.bot_source_fact_review(p_actor bigint,p_op text,p_id uuid DEFAULT NULL,
  p_revision integer DEFAULT NULL,p_index integer DEFAULT 0,p_payload jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $review$
 DECLARE r source_fact_reviews%ROWTYPE; line source_fact_rows%ROWTYPE; src product_document_sources%ROWTYPE;
  d document_intakes%ROWTYPE; v_proposal jsonb; supplied jsonb; all_rows jsonb; accepted_values jsonb;
  source_values jsonb; result_document jsonb; counts jsonb; current_model jsonb; selected_attribute technical_attributes%ROWTYPE;
+ before_document jsonb; before_revision uuid; merge_plan jsonb;
  n integer; ix integer:=0; row_count integer; usable boolean; family text; changed boolean:=false;
  prompt source_fact_prompts%ROWTYPE; input_field text; input_value jsonb; context_number numeric;
 BEGIN
@@ -396,13 +472,20 @@ BEGIN
        GROUP BY coalesce(i.locator_override,i.proposal->'evidence'->>'locator')) q;
     result_document:=jsonb_build_object('family_code',r.family_code,'sources',source_values,'values',accepted_values);
     PERFORM validate_technical_document(result_document,'pending_review');
+    SELECT c.published_revision,t.document INTO before_revision,before_document
+     FROM technical_cards c LEFT JOIN technical_revisions t ON t.id=c.published_revision
+     WHERE c.product_id=r.product_id;
+    IF NOT mw_private.technical_revision_model_matches(before_revision,r.product_id)
+     THEN RAISE EXCEPTION 'SOURCE_FACT_PREVIOUS_MODEL_STALE'; END IF;
+    merge_plan:=mw_private.source_fact_merge_preview(before_document,result_document,r.id);
     UPDATE source_fact_reviews SET phase='preview',preview_expires_at=now()+interval '15 minutes',
-     prepared_document=result_document WHERE id=r.id;
+     prepared_document=result_document,merge_preview=merge_plan||jsonb_build_object('before_revision',before_revision)
+     WHERE id=r.id;
    ELSIF p_op='edit' THEN
     IF r.phase<>'preview' THEN RAISE EXCEPTION 'SOURCE_FACT_NOT_PREVIEW'; END IF;
-    UPDATE source_fact_reviews SET phase='reviewing',preview_expires_at=NULL,prepared_document=NULL WHERE id=r.id;
+    UPDATE source_fact_reviews SET phase='reviewing',preview_expires_at=NULL,prepared_document=NULL,merge_preview=NULL WHERE id=r.id;
    ELSIF p_op='cancel' THEN
-    UPDATE source_fact_reviews SET phase='canceled',preview_expires_at=NULL,prepared_document=NULL WHERE id=r.id;
+    UPDATE source_fact_reviews SET phase='canceled',preview_expires_at=NULL,prepared_document=NULL,merge_preview=NULL WHERE id=r.id;
    END IF;
    IF p_op<>'bind' THEN
     DELETE FROM source_fact_prompts WHERE actor=p_actor AND review_id=r.id;

@@ -377,12 +377,130 @@ try:
       }});"""
     subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",script],cwd=ROOT,
       input=json.dumps([prepared[0],old_question,v]),capture_output=True,text=True,check=True)
+    # The merge is private and read-only. A new source must never overwrite an old key.
+    for role in ["anon","authenticated","service_role"]:
+        assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.source_fact_merge_preview(jsonb,jsonb,uuid)','EXECUTE')")=="f"
+    def merge(previous,incoming,error=None):
+        raw=sql("SELECT mw_private.source_fact_merge_preview("+
+          ("NULL" if previous is None else lit(json.dumps(previous)))+","+
+          lit(json.dumps(incoming))+","+lit(request)+")",error)
+        if error:return None
+        return {**json.loads(raw),"before_revision":str(uuid.uuid4()) if previous is not None else None}
+    incoming=copy.deepcopy(v["review"]["prepared_document"])
+    new_source=copy.deepcopy(incoming["sources"][0])
+    collision_key="sf"+request.replace("-","")+"_0"
+    previous_source={**new_source,"key":collision_key,"publisher":"Прежний изготовитель",
+      "title":"Прежний паспорт","sha256":"b"*64}
+    def known(code,val,context=None,source=collision_key):
+        return {**value(code,val,context),"state":"known","source_key":source}
+    previous={"family_code":"power_mma","sources":[previous_source],
+      "values":[known("mma_current_max_a",150),
+        known("mma_duty_cycle_pct",50,{"temperature_c":40.0,"current_a":160.0}),
+        known("mma_duty_cycle_pct",80,{"current_a":100,"temperature_c":40}),
+        {**known("mma_current_min_a",None),"state":"unknown","source_key":None}]}
+    plan=merge(previous,incoming)
+    assert [c["kind"] for c in plan["changes"]]==["replaced","replaced","retained","retained","added"]
+    assert len(plan["after_document"]["values"])==5
+    assert plan["after_document"]["values"][2:4]==previous["values"][2:4]
+    assert plan["after_document"]["sources"][0]==previous_source
+    assert plan["after_document"]["values"][0]["source_key"]!=collision_key
+    assert plan["before_document"]==previous
+    assert plan["after_document"]["values"][0]["value"]==170
+    assert plan["after_document"]["values"][1]["value"]==60
+    # Same source key in the two documents refers to different sources; namespace them independently.
+    same_key=copy.deepcopy(previous)
+    same_key["sources"][0]["key"]=new_source["key"]
+    for fact in same_key["values"]:
+        if fact["state"]=="known":fact["source_key"]=new_source["key"]
+    same_plan=merge(same_key,incoming)
+    assert same_plan["after_document"]["values"][2]["source_key"]==new_source["key"]
+    assert same_plan["after_document"]["values"][0]["source_key"]!=new_source["key"]
+    # A value may be unchanged but its evidence replaces the previous source; show it as replacement.
+    same_value=copy.deepcopy(previous)
+    same_value["values"][0]["value"]=170
+    assert merge(same_value,incoming)["changes"][0]["kind"]=="replaced"
+    # Another family removes every old fact from the new draft, while preserving its full snapshot.
+    other_family={"family_code":"power_tig_dc","sources":[previous_source],"values":[
+      {"attribute_code":"tig_current_max_a","process":"tig","state":"known","value":200,
+       "unit_code":"a","context":{},"source_key":collision_key}]}
+    family_plan=merge(other_family,incoming)
+    assert [c["kind"] for c in family_plan["changes"]]==["removed","added","added","added"]
+    assert family_plan["before_document"]==other_family
+    assert collision_key not in [s["key"] for s in family_plan["after_document"]["sources"]]
+    # Limits reject the complete plan instead of dropping retained values or sources.
+    many=copy.deepcopy(previous);many["values"]=[
+      known("mma_duty_cycle_pct",60,{"current_a":i,"temperature_c":20}) for i in range(128)]
+    merge(many,incoming,error="SOURCE_FACT_MERGE_VALUE_LIMIT")
+    many["sources"]=[{**previous_source,"key":"old_"+str(i)} for i in range(32)]
+    many["values"]=[known("mma_duty_cycle_pct",60,{"current_a":i,"temperature_c":20},source="old_"+str(i)) for i in range(32)]
+    merge(many,incoming,error="SOURCE_FACT_MERGE_SOURCE_LIMIT")
+    def large_doc(start):
+        sources=[{**previous_source,"key":"large_"+str(i),"publisher":"P"*1000,
+          "model":"M"*1000,"title":"T"*1000,"locator":"L"*1000} for i in range(16)]
+        return {"family_code":"power_mma","sources":sources,"values":[
+          known("mma_duty_cycle_pct",60,{"current_a":i,"temperature_c":20,
+            "gas":"Газ"*30,"material":"Материал"*14},source="large_"+str(i%16))
+          for i in range(start,start+64)]}
+    merge(large_doc(0),large_doc(64),error="SOURCE_FACT_MERGE_SIZE_LIMIT")
+    # Incoming bounds must also agree with the retained minimum.
+    contradictory=copy.deepcopy(previous)
+    contradictory["values"]=[known("mma_current_min_a",180)]
+    merge(contradictory,incoming,error="TECH_REVERSED_RANGE")
+    assert v["review"]["merge_preview"]["before_document"] is None
+    assert all(c["kind"]=="added" for c in v["review"]["merge_preview"]["changes"])
+    # Parse real SQL plans and render every change, including removed/retained values and source collisions.
+    merge_script="""import { sourceFactMergePreview, sourceFactMergeSummary, sourceFactMergeDetail } from './src/lib/technical/source-review-merge.ts';
+      let raw=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',chunk=>raw+=chunk);
+      process.stdin.on('end',()=>{for(const value of JSON.parse(raw)) {
+        const parsed=sourceFactMergePreview.parse(value);
+        sourceFactMergeSummary(parsed);
+        parsed.changes.forEach((_,i)=>sourceFactMergeDetail(parsed,i));
+      }});"""
+    subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",merge_script],cwd=ROOT,
+      input=json.dumps([plan,same_plan,family_plan,v["review"]["merge_preview"]]),
+      capture_output=True,text=True,check=True)
+    # Exercise the public review RPC against a real previous technical revision.
+    # Keep this scenario in a rolled-back test transaction so the old-data assertion remains meaningful.
+    sql("BEGIN; DO $merge_rpc$ DECLARE t jsonb; r jsonb; saved_plan jsonb; i integer; expected_doc jsonb:="+
+      lit(json.dumps(previous))+"::jsonb; incoming_doc jsonb:="+lit(json.dumps(incoming))+"::jsonb; BEGIN "+
+      "PERFORM bot_source_fact_review(101,'cancel',"+lit(request)+","+str(v["review"]["revision"])+"); "+
+      "t:=bot_technical_catalog(101,'preview',"+lit(pid)+",NULL,expected_doc,'verified',0,mw_private.technical_model_context("+lit(pid)+")); "+
+      "PERFORM bot_technical_catalog(101,'apply',p_change_id:=(t->>'change_id')::uuid); "+
+      "r:=bot_source_fact_review(101,'prepare',"+lit(str(uuid.uuid4()))+",NULL,0,"+lit(json.dumps(payload))+"); "+
+      """FOR i IN 0..2 LOOP
+        r:=bot_source_fact_review(101,'save',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer,i,
+          jsonb_build_object('draft',(incoming_doc->'values'->i)-ARRAY['state','source_key']));
+        r:=bot_source_fact_review(101,'accept',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer,i);
+      END LOOP;
+      r:=bot_source_fact_review(101,'skip',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer,3);
+      r:=bot_source_fact_review(101,'publisher',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer,0,'{"text":"Учебный изготовитель"}');
+      r:=bot_source_fact_review(101,'preview',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer);
+      saved_plan:=r->'review'->'merge_preview';
+      IF saved_plan->'before_document' IS DISTINCT FROM expected_doc
+        OR saved_plan->>'before_revision' IS NULL
+        OR jsonb_array_length(saved_plan->'after_document'->'values')<>5
+        OR (SELECT count(*) FROM technical_revisions)<>1
+        OR EXISTS(SELECT 1 FROM technical_editor_sessions)
+        THEN RAISE EXCEPTION 'QA_MERGE_RPC_DAMAGED_PREVIOUS'; END IF;
+      r:=bot_source_fact_review(101,'get',(r->'review'->>'id')::uuid);
+      IF r->'review'->'merge_preview' IS DISTINCT FROM saved_plan THEN RAISE EXCEPTION 'QA_MERGE_PLAN_REFRESHED'; END IF;
+      -- Simulate a historical technical binding from an older model selection.
+      UPDATE technical_change_models SET context=jsonb_set(context,'{revision}','999')
+        WHERE change_id=(t->>'change_id')::uuid;
+      r:=bot_source_fact_review(101,'edit',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer);
+      BEGIN
+        PERFORM bot_source_fact_review(101,'preview',(r->'review'->>'id')::uuid,(r->'review'->>'revision')::integer);
+        RAISE EXCEPTION 'QA_MERGE_ACCEPTED_OLD_MODEL';
+      EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM<>'SOURCE_FACT_PREVIOUS_MODEL_STALE' THEN RAISE; END IF;
+      END;
+    END $merge_rpc$; ROLLBACK;""")
     assert snapshot()==before,"REVIEW_CHANGED_OLD_TABLES"
     assert sql("SELECT count(*) FROM technical_revisions")=="0"
     command(["docker","restart",NAME]);ready()
     assert facts("get",request)=={**v,"row":facts("get",request)["row"]} # Default selected row may differ.
     v=step("edit",v)
-    assert v["review"]["prepared_document"] is None
+    assert v["review"]["prepared_document"] is None and v["review"]["merge_preview"] is None
     # A subsequent technical edit invalidates the captured base; it is never silently refreshed.
     sql("INSERT INTO technical_cards(product_id,version) VALUES("+lit(pid)+",1)")
     assert not facts("get",request)["usable"]
@@ -407,6 +525,8 @@ try:
        "bound_questions","restart_with_question","explicit_resume","cancel_input","exclusive_editors_both_orders","concurrent_editor_starts",
        "reply_audit_atomicity","revoked_restored_role","expired_question","row_action_invalidates_question","withdrawn_source_question",
        "publisher_required","preview_only","same_page_grouping","ui_response_contract","next_pending","old_data_preserved","restart",
-       "stale_base","withdrawn_source","cancel_receipt"]}))
+       "stale_base","withdrawn_source","cancel_receipt","merge_preserves_old_facts","merge_source_collision",
+       "merge_equal_conditions","merge_family_removal","merge_limits_no_truncation","merge_bounds","merge_ui_contract",
+       "merge_rpc_previous_revision","merge_rejects_previous_model"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)

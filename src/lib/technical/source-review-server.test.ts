@@ -87,6 +87,7 @@ function fixture(): SourceFactReview {
       phase: "reviewing",
       editor_session_id: null,
       prepared_document: null,
+      merge_preview: null,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 86400000).toISOString(),
       preview_expires_at: null,
@@ -263,6 +264,16 @@ it("Reads current persisted rows even from old read-only buttons", async () => {
   await showSourceFactReview(member, chat, from, sourceFactButton({ id, revision: 0 }, "row"));
   expect(calls()).toEqual(["bot_source_fact_review:get"]);
   expect(texts()).toContain("160 А");
+});
+it("Does not reopen a different merge position from an older preview button", async () => {
+  await showSourceFactReview(
+    member,
+    chat,
+    from,
+    sourceFactButton({ id, revision: 3 }, "changes", 0, 0),
+  );
+  expect(calls()).toEqual(["bot_source_fact_review:get"]);
+  expect(texts()).toContain("прежнему шагу");
 });
 it("Refuses stale mutation buttons before making a write", async () => {
   await showSourceFactReview(member, chat, from, sourceFactButton({ id, revision: 3 }, "accept"));

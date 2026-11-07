@@ -53,6 +53,16 @@ const messages: Record<string, string> = {
   SOURCE_FACT_DECISIONS_REQUIRED:
     "Остались строки без решения. Проверьте каждую или выберите «Пропустить».",
   SOURCE_FACT_ACCEPTED_LIMIT: "Для итога нужно выбрать от 1 до 128 характеристик.",
+  SOURCE_FACT_MERGE_VALUE_LIMIT:
+    "Вместе с прежними сведениями получится больше 128 характеристик. Ничего не отброшено. Вернитесь к строкам и сократите выбранный набор либо сначала разберите прежние сведения в редакторе.",
+  SOURCE_FACT_MERGE_SIZE_LIMIT:
+    "Сравнение получилось слишком большим. Ничего не обрезано. Вернитесь к строкам и сократите выбранный набор либо сначала разберите прежние сведения в редакторе.",
+  SOURCE_FACT_MERGE_SOURCE_LIMIT:
+    "Вместе с прежними сведениями получится больше 32 источников. Ничего не отброшено. Вернитесь к строкам либо сначала разберите прежние источники в редакторе.",
+  SOURCE_FACT_PREVIOUS_MODEL_STALE:
+    "Прежние характеристики относятся к другому выбору модели. Сначала откройте редактор характеристик товара и проверьте их заново. Этот разбор не заменил прежние сведения.",
+  SOURCE_FACT_MERGE_RESULT:
+    "Не удалось прочитать сравнение с прежними характеристиками. Ничего не передано. Откройте сохранённый результат; если сравнения нет, вернитесь к строкам и проверьте итог заново.",
   SOURCE_FACT_SOURCE_LIMIT:
     "Выбрано больше 32 мест в документе. Разделите проверку на отдельные разборы.",
   SOURCE_FACT_LOCATOR_REQUIRED:
@@ -348,6 +358,7 @@ const readActions: SourceFactAction[] = [
   "missing",
   "issues",
   "askcancel",
+  "changes",
 ];
 export async function showSourceFactReview(
   m: StaffMember,
@@ -369,6 +380,9 @@ export async function showSourceFactReview(
     } else {
       v = requireReview(await facts(m, "get", action.id, undefined, action.index));
       if (readActions.includes(action.action)) {
+        // Merge positions belong to one frozen preview, unlike immutable source row indices.
+        if (action.action === "changes" && v.review.revision !== action.revision)
+          throw new Error("SOURCE_FACT_STALE_BUTTON");
         // Read-only navigation opens the persisted row even after an old button. Every new write gets its current version.
         output = {
           view: renderSourceFactReview(v, action.action, action.index, action.args[0] ?? 0),
