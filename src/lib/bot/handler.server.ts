@@ -18,6 +18,7 @@ import {
 import { parseImportCallback } from "@/lib/import/catalog-view";
 import { showDocumentModel } from "@/lib/import/model.server";
 import { showProductModelLinks } from "@/lib/import/model-links.server";
+import { showModelChoice } from "@/lib/import/model-choice.server";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
@@ -2374,6 +2375,7 @@ export async function handleUpdate(update: TgUpdate) {
   }
   if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
   if (cb.data?.startsWith("mp:")) return showProductModelLinks(m, chat, cb.data);
+  if (cb.data?.startsWith("pm:")) return showModelChoice(m, chat, cb.data, requestId);
   if (cb.data?.startsWith("dm:")) return showDocumentModel(m, chat, cb.data);
   if (cb.data?.startsWith("ds:")) return showDocumentStructure(m, chat, cb.data);
   if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
