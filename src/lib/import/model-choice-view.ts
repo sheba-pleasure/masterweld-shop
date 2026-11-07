@@ -128,6 +128,7 @@ export function renderModelChoice(r: ProductModelChoice) {
     { text: "📎 Выбрать из исходных документов", callback_data: "mp:" + r.product_id + ":0" },
   ]);
   rows.push([{ text: "🔄 Прочитать текущий выбор", callback_data: "pm:view:" + r.product_id }]);
+  rows.push([{ text: "📘 Паспорта и документы", callback_data: "pds:home:" + r.product_id }]);
   rows.push([{ text: "⚙️ Проверить характеристики", callback_data: "te:open:" + r.product_id }]);
   rows.push([{ text: "↩️ К карточке товара", callback_data: "prd:" + r.product_id }]);
   return { text, rows };
