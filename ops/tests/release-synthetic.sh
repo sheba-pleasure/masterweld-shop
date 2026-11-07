@@ -79,7 +79,14 @@ if kind == "schema":
     flags = [True] * 6 if (mode / "schema-new").exists() else [False] * 6
     if (mode / "schema-partial").exists():
         flags[0] = True
-    print(json.dumps({"identity": identity, "sourceFacts": flags, "documentaryConditions": [False] * 6}))
+    documentary = [False] * 6
+    accessories = [False] * 4
+    if (mode / "accessory-new").exists() or (mode / "accessory-partial").exists():
+        flags, documentary, accessories = [True] * 6, [True] * 6, [True] * 4
+        if (mode / "accessory-partial").exists():
+            accessories[-1] = False
+    print(json.dumps({"identity": identity, "sourceFacts": flags,
+                     "documentaryConditions": documentary, "accessoryDictionary": accessories}))
 elif kind == "image":
     sha = name[7:47] if name.startswith("sha256:") else name.split(":")[-1]
     if not (images / sha).exists() and not (name.startswith("sha256:") and any(
@@ -87,7 +94,8 @@ elif kind == "image":
         sys.exit(1)
     cap = "0" if sha == "1"*40 or (mode / ("no-cap-" + sha)).exists() else "1"
     print(json.dumps([{"Id": image_id(sha), "Config": {"Labels": {
-        "org.opencontainers.image.revision": sha, "mw.capabilities.source-facts": cap}}}]))
+        "org.opencontainers.image.revision": sha, "mw.capabilities.source-facts": cap,
+        "mw.capabilities.documentary-conditions": "1"}}}]))
 elif name == "mw-prod-db":
     print(json.dumps([{"Config": {"Labels": {"mw.environment": "production"}}, "State": {"Running": True}}]))
 else:
@@ -183,6 +191,19 @@ touch "$FAKE_MODE/schema-new"; dlog
 check "новая схема отклоняет старый образ до действий" "$(run release.sh $S1)" 1
 check "  … без изменений контейнеров" "$(nactions)" 0
 rm "$FAKE_MODE/schema-new"
+
+# --- полный словарь и новая возможность образа обязательны вместе ---
+for schema_mode in accessory-partial accessory-new; do
+  touch "$FAKE_MODE/$schema_mode"; dlog
+  check "$schema_mode — отказ до запуска candidate" "$(run release.sh $S2)" 1
+  check "  … без изменений контейнеров" "$(nactions)" 0
+  if [[ "$schema_mode" == accessory-new ]]; then
+    check "  … отказ именно несовместимому словарю образа" "$(grep -c 'PROD_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED' "$T/last-run.log")" 1
+  else
+    check "  … отказ именно неполной схеме" "$(grep -c 'PROD_ACCESSORY_SCHEMA_INCOMPLETE' "$T/last-run.log")" 1
+  fi
+  rm "$FAKE_MODE/$schema_mode"
+done
 
 # --- первый выпуск: сбой после переключения → 503, не успех ---
 mkdir -p "$STATE_DIR"; touch "$FAKE_MODE/gw-18081"
