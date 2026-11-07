@@ -28,7 +28,9 @@ const parserManifest = JSON.parse(
   }),
 );
 assert.equal(parserManifest.environment, "dev");
-assert.equal(parserManifest.revision, "58c30766ab0cae01e9e6bf42ac5a3f4f6830d865");
+const expectedParser = process.argv[2];
+assert.match(expectedParser ?? "", /^[0-9a-f]{40}$/);
+assert.equal(parserManifest.revision, expectedParser);
 process.env["SUPABASE_URL"] = origin + "/backend";
 const { supabaseAdmin: db } = await import("../../src/integrations/supabase/client.server");
 assert.deepEqual((await db.rpc("mw_environment_identity" as never)).data, {
@@ -204,7 +206,76 @@ const initial = await call<DocumentReview>("bot_document_review", {
   p_row: 0,
 });
 const rid = initial.id;
+const wordBytes = execFileSync("python3", [
+  "-c",
+  `
+import io,sys,zipfile
+from xml.sax.saxutils import escape
+out=io.BytesIO()
+word="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+def cell(text): return '<w:tc><w:p><w:r><w:t>'+escape(text)+'</w:t></w:r></w:p></w:tc>'
+body='<w:tbl><w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid><w:tr>'+''.join(cell(t) for t in ["Артикул","Название","Цена"])+'</w:tr><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>ТЕСТ-А-'+escape(sys.argv[1])+'</w:t></w:r></w:p><w:p><w:r><w:t>ТЕСТ-Б</w:t></w:r></w:p></w:tc>'+cell("100")+'</w:tr></w:tbl>'
+with zipfile.ZipFile(out,"w",zipfile.ZIP_DEFLATED) as z:
+ z.writestr("[Content_Types].xml",'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+ z.writestr("_rels/.rels",'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
+ z.writestr("word/document.xml",'<w:document xmlns:w="'+word+'"><w:body>'+body+'</w:body></w:document>')
+sys.stdout.buffer.write(out.getvalue())
+`,
+  String(stamp),
+]);
+const wordDocument = await call<Intake>("bot_document_intake", {
+  p_actor: actor,
+  p_op: "upload",
+  p_payload: {
+    file_name: "ТЕСТ-структура-Word-" + stamp + ".docx",
+    base64: wordBytes.toString("base64"),
+  },
+});
+assert.equal(wordDocument.checksum, createHash("sha256").update(wordBytes).digest("hex"));
+let wordParsed = wordDocument;
+for (let i = 0; i < 60; i++) {
+  wordParsed = await call<Intake>("bot_document_intake", {
+    p_actor: actor,
+    p_op: "get",
+    p_id: wordDocument.id,
+  });
+  if (wordParsed.state === "review") break;
+  assert.ok(["queued", "extracting"].includes(wordParsed.state));
+  await new Promise((resolve) => setTimeout(resolve, 500));
+}
+assert.equal(wordParsed.state, "review");
+assert.equal(
+  (wordParsed.extraction as unknown as { docx_table_version: number }).docx_table_version,
+  2,
+);
+const wordExtraction = JSON.stringify(wordParsed.extraction);
+const expectedCells = ["ТЕСТ-А-" + stamp + "\nТЕСТ-Б", "", "100"];
+assert.deepEqual(wordParsed.extraction?.tables[0]?.rows, [expectedCells]);
+const wordReview = await call<DocumentReview>("bot_document_review", {
+  p_actor: actor,
+  p_op: "open",
+  p_id: wordDocument.id,
+  p_row: 0,
+});
+assert.deepEqual(wordReview.cells, expectedCells);
+assert.equal(wordReview.decision, "pending");
+assert.ok(!wordReview.import_id);
 const beforeReadTables = reviewFingerprint();
+await callback(`dr:${wordReview.id}:${wordReview.revision}:raw:0`);
+assert.ok(messages.at(-1)?.text.includes(expectedCells[0]!));
+assert.ok(messages.at(-1)?.text.includes("Цена: 100"));
+assert.equal(
+  JSON.stringify(
+    (
+      await call<Intake>("bot_document_intake", {
+        p_actor: actor,
+        p_op: "get",
+        p_id: wordDocument.id,
+      })
+    ).extraction,
+  ),
+  wordExtraction,
+);
 for (const row of [0, 1]) {
   const result = await call<DocumentReview>("bot_document_review", {
     p_actor: actor,
@@ -250,6 +321,9 @@ const report = {
   parserRevision: parserManifest.revision,
   documentId: doc.id,
   reviewId: rid,
+  wordDocumentId: wordDocument.id,
+  wordReviewId: wordReview.id,
+  wordPriceColumnAndParagraphsPreserved: true,
   rowDecisionUnchanged: true,
   previousDocumentsPreserved: Object.keys(beforeDocuments).length,
   reviewTablesUnchanged: true,

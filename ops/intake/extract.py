@@ -157,13 +157,82 @@ def xlsx(path):
     return tables,blocks
 
 
+def direct_child(element, name):
+    return next((child for child in element if local(child.tag) == name), None)
+
+
+def word_count(properties, name, default, minimum=0):
+    element = None if properties is None else direct_child(properties, name)
+    if element is None:
+        return default
+    value = next((v for k,v in element.attrib.items() if local(k) == "val"), "")
+    if not re.fullmatch(r"[0-9]{1,3}", value) or not minimum <= int(value) <= 30:
+        raise ReviewRequired("DOCX_GRID_REVIEW")
+    return int(value)
+
+
+def word_paragraph(paragraph):
+    # Preserve actual text, tabs and explicit breaks, not formatting tabs or drawing labels.
+    parts = []
+    def visit(element):
+        name = local(element.tag)
+        if name in ("pPr", "rPr", "drawing", "pict", "object"):
+            return
+        if name == "t":
+            parts.append(element.text or "")
+        elif name == "tab":
+            parts.append("\t")
+        elif name in ("br", "cr"):
+            parts.append("\n")
+        else:
+            for child in element:
+                visit(child)
+    visit(paragraph)
+    return "".join(parts)
+
+
+def word_cell(cell):
+    if any(local(x.tag) == "tbl" for x in cell.iter()):
+        raise ReviewRequired("NESTED_TABLE_REVIEW")
+    return "\n".join(word_paragraph(p) for p in cell.iter() if local(p.tag) == "p")
+
+
+def word_rows(table, index):
+    grid = direct_child(table, "tblGrid")
+    grid_width = 0 if grid is None else sum(local(x.tag) == "gridCol" for x in grid)
+    if grid_width > 30:
+        raise ReviewRequired("COLUMN_LIMIT")
+    rows, locators = [], []
+    for ri,row in enumerate((x for x in table if local(x.tag) == "tr"),1):
+        properties = direct_child(row, "trPr")
+        before = word_count(properties, "gridBefore", 0)
+        after = word_count(properties, "gridAfter", 0)
+        if grid_width and (before >= grid_width or after >= grid_width):
+            raise ReviewRequired("DOCX_GRID_REVIEW")
+        values = [""] * before
+        for cell in (x for x in row if local(x.tag) == "tc"):
+            span = word_count(direct_child(cell, "tcPr"), "gridSpan", 1, 1)
+            if len(values) + span + after > 30:
+                raise ReviewRequired("COLUMN_LIMIT")
+            # A spanning cell supplies its value once. Covered columns remain unknown.
+            values.extend([word_cell(cell)] + [""] * (span - 1))
+        values.extend([""] * after)
+        if grid_width > len(values):
+            values.extend([""] * (grid_width - len(values)))
+        rows.append(values)
+        locators.append(f"table:{index}/row:{ri}")
+        if len(rows) > MAX_ROWS + 1:
+            raise ReviewRequired("ROW_LIMIT")
+    return rows, locators
+
+
 def office_xml(path,kind):
     tables,blocks=[],[]
     with archive(path) as z:
         node=xml(z.read("word/document.xml" if kind=="docx" else "content.xml"))
         if kind=="docx":
             for i,p in enumerate([x for x in node.iter() if local(x.tag)=="p"],1):
-                text=child_text(p)
+                text=word_paragraph(p)
                 if text.strip():
                     blocks.append({"locator":f"paragraph:{i}","text":text,"review_required":True})
             candidates=[x for x in node.iter() if local(x.tag)=="tbl"]
@@ -171,7 +240,13 @@ def office_xml(path,kind):
             candidates=[x for x in node.iter() if local(x.tag)=="table"]
         for index,table in enumerate(candidates,1):
             rows,locators=[],[]
-            row_tag,cell_tag=("tr","tc") if kind=="docx" else ("table-row","table-cell")
+            if kind=="docx":
+                rows,locators=word_rows(table,index)
+                result=make_table(rows,f"Таблица {index}",locators,["MERGED_CELLS_REVIEW"])
+                if result:
+                    tables.append(result)
+                continue
+            row_tag,cell_tag="table-row","table-cell"
             for ri,row in enumerate([x for x in table if local(x.tag)==row_tag],1):
                 vals=[]
                 if any(local(k)=="number-rows-repeated" and int(v)>1 for k,v in row.attrib.items()):
@@ -181,7 +256,7 @@ def office_xml(path,kind):
                         raise ReviewRequired("COLUMN_LIMIT")
                     repeat=next((int(v) for k,v in cell.attrib.items() if local(k)=="number-columns-repeated"),1)
                     formula=next((v for k,v in cell.attrib.items() if local(k)=="formula"),None)
-                    value=("="+formula) if formula else (child_text(cell) if kind=="docx" else cells_text(cell))
+                    value=("="+formula) if formula else cells_text(cell)
                     vals.extend([value]*repeat)
                 rows.append(vals);locators.append(f"table:{index}/row:{ri}")
             result=make_table(rows,f"Таблица {index}",locators,["MERGED_CELLS_REVIEW"])
@@ -244,6 +319,8 @@ def extract(path,filename):
             result["tables"],result["blocks"]=xlsx(path)
         elif suffix in (".docx",".ods"):
             result["tables"],result["blocks"]=office_xml(path,suffix[1:])
+            if suffix==".docx":
+                result["docx_table_version"]=2
         elif suffix in (".txt",".md"):
             text=original.decode("utf-8-sig")
             result["blocks"]=[{"locator":"document:1","text":text,"review_required":True}]

@@ -45,6 +45,7 @@
 
 ## Document parser updates — 07.11.2026
 - Text locators count lines in the original saved text block before empty-line filtering; do not confuse extracted PDF/OCR line numbers with image coordinates. New outputs include text_locator_version=2; document-v1 remains the transport/storage schema.
+- New DOCX outputs carry docx_table_version=2: preserve gridSpan/gridBefore/gridAfter positions and paragraph/br/cr/tab boundaries. Never forward-fill merged cells or guess a shared price/SKU; nested tables or invalid grid widths require review. This does not claim full Word/ODS layout support.
 - Never rewrite old immutable extractions or reset leases to rerun them. A repeated upload of identical bytes returns the existing document. Parser replacements use ops/dev/update-document-parser.py with the expected current SHA, candidate HTTP validation, graceful worker drain, old-container retention and document fingerprint checks. An uncertain drain requires review, not forced job replay. Application, parser and worker revisions may differ; record each actual version in STATUS.md.
 
 ## Document structure correction — 07.11.2026

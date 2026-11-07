@@ -17,6 +17,8 @@ class SwitchTests(unittest.TestCase):
         compile(source, "<parser-probe>", "exec")
         self.assertIn("document:1/line:4", source)
         self.assertIn("text_locator_version", source)
+        self.assertIn("docx_table_version", source)
+        self.assertIn("probe.docx", source)
 
     def test_failed_promoted_probe_drains_worker_and_restores_old_container(self):
         calls = []

@@ -74,6 +74,17 @@ assert result['tables'][0]['header_locator']=='document:1/line:2'
 assert result['tables'][0]['row_locators']==['document:1/line:4']
 assert result['tables'][0]['rows']==[['TEST-LOCATOR','10']]
 assert result['blocks'][0]['text']==raw.decode()
+import io,zipfile
+xml='<document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><body><tbl><tr><tc><p><t>sku</t></p></tc><tc><p><t>title</t></p></tc><tc><p><t>price</t></p></tc></tr><tr><tc><tcPr><gridSpan w:val="2"/></tcPr><p><t>TEST-A</t></p><p><t>TEST-B</t></p></tc><tc><p><t>100</t></p></tc></tr></tbl></body></document>'
+out=io.BytesIO()
+with zipfile.ZipFile(out,'w') as z: z.writestr('word/document.xml',xml)
+req=urllib.request.Request('http://127.0.0.1:8090/extract',
+ data=json.dumps({'base64':base64.b64encode(out.getvalue()).decode(),'file_name':'probe.docx'}).encode(),
+ headers={'Content-Type':'application/json'})
+with urllib.request.urlopen(req,timeout=10) as response: result=json.load(response)
+assert result['docx_table_version']==2
+assert result['tables'][0]['rows']==[['TEST-A\\nTEST-B','','100']]
+assert result['tables'][0]['row_locators']==['table:1/row:2']
 """
     for attempt in range(10):
         try:
