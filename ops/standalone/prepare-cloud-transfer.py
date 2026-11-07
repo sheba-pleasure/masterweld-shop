@@ -31,7 +31,9 @@ PENDING = ("0014_assortment.sql", "0015_catalog_import.sql", "0016_telegram_bot_
            "0021_editor_exclusivity.sql", "0022_catalog_draft_results.sql",
            "0023_catalog_editor_previews.sql", "0024_pending_result_recovery.sql",
            "0025_pending_preview_requests.sql", "0026_document_intake.sql",
-           "0027_document_review.sql", "0028_document_structure.sql")
+           "0027_document_review.sql", "0028_document_structure.sql",
+           "0029_document_model_review.sql", "0030_document_model_import_links.sql",
+           "0031_document_model_conflicts.sql")
 
 
 def require(value, code):
@@ -278,7 +280,7 @@ def rehearse(evidence, manifest, metadata, payloads, backup_report):
                 json.loads(sql(document_sql, "roundtrip")) == documents, "DOCUMENT_RESTORE_CHANGED")
         require(fingerprints("candidate") == after and fingerprints("roundtrip") == after
                 and fingerprints("rollbackcheck") == baseline, "RESTART_TARGET_CHANGED")
-        return {"rehearsed": True, "schema": "0028", "offlineNetwork": "none", "ports": [],
+        return {"rehearsed": True, "schema": "0031", "offlineNetwork": "none", "ports": [],
                 "catalogOriginalFieldsPreserved": True, "allSourceTablesArchivedPrivately": True,
                 "technicalChecks": technical,
                 "documentChecks": documents,
