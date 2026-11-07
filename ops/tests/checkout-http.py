@@ -41,7 +41,9 @@ origin = "http://127.0.0.1:8080"
 identity = str(uuid.uuid4())
 label = "mw.qa.operation=" + nonce
 report = {"sourceSha": args.revision, "syntheticOnly": True, "liveDataRead": False,
-          "backupCreated": False, "telegramEnabled": False, "checks": {}}
+          "backupCreated": False, "telegramEnabled": False, "checks": {},
+          "harnessSha256": {name: hashlib.sha256((ROOT / "ops/tests" / name).read_bytes()).hexdigest()
+                           for name in ("checkout-http.py", "checkout-http-browser.mjs")}}
 
 def run(argv, **kwargs):
     return subprocess.run(argv, check=True, capture_output=True, text=True, timeout=180, **kwargs)
