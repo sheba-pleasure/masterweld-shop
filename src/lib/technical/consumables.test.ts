@@ -46,7 +46,16 @@ it("keeps all persisted pilot family and field indices stable while appending co
     pilot.bindings.some((b) => b.family_code === f.code),
   );
   expect(families.slice(0, originalFamilies.length)).toEqual(originalFamilies);
-  expect(families).toHaveLength(27);
+  const previousFamilies = [
+    ...originalFamilies,
+    ...pilot.families.filter(
+      (f) =>
+        !originalFamilies.some((p) => p.code === f.code) &&
+        extension.bindings.some((b) => b.family_code === f.code),
+    ),
+  ];
+  expect(previousFamilies).toHaveLength(27);
+  expect(families.slice(0, previousFamilies.length)).toEqual(previousFamilies);
   for (const f of originalFamilies) {
     const before = pilot.bindings.filter((b) => b.family_code === f.code);
     expect(fields(family(f.code)).slice(0, before.length)).toEqual(before);
@@ -62,7 +71,7 @@ it("requires an explicit family choice and bounds navigation without clearing a 
   s = act(s, "families", 3);
   expect(editorData.parse(JSON.parse(JSON.stringify(s)))).toEqual(s);
   expect(s.document).toBeNull();
-  expect(() => act(s, "families", 4)).toThrow("Страница");
+  expect(() => act(s, "families", Math.ceil(families.length / 8))).toThrow("Страница");
   const selected = act(s, "family", 26);
   expect(selected.document?.family_code).toBe(families[26]?.code);
   expect(selected.document?.values).toEqual([]);

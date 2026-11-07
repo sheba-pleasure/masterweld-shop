@@ -1,4 +1,4 @@
-"""Atomic 0042 transaction builder; no live apply command until coordinated rollout exists."""
+"""Atomic 0042 or combined 0042/0043 transaction builder; no direct live writes."""
 import hashlib
 import json
 import pathlib
@@ -13,6 +13,9 @@ CHANGED_FUNCTIONS = (
     "mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)",
 )
 MARKER = "mw_private.documentary_conditions_version()"
+ACCESSORY_PATH = "docs/proposals/0043_accessory_characteristics.sql"
+ACCESSORY_SHA256 = "0c39f8ad4d53145add3c07f8df3e6ad872ef9a11a23e3e4288c07c54d51f3378"
+ACCESSORY_MARKER = "mw_private.accessory_dictionary_version()"
 
 
 def literal(value):
@@ -26,7 +29,30 @@ def load_proposal():
     return proposal
 
 
-def transaction(source_sha, image_id):
+def accessory_extension():
+    """Verify the exact proposal and derive expected appended rows independently."""
+    proposal = (ROOT / ACCESSORY_PATH).read_text()
+    if hashlib.sha256(proposal.encode()).hexdigest() != ACCESSORY_SHA256:
+        raise RuntimeError("ACCESSORY_INSTALL_CHECKSUM")
+    dictionary = json.loads((ROOT / "src/lib/technical/accessory-dictionary.json").read_text())
+    parts = proposal.split("$accessory_seed$")
+    if len(parts) != 3 or json.loads(parts[1]) != dictionary:
+        raise RuntimeError("ACCESSORY_INSTALL_DICTIONARY_MISMATCH")
+    expected = ""
+    for key, table in (("units", "technical_units"), ("attributes", "technical_attributes"),
+                       ("bindings", "technical_family_attributes")):
+        # The expected result includes every old row and exactly the reviewed additions.
+        # It does not exclude new codes from the final data check.
+        expected += """
+UPDATE documentary_old_rows SET fingerprint=(
+ SELECT encode(sha256(convert_to(coalesce(jsonb_agg(row_value ORDER BY row_value::text),'[]'::jsonb)::text,'UTF8')),'hex')
+ FROM (SELECT to_jsonb(t) row_value FROM public.""" + table + """ t
+       UNION ALL SELECT value FROM jsonb_array_elements(""" + literal(json.dumps(dictionary[key])) + """::jsonb)) expected
+) WHERE schema_name='public' AND name=""" + literal(table) + ";\n"
+    return proposal, expected
+
+
+def transaction(source_sha, image_id, *, accessories=False):
     """Return one bounded transaction. Caller must drain the old app before execution.
 
     No shell/DB access here. A COMMIT transport error must be resolved by reading
@@ -36,7 +62,24 @@ def transaction(source_sha, image_id):
         raise RuntimeError("DOCUMENTARY_INSTALL_REVISION")
     if not re.fullmatch("sha256:[0-9a-f]{64}", image_id or ""):
         raise RuntimeError("DOCUMENTARY_INSTALL_IMAGE")
+    if type(accessories) is not bool:
+        raise RuntimeError("DOCUMENTARY_INSTALL_MODE")
     proposal = load_proposal()
+    expected_rows = ""
+    extra_guard = ""
+    markers = (MARKER,)
+    receipts = [(PROPOSAL_PATH, PROPOSAL_SHA256)]
+    if accessories:
+        accessory_proposal, expected_rows = accessory_extension()
+        proposal += "\n" + accessory_proposal
+        markers += (ACCESSORY_MARKER,)
+        receipts.append((ACCESSORY_PATH, ACCESSORY_SHA256))
+        extra_guard = """
+ IF to_regprocedure('mw_private.accessory_dictionary_version()') IS NOT NULL
+ THEN RAISE EXCEPTION 'ACCESSORY_INSTALL_ALREADY_PRESENT'; END IF;
+ IF EXISTS(SELECT 1 FROM mw_private.dev_migration_receipts WHERE path=""" + literal(ACCESSORY_PATH) + """)
+ THEN RAISE EXCEPTION 'ACCESSORY_INSTALL_RECEIPT_EXISTS'; END IF;
+"""
     changed = ",".join(literal(signature) + "::regprocedure" for signature in CHANGED_FUNCTIONS)
     return """
 BEGIN;
@@ -52,7 +95,7 @@ DO $identity$ BEGIN
  THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_RECEIPTS_REQUIRED'; END IF;
  IF EXISTS(SELECT 1 FROM mw_private.dev_migration_receipts WHERE path=""" + literal(PROPOSAL_PATH) + """)
  THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_RECEIPT_EXISTS'; END IF;
-END $identity$;
+""" + extra_guard + """END $identity$;
 
 CREATE TEMP TABLE documentary_old_rows(schema_name text,name text,fingerprint text) ON COMMIT DROP;
 DO $rows_before$ DECLARE t record; fingerprint text; BEGIN
@@ -87,7 +130,7 @@ CREATE TEMP TABLE documentary_old_constraints ON COMMIT DROP AS
  WHERE n.nspname IN('public','mw_private') AND NOT
  ((c.conrelid='public.technical_attributes'::regclass AND c.conname='technical_attributes_required_context_check')
  OR (c.conrelid='public.source_fact_prompts'::regclass AND c.conname='source_fact_prompts_field_check'));
-""" + proposal + """
+""" + expected_rows + proposal + """
 -- All checks precede the receipt and COMMIT. A failure rolls back the schema too.
 DO $preservation$ DECLARE t record; fingerprint text; role_name text; signature text; BEGIN
  FOR t IN SELECT * FROM documentary_old_rows LOOP
@@ -100,7 +143,7 @@ DO $preservation$ DECLARE t record; fingerprint text; role_name text; signature 
   WITH current_functions AS (
    SELECT p.oid,CASE WHEN p.oid IN(""" + changed + """) THEN to_jsonb(p)-'prosrc' ELSE to_jsonb(p) END metadata
    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-   WHERE n.nspname IN('public','mw_private') AND p.oid<>'mw_private.documentary_conditions_version()'::regprocedure)
+   WHERE n.nspname IN('public','mw_private') AND p.oid NOT IN(""" + ",".join(literal(marker) + "::regprocedure" for marker in markers) + """))
   SELECT 1 FROM documentary_old_functions b FULL JOIN current_functions a USING(oid)
   WHERE b.metadata IS DISTINCT FROM a.metadata)
  THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_FUNCTIONS_CHANGED'; END IF;
@@ -140,15 +183,19 @@ DO $preservation$ DECLARE t record; fingerprint text; role_name text; signature 
   WHERE b.metadata IS DISTINCT FROM a.metadata)
  THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_CONSTRAINTS_CHANGED'; END IF;
  FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
-  FOREACH signature IN ARRAY ARRAY[""" + ",".join(map(literal, (*CHANGED_FUNCTIONS, MARKER))) + """] LOOP
+  FOREACH signature IN ARRAY ARRAY[""" + ",".join(map(literal, (*CHANGED_FUNCTIONS, *markers))) + """] LOOP
    IF has_function_privilege(role_name,signature,'EXECUTE')
    THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_PRIVATE_ACCESS'; END IF;
   END LOOP;
  END LOOP;
  IF mw_private.documentary_conditions_version() IS DISTINCT FROM 1
  THEN RAISE EXCEPTION 'DOCUMENTARY_INSTALL_VERSION'; END IF;
-END $preservation$;
-INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES (""" + literal(PROPOSAL_PATH) + "," + literal(PROPOSAL_SHA256) + """);
+""" + ("""
+ IF mw_private.accessory_dictionary_version() IS DISTINCT FROM 1
+ THEN RAISE EXCEPTION 'ACCESSORY_INSTALL_VERSION'; END IF;
+""" if accessories else "") + """END $preservation$;
+INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES """ + ",".join(
+    "(" + literal(path) + "," + literal(checksum) + ")" for path, checksum in receipts) + """;
 NOTIFY pgrst,'reload schema';
 -- Emit the exact source/image identity only after COMMIT, for caller diagnostics.
 COMMIT;

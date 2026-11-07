@@ -15,6 +15,7 @@ INPUTS = {
     "research": "research/welding-catalog-2026-11-06/MasterWeld_Attribute_Dictionary_v1.json",
     "pilot": "src/lib/technical/pilot-dictionary.json",
     "consumables": "src/lib/technical/consumable-dictionary.json",
+    "accessories": "src/lib/technical/accessory-dictionary.json",
     "composition": "src/lib/technical/dictionary.ts",
 }
 
@@ -62,20 +63,23 @@ def unique(items, key, name):
 
 def build_report(root=ROOT):
     raw = {key: (root / path).read_bytes() for key, path in INPUTS.items()}
-    research, pilot, extra = (json.loads(raw[key]) for key in ("research", "pilot", "consumables"))
+    research, pilot, extra, accessories = (json.loads(raw[key]) for key in ("research", "pilot", "consumables", "accessories"))
+    documentary = unique(accessories["research_text_fields"], lambda x: (x["family"], x["attribute"]), "documentary representation")
+    additional = unique(accessories["additional_fields"], lambda x: (x["family"], x["attribute"]), "additional field")
     # Fail closed if the composition changes: don't silently omit a later extension.
     composition = raw["composition"].decode()
     imports = [line.strip() for line in composition.splitlines() if line.startswith("import ")]
     if imports != [
         'import pilot from "./pilot-dictionary.json";',
         'import consumables from "./consumable-dictionary.json";',
+        'import accessories from "./accessory-dictionary.json";',
     ]:
         raise ValueError("Dictionary composition changed; update coverage inputs explicitly")
-    attributes = unique(pilot["attributes"] + extra["attributes"], lambda x: x["code"], "attribute")
-    units = unique(pilot["units"] + extra["units"], lambda x: x["code"], "unit")
+    attributes = unique(pilot["attributes"] + extra["attributes"] + accessories["attributes"], lambda x: x["code"], "attribute")
+    units = unique(pilot["units"] + extra["units"] + accessories["units"], lambda x: x["code"], "unit")
     families = unique(research["families"], lambda x: x["code"], "research family")
     runtime_families = unique(pilot["families"], lambda x: x["code"], "runtime family")
-    bindings = unique(pilot["bindings"] + extra["bindings"],
+    bindings = unique(pilot["bindings"] + extra["bindings"] + accessories["bindings"],
                       lambda x: (x["family_code"], x["attribute_code"]), "binding")
     for (family, code), binding in bindings.items():
         if family not in runtime_families or family not in families or code not in attributes:
@@ -116,7 +120,15 @@ def build_report(root=ROOT):
                 entry["processes"] = attribute["processes"]
                 entry["runtime_unit"] = units[attribute["unit_code"]]["label"]
                 # A matching code is NOT proof of complete semantic equivalence.
-                if proposed["type"] != attribute["kind"]:
+                if (family, code) in documentary:
+                    reviewed = documentary[(family, code)]
+                    if (attribute["kind"] != "text" or proposed["type"] not in ("enum", "enum_list")
+                            or proposed["type"] != reviewed["research_kind"]):
+                        raise ValueError(f"Documentary representation changed: {family}/{code}")
+                    entry["status"] = "documentary_definition"
+                    entry["runtime_kind"] = attribute["kind"]
+                    entry["note"] = reviewed["representation"]
+                elif proposed["type"] != attribute["kind"]:
                     entry["status"] = "definition_needs_review"
                 # Text may intentionally retain a range/conditions verbatim, with
                 # unit_code=none. Expose that difference for review, don't convert.
@@ -158,7 +170,13 @@ def build_report(root=ROOT):
 
     # Every research binding and every runtime binding is accounted for; extras
     # remain visible instead of inflating the number of covered research rows.
-    unmatched = [{"family": f, "attribute": a} for f, a in bindings if (f, a) not in addressed]
+    if not documentary.keys() <= addressed:
+        raise ValueError("Documentary representation lost its research binding")
+    unmatched = [{"family": f, "attribute": a,
+                  **({"note": additional[(f, a)]["reason"]} if (f, a) in additional else {})}
+                 for f, a in bindings if (f, a) not in addressed]
+    if not additional.keys() <= set(bindings) - addressed:
+        raise ValueError("Additional fields no longer match their declared scope")
     research_rows = sum(len(f["attributes"]) for f in research["families"])
     if sum(totals.values()) != research_rows:
         raise ValueError("Coverage lost a research row")

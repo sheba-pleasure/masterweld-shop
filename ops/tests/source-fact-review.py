@@ -15,7 +15,11 @@ from unittest import mock
 
 parser=argparse.ArgumentParser()
 parser.add_argument("--documentary-conditions",action="store_true")
-documentary_conditions=parser.parse_args().documentary_conditions
+parser.add_argument("--accessory-characteristics",action="store_true")
+args=parser.parse_args()
+accessory_characteristics=args.accessory_characteristics
+documentary_conditions=args.documentary_conditions or accessory_characteristics
+accessory_report=None
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 NAME="mw-source-fact-qa-"+uuid.uuid4().hex[:12]
 compatibility_spec=importlib.util.spec_from_file_location("app_compatibility",ROOT/"ops/dev/app_compatibility.py")
@@ -692,6 +696,9 @@ try:
     if documentary_conditions:
         # Proposed 0042 runs only in this disposable database, never live DEV.
         proposal=(ROOT/"docs/proposals/0042_documentary_measurement_conditions.sql").read_text()
+        if accessory_characteristics:
+            accessory_sql=(ROOT/"docs/proposals/0043_accessory_characteristics.sql").read_text()
+            sql("BEGIN;"+accessory_sql+"ROLLBACK;",error="ACCESSORY_DOCUMENTARY_CONDITIONS_REQUIRED")
         measurement={
           "family_code":"power_mma",
           "sources":[{"key":"manual","kind":"synthetic","publisher":"Учебный изготовитель",
@@ -777,6 +784,9 @@ try:
               "mw_private.validate_technical_document_before_origins(jsonb,text)",
               "mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)"]:
                 assert sql("SELECT has_function_privilege("+lit(role)+","+lit(signature)+",'EXECUTE')")=="f"
+        if accessory_characteristics:
+            from accessory_checks import check_accessories
+            accessory_report=check_accessories(sql,ROOT)
         validate_measurement(measurement)
         for note in ["v","Полные условия\nБез пересчёта единиц", "🧰"*500]:
             candidate=copy.deepcopy(measurement)
@@ -996,6 +1006,49 @@ try:
     identity_review=editor("start",source_revision=retained_session["applied_revision"])
     identity_review=editor("apply",editor("preview",identity_review))
     assert public_facts()["values"][0]["value"]==195
+    if accessory_characteristics:
+        # A new source is explicitly reviewed; values are not inferred from an old MMA passport.
+        torch_text="Учебная горелка MODEL-220. Постоянный ток: 160 А; ПН 60 %. Только учебный режим."
+        torch_file=upload(torch_text.encode())
+        job=worker("claim")
+        worker("finish",job["id"],job["lease"],{"version":"document-v1","sha256":torch_file["checksum"],
+          "tables":[],"blocks":[{"locator":"page:1","page":1,"text":torch_text}],"warnings":[],"coverage":{"complete":True}})
+        torch_source=approve_source(pid,torch_file["id"])
+        torch_payload={"source_id":torch_source["source_id"],"result":{
+          "version":"source-candidates-v1","checksum":torch_file["checksum"],"family_code":"tig_torch",
+          "candidates":[{"attribute_code":"tig_torch_max_dc_a","unit_code":"a","process":"tig","value":160,
+            "issues":["model_scope_review"],"evidence":{"kind":"block","block":0,"locator":"page:1","page":1,
+              "start":0,"end":len(torch_text),"offset_unit":"unicode_codepoints","quote":torch_text}}],
+          "unmatched_entries":[],"fields_without_candidates":[],"warnings":[]}}
+        torch=facts("prepare",str(uuid.uuid4()),payload=torch_payload)
+        step("accept",torch,error="TECH_CONTEXT_REQUIRED")
+        torch=step("prompt",torch,payload={"field":"duty_pct"})
+        torch=step("bind",torch,payload={"message_id":1941})
+        torch=step("reply",torch,payload={"reply_to":1941,"value":60})
+        step("accept",torch,error="TECH_CONTEXT_REQUIRED")
+        torch=step("prompt",torch,payload={"field":"test_conditions"})
+        torch=step("bind",torch,payload={"message_id":1942})
+        torch=step("reply",torch,payload={"reply_to":1942,"value":"Только учебный режим."})
+        torch=step("accept",torch)
+        torch=step("publisher",torch,payload={"text":"Учебный изготовитель"})
+        torch=step("preview",torch)
+        step("handoff",torch,payload=consent,error="SOURCE_FACT_FAMILY_CONFIRM_REQUIRED")
+        card_before=sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))
+        transferred=step("handoff",torch,payload={**consent,"replace_family":True})
+        torch_session=editor("get",{"id":transferred["review"]["editor_session_id"],"revision":0})
+        assert sql("SELECT row_to_json(c)::text FROM technical_cards c WHERE product_id="+lit(pid))==card_before
+        assert torch_session["data"]["document"]["family_code"]=="tig_torch"
+        assert torch_session["data"]["document"]["values"][0]["context"]=={"duty_pct":60,"test_conditions":"Только учебный режим."}
+        torch_session=editor("apply",editor("preview",torch_session))
+        published_torch=public_facts()
+        assert published_torch["family"]["code"]=="tig_torch"
+        assert published_torch["values"][0]["value"]==160
+        assert published_torch["values"][0]["context"]["duty_pct"]==60
+        assert step("handoff",torch,payload={**consent,"replace_family":True})["review"]["editor_session_id"]==torch_session["id"]
+        command(["docker","restart",NAME]);ready()
+        assert public_facts()==published_torch
+        accessory_report["checks"]+=["human_conditions_before_acceptance","explicit_family_change",
+          "handoff_draft_only","separate_preview_apply","public_conditions","replay_and_restart"]
     # An imported model source changes the generation even if title and price are unchanged.
     previous_context=technical("read")["card"]["model_context"]
     pid_again,model_import,_=imported("MODEL-330")
@@ -1005,6 +1058,10 @@ try:
     assert choice("get",pid)["current"]["state"]=="selected"
     assert technical("read")["card"]["model_context"]!=previous_context
     assert public_facts() is None
+    if accessory_characteristics:
+        editor("apply",torch_session) # Receipt only; never refreshes the model binding.
+        step("handoff",torch,payload={**consent,"replace_family":True})
+        assert public_facts() is None
     stale_copy=editor("start",source_revision=identity_review["applied_revision"])
     assert not stale_copy["source_binding"]["usable"]
     editor("preview",stale_copy,error="TECH_SOURCE_REVIEW_REQUIRED")
@@ -1041,7 +1098,7 @@ try:
     command(["docker","restart",NAME]);ready()
     assert_excluded()
     assert stable_history()==excluded_history
-    print(json.dumps({"ok":True,"documentary_conditions":({
+    print(json.dumps({"ok":True,"accessory_characteristics":accessory_report,"documentary_conditions":({
       "proposal_sha256":hashlib.sha256(proposal.encode()).hexdigest(),
       "checks":["exact_unicode","existing_rows_unchanged","existing_acl_unchanged","distinct_conditions",
         "required_condition","bound_human_reply","decision_withdrawal","restart_question","handoff_receipt",
