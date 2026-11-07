@@ -127,6 +127,36 @@ class BackupTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "BACKUP_ALREADY_RUNNING"):
                     backup.backup(self.root, "dev")
 
+    def test_postgres_fractional_precision_and_timezones(self):
+        base = datetime(2026, 11, 7, 1, 47, 22, tzinfo=timezone.utc)
+        for digits in ("", ".1", ".01", ".001", ".0001", ".06225", ".000001"):
+            with self.subTest(digits=digits):
+                text = "2026-11-07T01:47:22" + digits + "+00:00"
+                expected = base.replace(microsecond=int(digits[1:].ljust(6, "0")) if digits else 0)
+                self.assertEqual(backup.parse_snapshot_time(text), expected)
+        self.assertEqual(backup.parse_snapshot_time("2026-11-07T04:47:22+03:00"), base)
+        self.assertEqual(backup.parse_snapshot_time("2026-11-07T01:47:22Z"), base)
+        for value in ("2026-11-07T01:47:22", "2026-99-99T01:47:22Z", "", None, 123):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(RuntimeError, "BACKUP_TIMESTAMP_INVALID"):
+                    backup.parse_snapshot_time(value)
+
+    def test_status_reads_postgres_trimmed_fraction_without_rewriting_receipt(self):
+        folder = self.root / "ops/.state/database-backups/dev"
+        folder.mkdir(parents=True, mode=0o700)
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + ".06225+00:00"
+        report = {"environment": "dev", "complete": True, "run": "precision-fixture",
+                  "snapshotTime": timestamp, "offsite": {"restore": {"restored": True}}}
+        path = folder / "latest.json"
+        raw = json.dumps(report).encode()
+        backup.write(path, raw)
+        with patch.object(backup, "PROJECT", self.root):
+            result = backup.status("dev")
+        # This fractional second may be just ahead of the test clock; status still parses it.
+        self.assertEqual(result["snapshotTime"], timestamp)
+        self.assertIsInstance(result["ageHours"], float)
+        self.assertEqual(path.read_bytes(), raw)
+
     def test_status_requires_recent_completed_download_restore(self):
         base = self.root / "ops/.state/database-backups/dev"
         base.mkdir(parents=True, mode=0o700)

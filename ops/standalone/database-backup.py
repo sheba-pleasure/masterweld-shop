@@ -342,6 +342,18 @@ def backup(root, environment, upload=False):
     return status
 
 
+def parse_snapshot_time(value):
+    # PostgreSQL JSON removes trailing fractional zeros; Python 3.10 fromisoformat
+    # accepts only three or six fractional digits. strptime supports all 1..6.
+    require(isinstance(value, str), "BACKUP_TIMESTAMP_INVALID")
+    for pattern in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"):
+        try:
+            return datetime.strptime(value, pattern)
+        except ValueError:
+            pass
+    raise RuntimeError("BACKUP_TIMESTAMP_INVALID")
+
+
 def status(environment):
     base = PROJECT / "ops/.state/database-backups" / environment
     private(base, True)
@@ -352,7 +364,7 @@ def status(environment):
     snapshot_time = report.get("snapshotTime")
     age = None
     if snapshot_time:
-        age = (datetime.now(timezone.utc) - datetime.fromisoformat(snapshot_time)).total_seconds()
+        age = (datetime.now(timezone.utc) - parse_snapshot_time(snapshot_time)).total_seconds()
     external = report.get("offsite") or {}
     healthy = (report.get("complete") is True and external.get("restore", {}).get("restored") is True
                and age is not None and 0 <= age <= 26 * 3600)
