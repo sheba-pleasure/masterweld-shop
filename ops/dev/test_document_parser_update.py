@@ -10,6 +10,14 @@ spec.loader.exec_module(app)
 
 
 class SwitchTests(unittest.TestCase):
+    def test_probe_python_is_valid_and_checks_real_source_positions(self):
+        with patch.object(app, "run") as run:
+            app.probe("candidate")
+        source = run.call_args.args[0][-1]
+        compile(source, "<parser-probe>", "exec")
+        self.assertIn("document:1/line:4", source)
+        self.assertIn("text_locator_version", source)
+
     def test_failed_promoted_probe_drains_worker_and_restores_old_container(self):
         calls = []
         def inspect(name):

@@ -170,6 +170,9 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             archive = run(["git", "archive", sha, "ops/intake"], cwd=ROOT).stdout
             run(["tar", "-xf", "-", "-C", directory], input=archive)
+            # The private artifact umask must not make public source unreadable to UID 65534.
+            for source in ("extract.py", "parser.py", "worker.py", "Dockerfile"):
+                (pathlib.Path(directory) / "ops/intake" / source).chmod(0o644)
             run(["docker", "build", "--label", "mw.environment=dev", "--label",
                  "org.opencontainers.image.revision=" + sha, "--build-arg", "GIT_SHA=" + sha,
                  "-t", image, str(pathlib.Path(directory) / "ops/intake")])
