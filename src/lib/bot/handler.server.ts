@@ -16,6 +16,7 @@ import {
   showDocumentStructure,
 } from "@/lib/import/review.server";
 import { parseImportCallback } from "@/lib/import/catalog-view";
+import { showDocumentModel } from "@/lib/import/model.server";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
@@ -2370,6 +2371,7 @@ export async function handleUpdate(update: TgUpdate) {
     return sendMenu(chat.id, { ...m, elevated });
   }
   if (cb.data?.startsWith("di:")) return showIntake(m, chat, cb.data);
+  if (cb.data?.startsWith("dm:")) return showDocumentModel(m, chat, cb.data);
   if (cb.data?.startsWith("ds:")) return showDocumentStructure(m, chat, cb.data);
   if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
   if (cb.data === "staff" && can(m, "manage_staff")) {

@@ -13,10 +13,11 @@ import {
 } from "./review-view";
 
 import { parseStructureCallback, renderStructure, structureQuestion } from "./structure-view";
+import { documentModelControl, handleDocumentModelText } from "./model.server";
 
 type Chat = { id: number; type?: string };
 interface Prompt {
-  kind?: "cell" | "structure";
+  kind?: "cell" | "structure" | "model";
   review_id: string;
   revision: number;
   row_index: number;
@@ -29,6 +30,9 @@ const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
   args: Record<string, unknown>,
 ) => Promise<{ data: Result | null; error: { message?: string } | null }>;
 const errors: Record<string, string> = {
+  DOCUMENT_MODEL_INPUT_ACTIVE:
+    "Сначала завершите вопрос о модели. /input — продолжить, /cancel — закрыть ввод.",
+  DOCUMENT_MODEL_DENIED: "Разбор документов доступен администратору с правом импорта.",
   DOCUMENT_STRUCTURE_ACTIVE:
     "В таблице открыт черновик структуры. Сначала подтвердите или отмените его. /input — продолжить.",
   DOCUMENT_INPUT_ACTIVE: "Сначала завершите ввод поля. /input — продолжить, /cancel — отменить.",
@@ -180,6 +184,10 @@ export async function documentReviewControl(
   try {
     const { prompt } = await call(m, "input");
     if (!prompt) return false;
+    if (prompt.kind === "model") {
+      await documentModelControl(m, chat, prompt, command);
+      return true;
+    }
     if (prompt.kind === "structure") {
       const r = await call(m, command === "cancel" ? "st_cancel" : "get", {
         p_id: prompt.review_id,
@@ -237,6 +245,7 @@ export async function handleDocumentReviewText(
     prompt = result.prompt;
     if (!prompt) return false;
     if (replyTo !== undefined && replyTo !== prompt.message_id) return false;
+    if (prompt.kind === "model") return handleDocumentModelText(m, chat, prompt, text, replyTo);
     if (prompt.kind === "structure") {
       if (!replyTo || !prompt.message_id) {
         await send(

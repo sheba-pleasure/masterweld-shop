@@ -53,6 +53,11 @@
 - Structural edits never approve, apply imports or publish products. Header changes withdraw existing approvals; added/split rows begin pending. Preserve skipped decisions, lineage, revision checks, exact question binding and mutation receipts. Undo only the latest unchanged structure revision; never overwrite later decisions.
 - Migration requires the guarded DEV runner, an offsite backup verified by restore, rehearsal, and unchanged values in every pre-existing public column. Current deployment is recorded in STATUS.md.
 
+## Document model review — 07.11.2026
+- 0029 stores human model identity separately from the document row/product. Require an active approved stable row, no structure draft, exact current source fingerprint and explicit manufacturer/model/variant decision. Unknown is not an absent variant. Never infer identity from a similar product.
+- Model questions share actor-bound editor exclusivity, revisions and exact Telegram question IDs. Changes withdraw confirmation; source changes make old decisions unusable, with immutable decision snapshots retained. Duplicate decisions return current state without replay. Private tables and the old review implementation are not directly callable.
+- This does not implement automatic web enrichment, catalog linking, import or publication. Use the guarded DEV runner; record actual deployment in STATUS.md. Main/production require a separate review.
+
 ## Document review — 06.11.2026
 - 0027 is DEV-only: immutable document originals/extraction, separate row corrections and human decisions. Every row must be approved or excluded before the explicit handoff; editing withdraws approval. Handoff creates one catalog-import preview and never applies or publishes products.
 - Review text is accepted only as a reply to the persisted current Telegram question. Preserve revision checks, editor exclusivity, safe cancellation/recovery, source row locators, and the legacy unreviewed-import gate. Do not call the private pre-gate RPC implementations.
