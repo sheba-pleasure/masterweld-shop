@@ -1,6 +1,7 @@
 import { FIELDS, FIELD_LABEL, catalogColumnLabel, type Field, type Mapping } from "./catalog-file";
 
 import { modelIdentityText, modelLinkState, type DocumentModelLink } from "./model-links-view";
+import { renderModelComparison, type ModelComparison } from "./model-conflict-view";
 
 type Button = { text: string; callback_data: string };
 type Product = Partial<Record<Field | "category_id", string | number | boolean | null>>;
@@ -23,6 +24,9 @@ export interface ImportView {
   document_review_id?: string;
   model_count?: number;
   model_capture_ready?: boolean;
+  model_blocked?: number;
+  model_first_blocked?: number;
+  model_comparison?: ModelComparison;
   items: {
     line: number;
     sku: string;
@@ -34,6 +38,8 @@ export interface ImportView {
     before_cost: { cost_price: number } | null;
     after_cost: { cost_price: number } | null;
     document_model?: DocumentModelLink | null;
+    model_conflict?: boolean;
+    model_conflict_accepted?: boolean;
   }[];
 }
 export interface ImportRequest {
@@ -44,10 +50,26 @@ export interface ImportRequest {
   field?: number;
   column?: number;
   decimal?: string;
+  line?: number;
 }
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseImportCallback(data: string): ImportRequest | null {
   if (data === "ci:home" || data === "ci:template") return { op: data.slice(3) };
+  const comparison = data.match(
+    new RegExp(`^ci:(mc|ma):(${ID}):([0-9]{1,7}):([0-9]{1,4})(?::([0-9]{1,4}))?$`),
+  );
+  if (comparison) {
+    const line = Number(comparison[4]);
+    if (line < 2 || line > 5001 || (comparison[1] === "ma" && comparison[5] !== undefined))
+      return null;
+    return {
+      op: comparison[1] === "mc" ? "model_compare" : "model_accept",
+      id: comparison[2]!,
+      revision: Number(comparison[3]),
+      line,
+      page: Number(comparison[5] ?? 0),
+    };
+  }
   let m = data.match(
     new RegExp(`^ci:(get|config|cancel|undo_preview|undo):(${ID})(?::([0-9]{1,4}))?$`),
   );
@@ -104,6 +126,7 @@ export function renderImport(
   screen?: "config" | number,
 ): { text: string; rows: Button[][] } {
   const rows: Button[][] = [];
+  if (r.model_comparison) return renderModelComparison(r.id, r.revision, r.model_comparison);
   if (r.home)
     return {
       text: "📥 Импорт товаров и цен\n\n1️⃣ Файл\nПришлите CSV UTF-8: до 2 МБ и 5000 строк. Первая строка — заголовки. Из Excel сохраните как CSV UTF-8. XLSX/PDF и сканы отправьте через «Документы»: там можно проверить и исправить распознанные строки.\n\n2️⃣ Колонки\nУкажите артикул, название и нужные поля. Цена продажи и закупка выбираются отдельно; суммы — в рублях.\n\n3️⃣ Предпросмотр\nПроверьте изменения и только затем подтвердите импорт.\n\n🛡 Новые товары — черновики «На разбор». Публикация и отметка «Не продаём» сохраняются. Товары вне файла не меняются.\n\n👇 Начните с учебного CSV.",
@@ -205,11 +228,36 @@ export function renderImport(
     lines.push(
       `🏷 Подтверждённых моделей в этом предпросмотре: ${r.model_count ?? 0}. Связь с исходными строками сохраняется при подтверждении. Автопоиск и публикация не запускаются. Если исправили модель, обновите предпросмотр.`,
     );
+  if (r.model_blocked) {
+    lines.push(
+      `⚠️ Строк требуют сверки модели: ${r.model_blocked}. Импорт целиком остановлен до решения. Если сведения изменились — обновите предпросмотр.`,
+    );
+    if (r.model_first_blocked !== undefined)
+      rows.push([
+        {
+          text: "🔎 Открыть первую нерешённую строку",
+          callback_data: `ci:mc:${r.id}:${r.revision}:${r.model_first_blocked}:0`,
+        },
+      ]);
+  }
   lines.push("Ниже — снимок предложений исходного импорта:");
   for (const i of r.items) {
     lines.push(
       `\nСтрока ${i.line} · ${short(i.sku, 60)} · ${{ new: "новый", update: "изменение", unchanged: "без изменений", error: "ошибка" }[i.kind]}\n${short(i.after_product?.title, 90)}`,
     );
+    if (i.model_conflict) {
+      lines.push(
+        i.model_conflict_accepted
+          ? "✅ Расхождение модели проверено вами для этого предпросмотра."
+          : "⚠️ Модель отличается от ранее сохранённой. Нужна отдельная сверка.",
+      );
+      rows.push([
+        {
+          text: `🔎 Строка ${i.line}: сравнить модели`,
+          callback_data: `ci:mc:${r.id}:${r.revision}:${i.line}:0`,
+        },
+      ]);
+    }
     if (i.document_model) {
       const l = i.document_model;
       lines.push(modelLinkState[l.state] ?? "Модель требует проверки", modelIdentityText(l));
@@ -260,6 +308,7 @@ export function renderImport(
   if (r.state === "preview") {
     if (
       !r.counts.error &&
+      !r.model_blocked &&
       r.model_capture_ready !== false &&
       (r.counts.new + r.counts.update > 0 || (r.model_count ?? 0) > 0)
     )
@@ -289,6 +338,14 @@ export function renderImport(
   return { text: lines.join("\n"), rows };
 }
 const ERRORS: Record<string, string> = {
+  IMPORT_MODEL_CONFLICT:
+    "Модель отличается от ранее сохранённой. Откройте импорт и сравните модели. Без отдельного решения импорт не выполнится.",
+  IMPORT_MODEL_IDENTITY_REQUIRED:
+    "Сначала уточните и подтвердите новую модель, затем обновите предпросмотр. Неизвестную модель нельзя признать совпадающей.",
+  IMPORT_MODEL_COMPARISON_REQUIRED:
+    "В прежнем предпросмотре ещё нет сравнения моделей. Обновите предпросмотр и проверьте строки.",
+  IMPORT_MODEL_EVIDENCE_CHANGED:
+    "Сведения о товаре или его источниках изменились. Обновите предпросмотр и заново сравните модели. Прежнее решение не применяется автоматически.",
   IMPORT_MODEL_CHANGED:
     "Решение о модели изменилось после предпросмотра. Откройте импорт и обновите предпросмотр, затем проверьте сведения заново.",
   IMPORT_MODEL_PREVIEW_REQUIRED:
