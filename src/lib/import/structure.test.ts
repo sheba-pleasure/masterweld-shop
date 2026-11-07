@@ -8,6 +8,7 @@ vi.mock("@/lib/bot/telegram.server", () => ({ tg: mocks.tg }));
 vi.mock("./catalog.server", () => ({ showCatalogImport: vi.fn() }));
 import {
   showDocumentStructure,
+  showDocumentReview,
   handleDocumentReviewText,
   documentReviewControl,
 } from "./review.server";
@@ -187,6 +188,61 @@ it("only exact reply saves structure and advances to the next field", async () =
   expect(mocks.rpc.mock.calls[1]![1].p_payload).toEqual({ value: "A", reply_to: 501 });
   expect(mocks.rpc.mock.calls[2]![1].p_column).toBe(1);
 });
+it.each([
+  ["DOCUMENT_HEADER", "header", 0, false],
+  ["DOCUMENT_SOURCE_NOTE", "add", -1, false],
+  ["DOCUMENT_VALUE", "split", 0, true],
+] as const)(
+  "reopens the same structure question after %s without losing guided progress",
+  async (code, kind, focus, guided) => {
+    const activePrompt = { ...prompt, column_index: focus };
+    const stored = {
+      ...draft,
+      structure_draft: { ...draft.structure_draft!, kind, column: 0, focus, guided },
+    };
+    const before = JSON.stringify(stored);
+    mocks.rpc.mockImplementation(async (_fn, args) => {
+      if (args.p_op === "input") return { data: { ok: true, prompt: activePrompt }, error: null };
+      if (args.p_op === "st_save") return { data: null, error: { message: code } };
+      return { data: stored, error: null };
+    });
+    await handleDocumentReviewText(m, chat, "Неверный ответ", 501);
+    const message = mocks.tg.mock.calls.at(-1)![1];
+    expect(message.text).toContain("Этот ответ не сохранён");
+    const retry = message.reply_markup.inline_keyboard
+      .flat()
+      .find((b: { text: string }) => b.text === "✏️ Повторить ввод").callback_data;
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input", "st_save"]);
+    await showDocumentReview(m, chat, retry);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual([
+      "input",
+      "st_save",
+      "input",
+      "get",
+      "st_focus",
+      "st_bind",
+    ]);
+    expect(mocks.rpc.mock.calls.at(-2)![1]).toMatchObject({
+      p_revision: 3,
+      p_row: 6,
+      p_column: focus,
+      p_payload: { guided },
+    });
+    expect(mocks.rpc.mock.calls.at(-1)![1].p_payload).toEqual({ message_id: 502 });
+    expect(JSON.stringify(stored)).toBe(before);
+  },
+);
+
+it("does not renew a structure question if the draft changes during recovery", async () => {
+  mocks.rpc
+    .mockResolvedValueOnce({ data: { ok: true, prompt }, error: null })
+    .mockResolvedValue({ data: { ...draft, revision: 4 }, error: null });
+  await showDocumentReview(m, chat, `dr:${id}:3:resume:6`);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input", "get"]);
+  expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply)).toBe(false);
+  expect(mocks.tg.mock.calls.at(-1)![1].text).toContain("устарели");
+});
+
 it("ignores ordinary text and unrelated replies without saving", async () => {
   mocks.rpc.mockResolvedValue({ data: { ok: true, prompt }, error: null });
   expect(await handleDocumentReviewText(m, chat, "wrong", 500)).toBe(false);

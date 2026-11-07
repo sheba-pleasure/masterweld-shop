@@ -45,7 +45,7 @@ const errors: Record<string, string> = {
   DOCUMENT_UNDO_CONFLICT:
     "После исправления уже были другие изменения. Автоматическая отмена недоступна; откройте текущую таблицу.",
   DOCUMENT_SOURCE_NOTE:
-    "Укажите место товара в исходном файле. Если точное место неизвестно, выберите соответствующую кнопку.",
+    "Укажите место товара в исходном файле: от 1 до 300 знаков. Если точное место неизвестно, выберите соответствующую кнопку в черновике.",
   DOCUMENT_HEADER: "Название должно быть непустым, до 100 знаков и не повторять другую колонку.",
   DOCUMENT_EMPTY_PRODUCT:
     "Один из новых товаров полностью пустой. Заполните его поля перед подтверждением.",
@@ -76,13 +76,15 @@ function allowed(m: StaffMember, chat: Chat) {
     isPrivateChat(chat, { id: m.telegram_id }) && can(m, "import_prices") && can(m, "view_costs")
   );
 }
+// Only an explicit RPC refusal can establish that the answer was not saved.
+class DocumentOperationError extends Error {}
 async function call(m: StaffMember, op: string, args: Record<string, unknown> = {}) {
   const { data, error } = await rpc("bot_document_review", {
     p_actor: m.telegram_id,
     p_op: op,
     ...args,
   });
-  if (error || !data?.ok) throw new Error(error?.message ?? "DOCUMENT_RESULT");
+  if (error || !data?.ok) throw new DocumentOperationError(error?.message ?? "DOCUMENT_RESULT");
   return data;
 }
 async function send(chat: Chat, text: string, rows: ReviewButton[][]) {
@@ -94,15 +96,30 @@ async function send(chat: Chat, text: string, rows: ReviewButton[][]) {
       ...(i + 3500 >= chars.length ? { reply_markup: { inline_keyboard: rows } } : {}),
     });
 }
-async function recover(chat: Chat, error: unknown, id?: string, row = 0) {
+async function recover(chat: Chat, error: unknown, id?: string, row = 0, prompt?: Prompt) {
   const rows: ReviewButton[][] = [];
+  const rejectedAnswer =
+    prompt &&
+    prompt.kind !== "model" &&
+    error instanceof DocumentOperationError &&
+    ["DOCUMENT_VALUE", "DOCUMENT_HEADER", "DOCUMENT_SOURCE_NOTE"].includes(error.message);
+  if (rejectedAnswer)
+    rows.push([
+      {
+        text: "✏️ Повторить ввод",
+        callback_data: `dr:${prompt.review_id}:${prompt.revision}:resume:${prompt.row_index}`,
+      },
+    ]);
   if (id)
     rows.push([{ text: "🔄 Открыть сохранённую строку", callback_data: `dr:${id}:0:get:${row}` }]);
   rows.push([{ text: "📚 Документы", callback_data: "di:home" }]);
   await send(
     chat,
-    errors[error instanceof Error ? error.message : ""] ??
-      "⚠️ Результат действия пока неизвестен. Откройте сохранённую строку или документ. Не начинайте другой импорт для восстановления.",
+    (errors[error instanceof Error ? error.message : ""] ??
+      "⚠️ Результат действия пока неизвестен. Откройте сохранённую строку или документ. Не начинайте другой импорт для восстановления.") +
+      (rejectedAnswer
+        ? "\n\nЭтот ответ не сохранён. Нажмите «Повторить ввод» и ответьте на новый вопрос. Ранее сохранённые исправления остаются в разборе."
+        : ""),
     rows,
   );
 }
@@ -129,6 +146,38 @@ export async function showDocumentReview(m: StaffMember, chat: Chat, data: strin
   if (!action) return;
   const { id, revision, row, column, op } = action;
   try {
+    if (op === "resume") {
+      const { prompt } = await call(m, "input");
+      if (
+        !prompt ||
+        prompt.kind === "model" ||
+        prompt.review_id !== id ||
+        prompt.revision !== revision ||
+        prompt.row_index !== row
+      )
+        throw new Error("DOCUMENT_STALE");
+      if (prompt.kind === "structure") {
+        const current = await call(m, "get", { p_id: id, p_row: row });
+        const draft = current.structure_draft;
+        if (
+          current.revision !== revision ||
+          !draft ||
+          draft.stage !== "editing" ||
+          draft.target !== row ||
+          draft.focus !== prompt.column_index ||
+          draft.focus < -1
+        )
+          throw new Error("DOCUMENT_STALE");
+        const operation = draft.focus === -1 ? "src" : draft.guided ? "walk" : "edit";
+        return showDocumentStructure(
+          m,
+          chat,
+          `ds:${id}:${revision}:${operation}:${row}${draft.focus === -1 ? "" : ":" + draft.focus}`,
+        );
+      }
+      await showDocumentReview(m, chat, `dr:${id}:${revision}:edit:${row}:${prompt.column_index}`);
+      return;
+    }
     const r = await call(
       m,
       ["cols", "raw", "values", "full", "orig", "checks"].includes(op) ? "get" : op,
@@ -311,7 +360,7 @@ export async function handleDocumentReviewText(
     );
     await display(chat, r);
   } catch (e) {
-    await recover(chat, e, prompt?.review_id, prompt?.row_index);
+    await recover(chat, e, prompt?.review_id, prompt?.row_index, prompt);
   }
   return true;
 }

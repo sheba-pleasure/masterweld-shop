@@ -224,7 +224,7 @@ it("keeps initial table selection in review, never in import or publication", as
   expect(mocks.tg.mock.calls[0]![1].text).toContain("Ещё не проверена");
 });
 it("rejects injected callbacks and keeps bounded Telegram callback sizes", () => {
-  for (const op of ["get", "approve", "exclude", "handoff", "summary", "cancel"]) {
+  for (const op of ["get", "approve", "exclude", "handoff", "summary", "cancel", "resume"]) {
     const value = reviewButton({ ...review, revision: 9999999, row: 4999 }, "", op).callback_data;
     expect(Buffer.byteLength(value)).toBeLessThanOrEqual(64);
     expect(parseReviewCallback(value)?.op).toBe(op);
@@ -304,6 +304,102 @@ it("recovers unknown delivery/read/save without automatic mutation replay or sec
   await showDocumentReview(admin, chat, reviewButton(review, "", "edit", 0, 2).callback_data);
   expect(mocks.rpc.mock.calls.filter((c) => c[1].p_op === "bind")).toHaveLength(0);
 });
+it("renews a rejected cell question only on request and rejects its old reply", async () => {
+  let active = { ...prompt };
+  let rejected = true;
+  mocks.rpc.mockImplementation(async (_fn, args) => {
+    if (args.p_op === "input") return { data: { ok: true, prompt: active }, error: null };
+    if (args.p_op === "save" && rejected)
+      return { data: null, error: { message: "DOCUMENT_VALUE" } };
+    if (args.p_op === "edit") active = { ...active, revision: 4, message_id: 0 };
+    if (args.p_op === "bind") active.message_id = args.p_payload.message_id;
+    return { data: { ...review, revision: active.revision }, error: null };
+  });
+  await handleDocumentReviewText(admin, chat, "Я".repeat(2001), 500);
+  const message = mocks.tg.mock.calls.at(-1)![1];
+  expect(message.text).toContain("Этот ответ не сохранён");
+  const retry = message.reply_markup.inline_keyboard
+    .flat()
+    .find((b: { text: string }) => b.text === "✏️ Повторить ввод").callback_data;
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input", "save"]);
+  expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply)).toBe(false);
+  await showDocumentReview(admin, chat, retry);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual([
+    "input",
+    "save",
+    "input",
+    "edit",
+    "bind",
+  ]);
+  expect(active.message_id).toBe(501);
+  rejected = false;
+  mocks.rpc.mockClear();
+  expect(await handleDocumentReviewText(admin, chat, "15", 500)).toBe(false);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input"]);
+  await handleDocumentReviewText(admin, chat, "15", 501);
+  expect(mocks.rpc.mock.calls.at(-1)![1]).toMatchObject({
+    p_op: "save",
+    p_revision: 4,
+    p_column: 2,
+    p_payload: { value: "15", reply_to: 501 },
+  });
+  mocks.rpc.mockClear();
+  await showDocumentReview(admin, chat, retry);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input"]);
+  expect(mocks.tg.mock.calls.at(-1)![1].text).toContain("устарели");
+});
+
+it("does not reopen another document, row, model question or closed input from an old retry", async () => {
+  const retry = reviewButton(review, "", "resume").callback_data;
+  for (const active of [
+    undefined,
+    { ...prompt, review_id: "22222222-2222-4222-8222-222222222222" },
+    { ...prompt, row_index: 1 },
+    { ...prompt, revision: 4 },
+    { ...prompt, kind: "model" },
+  ]) {
+    mocks.rpc.mockClear();
+    mocks.tg.mockClear();
+    mocks.rpc.mockResolvedValue({ data: { ok: true, prompt: active }, error: null });
+    await showDocumentReview(admin, chat, retry);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input"]);
+    expect(mocks.tg.mock.calls.some((c) => c[1].reply_markup?.force_reply)).toBe(false);
+  }
+  mocks.rpc.mockClear();
+  for (const [member, destination] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { id: 101, type: "group" }],
+  ] as const)
+    await showDocumentReview(member, destination, retry);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+it("never offers rejected-answer retry for an uncertain save or later Telegram failure", async () => {
+  for (const failedBoundary of ["save", "delivery"]) {
+    mocks.rpc.mockReset();
+    mocks.tg.mockReset();
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true, prompt }, error: null });
+    mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
+    if (failedBoundary === "save") mocks.rpc.mockRejectedValueOnce(new Error("connection lost"));
+    else {
+      mocks.rpc.mockResolvedValue({ data: review, error: null });
+      mocks.tg.mockRejectedValueOnce(new Error("delivery lost"));
+    }
+    await handleDocumentReviewText(admin, chat, "15", 500);
+    const recovery = mocks.tg.mock.calls.at(-1)![1];
+    expect(recovery.text).toContain("неизвестен");
+    expect(recovery.text).not.toContain("Этот ответ не сохранён");
+    expect(
+      recovery.reply_markup.inline_keyboard
+        .flat()
+        .some((b: { callback_data: string }) => b.callback_data.includes(":resume:")),
+    ).toBe(false);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["input", "save"]);
+  }
+});
+
 it("opens the one linked import only after an explicit transfer action", async () => {
   mocks.rpc.mockResolvedValue({ data: { ok: true, import_id: id }, error: null });
   await showDocumentReview(admin, chat, reviewButton(review, "", "handoff").callback_data);
