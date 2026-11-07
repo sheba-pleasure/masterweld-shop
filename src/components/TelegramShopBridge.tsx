@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import { validateCatalogSearch } from "@/lib/catalog-search";
 
 type Insets = { top?: number; bottom?: number; left?: number; right?: number };
 type TelegramWebApp = {
@@ -21,7 +22,7 @@ type TelegramWindow = Window & { Telegram?: { WebApp?: TelegramWebApp } };
 /** Presentation only. Telegram launch parameters never grant identity or staff rights. */
 export function TelegramShopBridge() {
   const [app, setApp] = useState<TelegramWebApp>();
-  const pathname = useLocation({ select: (location) => location.pathname });
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
     let remembered = false;
@@ -102,7 +103,10 @@ export function TelegramShopBridge() {
   useEffect(() => {
     if (!app?.BackButton) return;
     const back = () => {
-      void navigate({ to: "/" });
+      void navigate({
+        to: "/",
+        search: pathname.startsWith("/product/") ? validateCatalogSearch(search) : {},
+      });
     };
     if (pathname === "/") app.BackButton.hide();
     else app.BackButton.show();
@@ -111,6 +115,6 @@ export function TelegramShopBridge() {
       app.BackButton?.offClick(back);
       app.BackButton?.hide();
     };
-  }, [app, pathname, navigate]);
+  }, [app, pathname, search, navigate]);
   return null;
 }
