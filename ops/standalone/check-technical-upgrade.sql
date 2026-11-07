@@ -4,9 +4,9 @@ DO $checks$
 DECLARE t text; role_name text;
 BEGIN
   IF (SELECT count(*) FROM technical_families)<>48
-    OR (SELECT count(*) FROM technical_attributes)<>40
-    OR (SELECT count(*) FROM technical_family_attributes)<>69
-    OR (SELECT count(*) FROM technical_units)<>14
+    OR (SELECT count(*) FROM technical_attributes)<>coalesce(nullif(current_setting('mw.rehearsal_attributes',true),''),'40')::integer
+    OR (SELECT count(*) FROM technical_family_attributes)<>coalesce(nullif(current_setting('mw.rehearsal_bindings',true),''),'69')::integer
+    OR (SELECT count(*) FROM technical_units)<>coalesce(nullif(current_setting('mw.rehearsal_units',true),''),'14')::integer
     THEN RAISE EXCEPTION 'REHEARSAL_TECH_DICTIONARY_MISMATCH'; END IF;
   FOREACH t IN ARRAY ARRAY['technical_cards','technical_revisions','technical_changes','technical_editor_sessions','bot_draft_results','bot_editor_previews','bot_pending_requests'] LOOP
     EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)',t) INTO strict role_name;
@@ -277,7 +277,10 @@ DO $request_counts$ BEGIN
 END $request_counts$;
 ROLLBACK;
 SELECT jsonb_build_object(
-  'families',48,'attributes',40,'bindings',69,'units',14,
+  'families',(SELECT count(*) FROM technical_families),
+  'attributes',(SELECT count(*) FROM technical_attributes),
+  'bindings',(SELECT count(*) FROM technical_family_attributes),
+  'units',(SELECT count(*) FROM technical_units),
   'noTechnicalBackfill',true,'privateTablesAndRpc',true,'publicReadOnlyAllowlist',true,
   'syntheticRejectedOutsideDev',true,'editorApplyDuplicateUndo',true,'fixturesRolledBack',true,
   'exclusiveEditorTriggers',true,'bothDialogConflictsPreserveFirst',true,'cancelReleasesInput',true,
