@@ -53,7 +53,7 @@ def untouched(before):
     assert snapshot() == before, "OLD_DATA_CHANGED"
     assert json.loads(sql(guard.BASELINE_SQL)) == guard.EXPECTED, "BASELINE_FUNCTIONS_CHANGED"
     state = json.loads(sql(guard.compatibility.SCHEMA_SQL))
-    assert guard.compatibility.validate_schema(state) is False, "PARTIAL_MIGRATION_SURVIVED"
+    assert guard.compatibility.validate_schema(state) == frozenset(), "PARTIAL_MIGRATION_SURVIVED"
 
 
 def corrupt(bundle, statement, position=-1):
@@ -146,7 +146,7 @@ INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES('earlier-revie
     }
     assert sql("SELECT sha256 FROM mw_private.dev_migration_receipts WHERE path='earlier-reviewed-migration'") == "preserve-original-receipt"
     assert json.loads(sql(guard.RECEIPTS_SQL)) == guard.MIGRATIONS
-    assert guard.compatibility.validate_schema(json.loads(sql(guard.compatibility.SCHEMA_SQL))) is True
+    assert guard.compatibility.validate_schema(json.loads(sql(guard.compatibility.SCHEMA_SQL))) == frozenset({guard.compatibility.CAPABILITY})
     for table in guard.NEW_TABLES:
         assert sql("SELECT count(*) FROM public." + table) == "0"
     CHECKS += ["all_four_steps_committed_together", "new_tables_empty", "all_four_receipts_recorded"]
@@ -156,7 +156,7 @@ INSERT INTO mw_private.dev_migration_receipts(path,sha256) VALUES('earlier-revie
     command(["docker", "restart", NAME])
     ready()
     assert snapshot() == after
-    with patch.object(guard, "sql", sql), patch.object(guard.compatibility, "schema_requirements", return_value=True):
+    with patch.object(guard, "sql", sql), patch.object(guard.compatibility, "schema_requirements", return_value=frozenset({guard.compatibility.CAPABILITY})):
         recorded = guard.inspect_installation()
         assert recorded["state"] == "recorded" and recorded["migrationChecksums"] == guard.MIGRATIONS
     assert snapshot() == after

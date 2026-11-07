@@ -170,7 +170,7 @@ def source_revision():
 
 def inspect_installation():
     installed = compatibility.schema_requirements()
-    if installed:
+    if compatibility.CAPABILITY in installed:
         receipts = json.loads(sql(RECEIPTS_SQL))
         if receipts != MIGRATIONS:
             raise RuntimeError("SOURCE_FACT_RECEIPTS_REQUIRE_REVIEW")
@@ -199,7 +199,7 @@ def main():
     with (state / "update.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         image = compatibility.inspect("image", "masterweld-dev:" + sha)
-        image_id = compatibility.validate_image(image, sha, True)
+        image_id = compatibility.validate_image(image, sha, frozenset({compatibility.CAPABILITY}))
         if inspect_installation()["state"] != "baseline_verified":
             raise RuntimeError("SOURCE_FACT_ALREADY_RECORDED_USE_CHECK")
         tests = {}

@@ -27,7 +27,7 @@ def check_app_schema(expected):
         try: compatibility.validate_schema(state)
         except RuntimeError as error: assert str(error)=="DEV_SOURCE_FACT_SCHEMA_INCOMPLETE"
         else: raise AssertionError("PARTIAL_SCHEMA_ACCEPTED")
-    else: assert compatibility.validate_schema(state) is expected
+    else: assert (compatibility.CAPABILITY in compatibility.validate_schema(state)) is expected
 def command(args):
     return subprocess.run(args,check=True,capture_output=True,text=True)
 def sql(q,error=None):
@@ -710,6 +710,8 @@ try:
           FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')""")
         sql("BEGIN;"+proposal+"COMMIT;")
         assert all_rows()==baseline,"DOCUMENTARY_CONDITIONS_CHANGED_ROWS"
+        assert compatibility.validate_schema(json.loads(sql(compatibility.SCHEMA_SQL)))==frozenset({
+          compatibility.CAPABILITY,compatibility.DOCUMENTARY_CAPABILITY})
         acl_after=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
           FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')
           AND p.oid<>'mw_private.documentary_conditions_version()'::regprocedure""")

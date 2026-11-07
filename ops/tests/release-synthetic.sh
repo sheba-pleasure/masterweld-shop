@@ -79,7 +79,7 @@ if kind == "schema":
     flags = [True] * 6 if (mode / "schema-new").exists() else [False] * 6
     if (mode / "schema-partial").exists():
         flags[0] = True
-    print(json.dumps({"identity": identity, "sourceFacts": flags}))
+    print(json.dumps({"identity": identity, "sourceFacts": flags, "documentaryConditions": [False] * 6}))
 elif kind == "image":
     sha = name[7:47] if name.startswith("sha256:") else name.split(":")[-1]
     if not (images / sha).exists() and not (name.startswith("sha256:") and any(
