@@ -2,7 +2,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import type { CreateOrderResult, Submission } from "@/lib/orders/submission";
-const mocks = vi.hoisted(() => ({ order: vi.fn() }));
+const mocks = vi.hoisted(() => ({ order: vi.fn(), reserve: vi.fn(), forget: vi.fn() }));
+vi.mock("@/lib/orders/browser-attempt", () => ({
+  reserveAttempt: (...args: unknown[]) => mocks.reserve(...args),
+  forgetRejectedAttempt: (...args: unknown[]) => mocks.forget(...args),
+}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.order }));
 vi.mock("@/lib/orders/orders.functions", () => ({ createOrder: vi.fn() }));
 vi.mock("@tanstack/react-router", () => ({
@@ -30,6 +34,10 @@ const success: CreateOrderResult = { ok: true, number: "#QA-123", total: 900, ha
 beforeEach(() => {
   vi.restoreAllMocks();
   mocks.order.mockReset();
+  mocks.reserve
+    .mockReset()
+    .mockImplementation(async (attempt: Submission) => ({ attempt, reused: false }));
+  mocks.forget.mockReset().mockResolvedValue(undefined);
   localStorage.clear();
   sessionStorage.clear();
   clearCart();
@@ -180,6 +188,70 @@ it("reloads an unfinished local cleanup through the same persisted attempt", asy
   expect(mocks.order).toHaveBeenCalledTimes(2);
   expect(mocks.order.mock.calls[1]![0].data.requestId).toBe(original.requestId);
   expect(sessionStorage.getItem(ATTEMPT_STORAGE_KEY)).toBeNull();
+});
+
+it("does not send or save a new local attempt when shared reservation fails", async () => {
+  mocks.reserve.mockRejectedValue(new Error("Storage unavailable"));
+  await checkout();
+  expect(await screen.findByText(/Не удалось безопасно проверить/)).toBeVisible();
+  expect(mocks.order).not.toHaveBeenCalled();
+  expect(sessionStorage.getItem(ATTEMPT_STORAGE_KEY)).toBeNull();
+});
+
+it("requires separate confirmation before another identical order", async () => {
+  const previousId = "33333333-3333-4333-8333-333333333333";
+  mocks.reserve.mockImplementationOnce(async (attempt: Submission) => ({
+    attempt: { ...attempt, requestId: previousId },
+    reused: true,
+  }));
+  await checkout();
+  expect(await screen.findByText(/Второй заказ не создан/)).toBeVisible();
+  expect(JSON.parse(localStorage.getItem("mw_cart_v1")!)).toHaveLength(1);
+  expect(mocks.order.mock.calls[0]![0].data.requestId).toBe(previousId);
+  fireEvent.click(screen.getByRole("button", { name: "Нужен ещё один заказ — проверить корзину" }));
+  expect(screen.getByText(/Вы создаёте ещё один заказ/)).toBeVisible();
+  expect(mocks.order).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: /^Оформить (учебный )?заказ$/ }));
+  await waitFor(() => expect(mocks.order).toHaveBeenCalledTimes(2));
+  expect(mocks.reserve.mock.calls[1]![1]).toEqual({ repeatOf: previousId });
+  expect(mocks.order.mock.calls[1]![0].data.requestId).not.toBe(previousId);
+  expect(await screen.findByText("Спасибо! Заказ #QA-123 принят.")).toBeVisible();
+});
+
+it("keeps a definitive rejection when shared reservation cleanup fails", async () => {
+  mocks.order.mockResolvedValue({
+    ok: false,
+    code: "REJECTED",
+    message: "Проверьте состав заказа.",
+  });
+  mocks.forget.mockRejectedValueOnce(new Error("Storage unavailable")).mockResolvedValue(undefined);
+  await checkout();
+  expect(await screen.findByText("Заказ не оформлен.")).toBeVisible();
+  expect(sessionStorage.getItem(ATTEMPT_STORAGE_KEY)).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Завершить в браузере" }));
+  expect(await screen.findByText("Проверьте состав заказа.")).toBeVisible();
+  expect(mocks.order).toHaveBeenCalledTimes(1);
+  expect(mocks.forget).toHaveBeenCalledTimes(2);
+});
+
+it("blocks a new send while a shared reservation is still being persisted", async () => {
+  let finish!: (value: { attempt: Submission; reused: boolean }) => void;
+  let candidate!: Submission;
+  mocks.reserve.mockImplementationOnce((attempt: Submission) => {
+    candidate = attempt;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  await checkout();
+  expect(mocks.reserve).toHaveBeenCalledTimes(1);
+  const button = screen.getByRole("button", { name: /Отправляем/ });
+  fireEvent.click(button);
+  expect(mocks.reserve).toHaveBeenCalledTimes(1);
+  expect(mocks.order).not.toHaveBeenCalled();
+  await act(async () => finish({ attempt: candidate, reused: false }));
+  expect(await screen.findByText("Спасибо! Заказ #QA-123 принят.")).toBeVisible();
+  expect(mocks.order).toHaveBeenCalledTimes(1);
 });
 
 it("refreshes the cart cleared elsewhere before completing a saved order", async () => {

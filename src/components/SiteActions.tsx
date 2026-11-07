@@ -15,7 +15,9 @@ import {
   submissionSchema,
   type Submission,
   type CreateOrderResult,
+  canonicalPayload,
 } from "@/lib/orders/submission";
+import { reserveAttempt, forgetRejectedAttempt } from "@/lib/orders/browser-attempt";
 import { rub } from "@/lib/catalog";
 
 import { CONTACTS } from "@/lib/contacts";
@@ -55,6 +57,9 @@ export function SiteActions() {
     result: CreateOrderResult;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reusedRequestId, setReusedRequestId] = useState<string | null>(null);
+  const [lastAccepted, setLastAccepted] = useState<Submission | null>(null);
+  const [repeatConfirmed, setRepeatConfirmed] = useState(false);
   const [doneInfo, setDoneInfo] = useState<{
     number?: string | undefined;
     total?: number | undefined;
@@ -73,6 +78,7 @@ export function SiteActions() {
 
   const change = (next: boolean) => {
     setOpen(next);
+    setRepeatConfirmed(false);
     if (next) {
       setDone(false);
       if (storageReady && !attemptRef.current) setError(null);
@@ -83,6 +89,7 @@ export function SiteActions() {
   useEffect(() => {
     const showCart = () => {
       setOpen(true);
+      setRepeatConfirmed(false);
       setDone(false);
       setPriceChange(null);
       if (storageReady && !attemptRef.current) setError(null);
@@ -98,51 +105,61 @@ export function SiteActions() {
 
   const send = async () => {
     if (sendingRef.current || !storageReady) return;
-    let current = attemptRef.current;
-    if (!current) {
-      const parsed = submissionSchema.safeParse({
-        requestId: crypto.randomUUID(),
-        name: name.trim(),
-        phone: phone.trim(),
-        comment: comment.trim() || null,
-        items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
-        expected: priceChange
-          ? {
-              total: priceChange.total,
-              items: priceChange.items.map((i) => ({
-                product_id: i.product_id,
-                unit_price: i.price,
-              })),
-            }
-          : {
-              total: Math.round(total * 100) / 100,
-              items: items.map((i) => ({ product_id: i.id, unit_price: i.price })),
-            },
-      });
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Проверьте данные заказа.");
-        return;
-      }
-      current = parsed.data;
-      try {
-        saveAttempt(sessionStorage, current);
-      } catch {
-        setError(
-          "Браузер не сохранил попытку. Заказ не отправлялся. Разрешите хранение данных сайта и повторите.",
-        );
-        return;
-      }
-      attemptRef.current = current;
-      setAttempt(current);
-    }
     sendingRef.current = true;
     setSending(true);
     setError(null);
-    // A definitive response stays attached to its attempt even if browser cleanup fails.
-    // Retry only the unfinished local work; do not submit or re-read this known result.
+    let current = attemptRef.current;
     let confirmedResult =
-      resolvedAttempt?.requestId === current.requestId ? resolvedAttempt.result : null;
+      current && resolvedAttempt?.requestId === current.requestId ? resolvedAttempt.result : null;
+    let requestStarted = false;
+    let reused = current?.requestId === reusedRequestId;
     try {
+      if (!current) {
+        const parsed = submissionSchema.safeParse({
+          requestId: crypto.randomUUID(),
+          name: name.trim(),
+          phone: phone.trim(),
+          comment: comment.trim() || null,
+          items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
+          expected: priceChange
+            ? {
+                total: priceChange.total,
+                items: priceChange.items.map((i) => ({
+                  product_id: i.product_id,
+                  unit_price: i.price,
+                })),
+              }
+            : {
+                total: Math.round(total * 100) / 100,
+                items: items.map((i) => ({ product_id: i.id, unit_price: i.price })),
+              },
+        });
+        if (!parsed.success) {
+          setError(parsed.error.issues[0]?.message ?? "Проверьте данные заказа.");
+          return;
+        }
+        const repeatOf =
+          repeatConfirmed &&
+          lastAccepted &&
+          canonicalPayload(parsed.data) === canonicalPayload(lastAccepted)
+            ? lastAccepted.requestId
+            : undefined;
+        const reservation = await reserveAttempt(parsed.data, repeatOf ? { repeatOf } : {});
+        current = reservation.attempt;
+        reused = reservation.reused;
+        setReusedRequestId(reused ? current.requestId : null);
+        saveAttempt(sessionStorage, current);
+        attemptRef.current = current;
+        setAttempt(current);
+        setRepeatConfirmed(false);
+      } else if (!confirmedResult) {
+        const reservation = await reserveAttempt(current, { resume: true });
+        reused = reservation.reused;
+        setReusedRequestId(reused ? current.requestId : null);
+      }
+      // A definitive response stays attached to its attempt even if browser cleanup fails.
+      // Retry only unfinished local work; never rotate an ID to escape an unknown outcome.
+      requestStarted = true;
       const res = confirmedResult ?? (await placeOrder({ data: current }));
       if (!res.ok && res.code !== "PRICE_CHANGED" && res.code !== "REJECTED") {
         setError(res.message ?? UNKNOWN_ORDER_MESSAGE);
@@ -150,8 +167,8 @@ export function SiteActions() {
       }
       confirmedResult = res;
       setResolvedAttempt({ requestId: current.requestId, result: res });
-      // Only a durable, definitive server result allows a new attempt.
       if (!res.ok) {
+        await forgetRejectedAttempt(current);
         sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
         if (sessionStorage.getItem(ATTEMPT_STORAGE_KEY) !== null)
           throw new Error("ATTEMPT_CLEANUP_FAILED");
@@ -170,21 +187,23 @@ export function SiteActions() {
         return;
       }
       setDoneInfo({ number: res.number, total: res.total, backorder: res.hasBackorder });
-      // Clear the submitted cart BEFORE dropping the recovery token. A reload
-      // between these steps can still recover the receipt instead of reordering.
-      const persisted: unknown = JSON.parse(localStorage.getItem("mw_cart_v1") ?? "[]");
-      if (
-        Array.isArray(persisted) &&
-        persisted.length === current.items.length &&
-        persisted.every((i) =>
-          current.items.some((p) => p.product_id === i?.id && p.qty === i?.qty),
-        )
-      ) {
-        localStorage.setItem("mw_cart_v1", "[]");
-        if (localStorage.getItem("mw_cart_v1") !== "[]") throw new Error("CART_STORAGE_FAILED");
+      setLastAccepted(current);
+      // A reused receipt must not clear items added again after the original order.
+      // The initiating attempt clears its unchanged cart before dropping recovery.
+      if (!reused) {
+        const submittedItems = current.items;
+        const persisted: unknown = JSON.parse(localStorage.getItem("mw_cart_v1") ?? "[]");
+        if (
+          Array.isArray(persisted) &&
+          persisted.length === submittedItems.length &&
+          persisted.every((i) =>
+            submittedItems.some((p) => p.product_id === i?.id && p.qty === i?.qty),
+          )
+        ) {
+          localStorage.setItem("mw_cart_v1", "[]");
+          if (localStorage.getItem("mw_cart_v1") !== "[]") throw new Error("CART_STORAGE_FAILED");
+        }
       }
-      // Another tab may have changed or cleared the cart while the order was in flight.
-      // Show its current contents without writing our old in-memory snapshot back.
       refreshCart();
       sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
       if (sessionStorage.getItem(ATTEMPT_STORAGE_KEY) !== null)
@@ -196,7 +215,9 @@ export function SiteActions() {
       setError(
         confirmedResult
           ? "Результат уже получен, но браузер не завершил оформление. Нажмите «Завершить в браузере». Повторного заказа не будет."
-          : UNKNOWN_ORDER_MESSAGE,
+          : requestStarted
+            ? UNKNOWN_ORDER_MESSAGE
+            : "Не удалось безопасно проверить сохранённую попытку. Разрешите хранение данных сайта и повторите проверку здесь. Если ошибка остаётся, позвоните в магазин; не оформляйте тот же заказ в другом браузере.",
       );
     } finally {
       sendingRef.current = false;
@@ -258,6 +279,27 @@ export function SiteActions() {
                   Итог по нашим ценам:{" "}
                   <span className="font-semibold text-brand-yellow">{rub(doneInfo.total)}</span>
                 </p>
+              )}
+              {lastAccepted?.requestId === reusedRequestId && (
+                <div className="mt-4 space-y-3">
+                  <p role="status">
+                    Найден результат ранее начатого оформления. Второй заказ не создан.
+                    {items.length > 0 &&
+                      " Товары оставлены в корзине. Если нужен ещё один заказ, подтвердите это отдельно."}
+                  </p>
+                  {items.length > 0 && (
+                    <Button
+                      className="h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep hover:bg-brand-yellow/90"
+                      onClick={() => {
+                        setRepeatConfirmed(true);
+                        setDone(false);
+                        setError(null);
+                      }}
+                    >
+                      Нужен ещё один заказ — проверить корзину
+                    </Button>
+                  )}
+                </div>
               )}
               {doneInfo.backorder && import.meta.env["VITE_APP_ENV"] !== "dev" && (
                 <p className="mt-2 text-xs text-primary-foreground/60">
@@ -359,7 +401,9 @@ export function SiteActions() {
               </div>
               <div className="checkout-details flex flex-col gap-2">
                 <p className="border-b border-brand-yellow/20 pb-2 text-sm text-primary-foreground/75">
-                  Для заказа регистрация не нужна.
+                  {repeatConfirmed
+                    ? "Вы создаёте ещё один заказ. Проверьте товары, сумму и контакты, затем подтвердите оформление."
+                    : "Для заказа регистрация не нужна."}
                 </p>
 
                 <div className="flex items-baseline justify-between">
