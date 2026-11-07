@@ -49,7 +49,7 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseReviewCallback(value: string): ReviewAction | null {
   const m = value.match(
     new RegExp(
-      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
+      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|resume|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
     ),
   );
   if (!m || Number(m[4]) > 4999 || (m[5] !== undefined && Number(m[5]) > 29)) return null;
