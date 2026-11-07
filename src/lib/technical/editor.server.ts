@@ -12,6 +12,7 @@ import { isPrivateChat } from "@/lib/bot/catalog";
 import { tg } from "@/lib/bot/telegram.server";
 import { technicalOperation } from "./staff.server";
 import { technicalDocument } from "./schema";
+import { technicalSourceBinding, sourceBindingText } from "./source-binding";
 import { processLabels } from "./presentation";
 import {
   EditorInputError,
@@ -40,11 +41,20 @@ const sessionSchema = z.object({
   expires_at: z.string(),
   review_state: z.string().nullable(),
   model_binding: technicalModelBinding.optional(),
+  source_binding: technicalSourceBinding.optional(),
 });
 type Session = z.infer<typeof sessionSchema>;
 type Chat = { id: number; type?: string };
 type Button = { text: string; callback_data: string };
 const safeErrors: Record<string, string> = {
+  TECH_SOURCE_REVIEW_REQUIRED:
+    "Подтверждение источника больше не действует. Черновик сохранён. Уберите неподтверждённые значения либо начните новый разбор документа.",
+  TECH_SOURCE_UNDO_REVIEW:
+    "Откат вернул бы сведения с недействующим подтверждением источника. Откройте прежние значения из истории для новой проверки.",
+  TECH_ORIGIN_INVALID:
+    "Не удалось сохранить связь значения с проверенным документом. Черновик не изменён. Для замены источника уберите прежнее значение и начните новый разбор.",
+  TECH_ORIGIN_REMOVED:
+    "Нельзя незаметно убрать связь с исходным документом. Сначала отдельно удалите прежнее значение или отметьте отсутствие подтверждённых сведений. Затем проверьте новое значение.",
   TECH_MODEL_CONTEXT_REQUIRED:
     "В старом черновике не сохранён выбор модели. Отмените черновик через /cancel и начните проверку заново. Сведения останутся в истории.",
   TECH_MODEL_CHANGED:
@@ -164,9 +174,11 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
         ? "Будут подтверждены данные для витрины."
         : "Будет отправлено предложение на проверку. Витрина не изменится.") +
       "\nПроверьте значения и источники перед подтверждением.\n\n" +
-      modelBindingText(s.model_binding);
+      modelBindingText(s.model_binding) +
+      sourceBindingText(s.source_binding);
     add("📋 Значения и источники", "review");
     if (
+      s.source_binding?.usable !== false &&
       s.model_binding?.matches &&
       (s.review_state !== "verified" ||
         !["stale", "excluded"].includes(s.model_binding.current.state))
@@ -193,12 +205,13 @@ async function render(member: StaffMember, chat: Chat, s: Session) {
       "\n\n" +
       factDiff(s) +
       "\n\n" +
-      modelBindingText(s.model_binding);
+      modelBindingText(s.model_binding) +
+      sourceBindingText(s.source_binding);
     add("🗂 Выбрать семейство", "families");
     if (d.document) {
       add("➕ Добавить / изменить значение", "fields");
       add("📋 Проверить значения и источники", "inspect");
-      if (s.model_binding?.matches) {
+      if (s.model_binding?.matches && s.source_binding?.usable !== false) {
         add("📨 Предпросмотр предложения", "pending");
         if (
           can(member, "publish_products") &&
@@ -400,6 +413,9 @@ export async function technicalEditor(
           card: z
             .object({
               model_context: technicalModelContext.optional(),
+              source_review: z
+                .object({ required: z.boolean(), previous_revision: z.string().uuid().nullable() })
+                .optional(),
               model_review: z
                 .object({ required: z.boolean(), previous_revision: z.string().uuid().nullable() })
                 .optional(),
@@ -420,9 +436,14 @@ export async function technicalEditor(
             .nullable(),
         })
         .parse(data).card;
-      const needsReview = card?.identity_review?.required || card?.model_review?.required;
+      const needsReview =
+        card?.identity_review?.required ||
+        card?.model_review?.required ||
+        card?.source_review?.required;
       const previousRevision =
-        card?.model_review?.previous_revision ?? card?.identity_review?.previous_revision;
+        card?.source_review?.previous_revision ??
+        card?.model_review?.previous_revision ??
+        card?.identity_review?.previous_revision;
       const rows: Button[][] = [
         [
           {
@@ -456,7 +477,7 @@ export async function technicalEditor(
       await sendLong(
         chat,
         (needsReview
-          ? "⚠️ Товар изменён — характеристики нужно проверить заново.\nПрежние подтверждённые сведения скрыты, история сохранена. Сверьте точную модель, значения и источники. Открытие прежней подборки не возвращает её на витрину: нужны исправления по необходимости, предпросмотр и отдельное подтверждение владельцем."
+          ? "⚠️ Товар, выбор модели или подтверждение источника изменились — характеристики нужно проверить заново.\nПрежние подтверждённые сведения скрыты, история сохранена. Сверьте точную модель, значения и источники. Открытие прежней подборки не возвращает её на витрину: нужны исправления по необходимости, предпросмотр и отдельное подтверждение владельцем."
           : "⚙️ Проверенные характеристики\nНачните от текущей карточки или выберите предложение для проверки. При проверке предложение сравнивается с текущей опубликованной карточкой.") +
           "\n\n" +
           modelContextText(card?.model_context),

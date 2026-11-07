@@ -37,6 +37,7 @@ const session = () => ({
   prompt_message_id: 111,
   expires_at: new Date(Date.now() + 86400000).toISOString(),
   review_state: null,
+  source_binding: { usable: true, total: 0, unavailable: 0 },
   model_binding: {
     captured: { state: "unselected", revision: 0, usable: false },
     current: { state: "unselected", revision: 0, usable: false },
@@ -76,6 +77,28 @@ it("shows model context before confirmation and hides apply for stale evidence",
       .some((b: { callback_data?: string }) => b.callback_data?.endsWith(":apply")),
   ).toBe(false);
   expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+});
+it.each(["editing", "preview"])(
+  "Hides apply and previews for unavailable origins in %s",
+  async (phase) => {
+    stored.phase = phase;
+    stored.source_binding = { usable: false, total: 2, unavailable: 1 };
+    await technicalEditor(owner, chat, from, { callback: "te:" + id + ":3:resume" });
+    const payloads = mocks.tg.mock.calls.map((c) => c[1]);
+    expect(JSON.stringify(payloads)).toContain("Подтверждение исходного документа");
+    const buttons = payloads.flatMap((p) => p.reply_markup?.inline_keyboard?.flat() ?? []);
+    for (const action of ["apply", "verified", "pending"])
+      expect(
+        buttons.some((b: { callback_data?: string }) => b.callback_data?.endsWith(":" + action)),
+      ).toBe(false);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+  },
+);
+it("Rejects an inconsistent source status instead of offering confirmation", async () => {
+  stored.phase = "preview";
+  stored.source_binding = { usable: true, total: 1, unavailable: 1 };
+  await technicalEditor(owner, chat, from, { callback: "te:" + id + ":3:resume" });
+  expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain(":apply");
 });
 it("rejects stale callbacks without persisting or confirming", async () => {
   await technicalEditor(owner, chat, from, { callback: "te:" + id + ":2:pending" });

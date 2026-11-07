@@ -337,6 +337,7 @@ export function editorAction(input: EditorData, action: string, index = 0): Edit
     s.screen = "value";
   } else if (action === "unknown" && s.screen === "value" && s.pending) {
     s.pending = { ...s.pending, state: "unknown", value: null, source_key: null, context: {} };
+    delete s.pending.origin_ref;
     commitFact(s);
   } else if (action === "na" && s.screen === "value" && s.pending) {
     s.pending = {
@@ -346,6 +347,7 @@ export function editorAction(input: EditorData, action: string, index = 0): Edit
       source_key: null,
       context: {},
     };
+    delete s.pending.origin_ref;
     commitFact(s);
   } else if (
     action === "conditions" &&

@@ -519,7 +519,152 @@ try:
     fresh=step("cancel_input",fresh)
     assert facts("input")["idle"]
     step("cancel",fresh)
+    # 0040 is a separate additive WIP migration; no pre-existing value changes at installation.
+    origin_baseline=snapshot()
+    origin_migration=(ROOT/"docs/migrations/0040_technical_source_origins.sql").read_text()
+    sql("BEGIN;"+origin_migration+"COMMIT;")
+    origin_after=snapshot();origin_after.pop("technical_fact_origins")
+    assert origin_after==origin_baseline,"ORIGIN_MIGRATION_CHANGED_DATA"
+    for role in ["anon","authenticated","service_role"]:
+        sql("SET ROLE "+role+"; SELECT * FROM technical_fact_origins",error="permission denied")
+        for signature in [
+          "mw_private.technical_origin_status(jsonb,uuid,boolean)",
+          "mw_private.technical_origin_transition(jsonb,jsonb)",
+          "mw_private.bot_technical_catalog_before_origins(bigint,text,uuid,uuid,jsonb,text,bigint,jsonb)",
+          "mw_private.bot_technical_editor_before_origins(bigint,text,uuid,integer,uuid,uuid,jsonb,text,bigint)"]:
+            assert sql("SELECT has_function_privilege("+lit(role)+","+lit(signature)+",'EXECUTE')")=="f"
+    def technical(op,doc=None,change=None,version=None,error=None):
+        model_context=sql("SELECT mw_private.technical_model_context("+lit(pid)+")")
+        args=["101",lit(op),lit(pid),lit(change) if change else "NULL",
+          lit(json.dumps(doc)) if doc is not None else "NULL",lit("verified"),
+          str(version) if version is not None else "NULL",lit(model_context)]
+        raw=sql("SET ROLE service_role; SELECT bot_technical_catalog("+",".join(args)+")",error)
+        return json.loads(raw) if not error else None
+    def editor(op,session=None,data=None,source_revision=None,error=None):
+        args=["101",lit(op),lit(session["id"]) if session else "NULL",
+          str(session["revision"]) if session else "NULL",lit(pid),
+          lit(source_revision) if source_revision else "NULL",
+          lit(json.dumps(data)) if data is not None else "NULL",lit("verified")]
+        raw=sql("SET ROLE service_role; SELECT bot_technical_editor("+",".join(args)+")",error)
+        return json.loads(raw)["session"] if not error else None
+    origin_approval=approve_source(pid,f["id"])
+    origin_payload={**payload,"source_id":origin_approval["source_id"]}
+    origin_view=facts("prepare",str(uuid.uuid4()),payload=origin_payload)
+    origin_view=step("save",origin_view,payload={"draft":value("mma_current_max_a",170)})
+    origin_view=step("accept",origin_view)
+    for ix in [1,2,3]:origin_view=step("skip",origin_view,index=ix)
+    origin_view=step("publisher",origin_view,payload={"text":"Учебный изготовитель"})
+    origin_view=step("preview",origin_view)
+    origin_doc=copy.deepcopy(origin_view["review"]["prepared_document"])
+    origin_id=str(uuid.uuid4())
+    # Registration must match an accepted row and its exact prepared source, even inside trusted code.
+    for wrong_row,wrong_snapshot,wrong_fact in [
+      (1,{k:v for k,v in origin_doc["sources"][0].items() if k!="key"},origin_doc["values"][0]),
+      (0,{**{k:v for k,v in origin_doc["sources"][0].items() if k!="key"},"sha256":"d"*64},origin_doc["values"][0]),
+      (0,{k:v for k,v in origin_doc["sources"][0].items() if k!="key"},{**origin_doc["values"][0],"value":999}),
+    ]:
+        sql("INSERT INTO technical_fact_origins(id,product_id,source_id,review_id,row_index,source_snapshot,original_fact) VALUES("+
+          ",".join([lit(origin_id),lit(pid),lit(origin_approval["source_id"]),lit(origin_view["review"]["id"]),str(wrong_row),
+            lit(json.dumps(wrong_snapshot)),lit(json.dumps(wrong_fact))])+")",error="TECH_ORIGIN_INVALID")
+    # Fixture for the future atomic handoff. No service role can insert such records directly.
+    sql("INSERT INTO technical_fact_origins(id,product_id,source_id,review_id,row_index,source_snapshot,original_fact) VALUES("+
+      ",".join([lit(origin_id),lit(pid),lit(origin_approval["source_id"]),lit(origin_view["review"]["id"]),"0",
+        lit(json.dumps({k:v for k,v in origin_doc["sources"][0].items() if k!="key"})),
+        lit(json.dumps(origin_doc["values"][0]))])+")")
+    origin_doc["values"][0]["origin_ref"]=origin_id
+    assert not json.loads(sql("SELECT mw_private.technical_origin_status("+lit(json.dumps(origin_doc))+","+lit(pid)+")"))["usable"]
+    # Complete the isolated handoff fixture. In application code this must be one atomic transaction.
+    sql("UPDATE source_fact_reviews SET phase='handed' WHERE id="+lit(origin_view["review"]["id"]))
+    sql("UPDATE technical_fact_origins SET original_fact=original_fact",error="TECH_ORIGIN_IMMUTABLE")
+    sql("DELETE FROM technical_fact_origins",error="TECH_ORIGIN_IMMUTABLE")
+    assert not json.loads(sql("SELECT mw_private.technical_origin_status("+
+      lit(json.dumps(origin_doc))+","+lit(str(uuid.uuid4()))+")"))["usable"]
+    for ref in [None,"bad","10000000-0000-4000-8000-000000000000"]:
+        bad=copy.deepcopy(origin_doc);bad["values"][0]["origin_ref"]=ref
+        technical("preview",bad,version=1,error="TECH_ORIGIN_INVALID" if ref in [None,"bad"] else "TECH_SOURCE_REVIEW_REQUIRED")
+    unknown=copy.deepcopy(origin_doc)
+    unknown["values"][0].update(state="unknown",value=None,source_key=None)
+    technical("preview",unknown,version=1,error="TECH_ORIGIN_INVALID")
+    duplicated=copy.deepcopy(origin_doc)
+    duplicated["values"].append({**duplicated["values"][0],"context":{"temperature_c":40}})
+    technical("preview",duplicated,version=1,error="TECH_ORIGIN_INVALID")
+    first_change=technical("preview",origin_doc,version=1)
+    technical("apply",change=first_change["change_id"])
+    published=technical("read")["card"]["published_revision"]
+    sql("UPDATE products SET status='published',assortment_decision='sell' WHERE id="+lit(pid))
+    public_card=json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")"))
+    assert public_card["values"][0]["value"]==170 and "origin_ref" not in json.dumps(public_card)
+    assert origin_id not in json.dumps(public_card)
+    e=editor("start")
+    assert e["data"]["document"]==origin_doc and e["source_binding"]=={"usable":True,"total":1,"unavailable":0}
+    stripped=copy.deepcopy(e["data"]);stripped["document"]["values"][0].pop("origin_ref")
+    editor("save",e,stripped,error="TECH_ORIGIN_REMOVED")
+    technical("preview",stripped["document"],version=2,error="TECH_ORIGIN_REMOVED")
+    assert editor("get",e)["data"]==e["data"]
+    # A source-key rename preserves the descriptor and provenance; changing its checksum does not.
+    renamed=copy.deepcopy(e["data"])
+    renamed["document"]["sources"][0]["key"]="renamed"
+    renamed["document"]["values"][0]["source_key"]="renamed"
+    e=editor("save",e,renamed)
+    changed_source=copy.deepcopy(e["data"]);changed_source["document"]["sources"][0]["sha256"]="c"*64
+    editor("save",e,changed_source,error="TECH_ORIGIN_INVALID")
+    # Updating a human-reviewed value retains the same origin reference.
+    edited=copy.deepcopy(e["data"]);edited["document"]["values"][0]["value"]=171
+    e=editor("save",e,edited)
+    e=editor("preview",e)
+    assert e["data"]["document"]["values"][0]["origin_ref"]==origin_id
+    # Withdrawing the actual approved source invalidates both reads and an already prepared apply.
+    act("withdraw",act("withdraw_prepare",origin_approval)["review"])
+    assert sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")")==""
+    assert editor("get",e)["source_binding"]=={"usable":False,"total":1,"unavailable":1}
+    editor("apply",e,error="TECH_SOURCE_REVIEW_REQUIRED")
+    view=technical("read")["card"]
+    assert view["published"] is None and view["source_review"]["required"]
+    assert view["source_review"]["previous_revision"]==published
+    assert technical("apply",change=first_change["change_id"])["duplicate"]
+    assert sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")")==""
+    technical("undo",change=first_change["change_id"],error="TECH_SOURCE_REVIEW_REQUIRED")
+    editor("cancel",e)
+    clone=editor("start",source_revision=published)
+    assert clone["data"]["document"]["values"][0]["origin_ref"]==origin_id
+    editor("preview",clone,error="TECH_SOURCE_REVIEW_REQUIRED")
+    command(["docker","restart",NAME]);ready()
+    assert editor("get",clone)["source_binding"]["unavailable"]==1
+    # Source review intentionally cannot start while a technical draft is open.
+    editor("cancel",clone)
+    # Renewing approval for the same bytes does not reauthorize the withdrawn origin.
+    renewed=approve_source(pid,f["id"])
+    assert renewed["source_id"]!=origin_approval["source_id"]
+    clone=editor("start",source_revision=published)
+    assert not clone["source_binding"]["usable"]
+    # Removing a fact is allowed; remaining stale facts would still block preview.
+    removed=copy.deepcopy(clone["data"]);removed["document"]["values"]=[];removed["document"]["sources"]=[]
+    clone=editor("save",clone,removed)
+    assert clone["source_binding"]=={"usable":True,"total":0,"unavailable":0}
+    # A separate explicit manual review may add a new value. No automatic reassignment of its source.
+    manual=copy.deepcopy(clone["data"])
+    manual["document"]=copy.deepcopy(origin_doc)
+    manual["document"]["values"][0].pop("origin_ref")
+    manual["document"]["sources"][0].update(sha256="",url="https://example.com/new-manual",title="Новый проверенный вручную документ")
+    manual["document"]["values"][0]["value"]=180
+    clone=editor("save",clone,manual)
+    clone=editor("preview",clone)
+    clone=editor("apply",clone)
+    assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")"))["values"][0]["value"]==180
+    editor("undo",clone,error="TECH_SOURCE_UNDO_REVIEW")
+    assert technical("apply",change=first_change["change_id"])["duplicate"]
+    assert json.loads(sql("SET ROLE anon; SELECT public_product_technical("+lit(pid)+")"))["values"][0]["value"]==180
+    origin_ui_script="""import { editorData } from './src/lib/technical/editor.ts';
+      import { technicalSourceBinding, sourceBindingText } from './src/lib/technical/source-binding.ts';
+      let raw=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',chunk=>raw+=chunk);
+      process.stdin.on('end',()=>{for(const session of JSON.parse(raw)) {
+        editorData.parse(session.data);
+        sourceBindingText(technicalSourceBinding.parse(session.source_binding));
+      }});"""
+    subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",origin_ui_script],cwd=ROOT,
+      input=json.dumps([e,editor("get",e),clone]),capture_output=True,text=True,check=True)
     print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
+      "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
       "checks":["private_roles","exact_unicode_quote","table_origin","foreign_source","stable_prepare",
        "audit_atomicity","CAS","human_corrections","required_conditions","duplicate_resolution",
        "bound_questions","restart_with_question","explicit_resume","cancel_input","exclusive_editors_both_orders","concurrent_editor_starts",
@@ -527,6 +672,9 @@ try:
        "publisher_required","preview_only","same_page_grouping","ui_response_contract","next_pending","old_data_preserved","restart",
        "stale_base","withdrawn_source","cancel_receipt","merge_preserves_old_facts","merge_source_collision",
        "merge_equal_conditions","merge_family_removal","merge_limits_no_truncation","merge_bounds","merge_ui_contract",
-       "merge_rpc_previous_revision","merge_rejects_previous_model"]}))
+       "merge_rpc_previous_revision","merge_rejects_previous_model","origin_private","origin_immutable","origin_preserved_on_save",
+       "origin_removed_rejected","origin_source_replacement_rejected","withdrawn_origin_hides_public","withdrawn_origin_blocks_apply",
+       "clone_keeps_origin","renewed_source_does_not_reauthorize","origin_receipt_no_republish","origin_undo_guard","explicit_removal_and_new_review",
+       "origin_registration_matches_accepted_row","origin_inactive_before_handoff","origin_ui_contract"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)

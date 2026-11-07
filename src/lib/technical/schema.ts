@@ -57,13 +57,21 @@ export const technicalFact = z
     unit_code: code,
     context: technicalContext,
     source_key: z.string().nullable(),
+    origin_ref: z
+      .string()
+      .uuid()
+      .regex(/^[0-9a-f-]+$/)
+      .optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
     if (
       v.state === "known"
         ? v.value === null || !v.source_key
-        : v.value !== null || v.source_key !== null || Object.keys(v.context).length !== 0
+        : v.value !== null ||
+          v.source_key !== null ||
+          Object.keys(v.context).length !== 0 ||
+          v.origin_ref !== undefined
     ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "TECH_VALUE_STATE" });
     }

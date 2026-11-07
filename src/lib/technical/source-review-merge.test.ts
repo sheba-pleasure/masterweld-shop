@@ -97,6 +97,16 @@ describe("Source merge review", () => {
     expect(sourceFactMergeDetail(plan, 3)).toContain("Ток: 120 А");
     expect(raw).toEqual(saved);
   });
+  it("Keeps the retained fact's provenance reference in both snapshots", () => {
+    const raw = fixture(),
+      origin = "10000000-0000-4000-8000-000000000001";
+    raw.before_document!.values[1]!.origin_ref = origin;
+    raw.after_document.values[1]!.origin_ref = origin;
+    const parsed = sourceFactMergePreview.parse(raw);
+    expect(parsed.after_document.values[1]!.origin_ref).toBe(origin);
+    delete raw.after_document.values[1]!.origin_ref;
+    expect(sourceFactMergePreview.safeParse(raw).success).toBe(false);
+  });
   it("Keeps an unknown value visibly unknown instead of zero or no", () => {
     const detail = sourceFactMergeDetail(sourceFactMergePreview.parse(fixture()), 2);
     expect(detail).toContain("Не указано");
