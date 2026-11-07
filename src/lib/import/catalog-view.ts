@@ -2,6 +2,7 @@ import { FIELDS, FIELD_LABEL, catalogColumnLabel, type Field, type Mapping } fro
 
 import { modelIdentityText, modelLinkState, type DocumentModelLink } from "./model-links-view";
 import { renderModelComparison, type ModelComparison } from "./model-conflict-view";
+import { renderReview, type DocumentReview } from "./review-view";
 
 type Button = { text: string; callback_data: string };
 type Product = Partial<Record<Field | "category_id", string | number | boolean | null>>;
@@ -22,6 +23,11 @@ export interface ImportView {
   pages: number;
   recent?: { id: string; file_name: string; state: string }[];
   document_review_id?: string;
+  document_can_return?: boolean;
+  document_returned?: boolean;
+  document_return_review?: DocumentReview;
+  document_return_prepare?: boolean;
+  document_review_revision?: number;
   model_count?: number;
   model_capture_ready?: boolean;
   model_blocked?: number;
@@ -51,10 +57,21 @@ export interface ImportRequest {
   column?: number;
   decimal?: string;
   line?: number;
+  reviewRevision?: number;
 }
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseImportCallback(data: string): ImportRequest | null {
   if (data === "ci:home" || data === "ci:template") return { op: data.slice(3) };
+  const returning = data.match(new RegExp(`^ci:(rp|rr):(${ID}):([0-9]{1,7})(?::([0-9]{1,7}))?$`));
+  if (returning) {
+    if ((returning[1] === "rr") !== (returning[4] !== undefined)) return null;
+    return {
+      op: returning[1] === "rp" ? "return_prepare" : "return_confirm",
+      id: returning[2]!,
+      revision: Number(returning[3]),
+      ...(returning[4] === undefined ? {} : { reviewRevision: Number(returning[4]) }),
+    };
+  }
   const comparison = data.match(
     new RegExp(`^ci:(mc|ma):(${ID}):([0-9]{1,7}):([0-9]{1,4})(?::([0-9]{1,4}))?$`),
   );
@@ -126,7 +143,50 @@ export function renderImport(
   screen?: "config" | number,
 ): { text: string; rows: Button[][] } {
   const rows: Button[][] = [];
-  if (r.model_comparison) return renderModelComparison(r.id, r.revision, r.model_comparison);
+  const returnButton: Button[][] = r.document_can_return
+    ? [[{ text: "✏️ Исправить документ…", callback_data: `ci:rp:${r.id}:${r.revision}` }]]
+    : [];
+  if (
+    r.document_return_prepare &&
+    r.document_can_return &&
+    r.document_review_revision !== undefined
+  )
+    return {
+      text: "✏️ Вернуться к исправлению документа?\n\nТекущий предпросмотр будет отменён. Товары в магазине не изменятся.\n\nОригинал, исправления и история сохранятся. Можно исправить ячейки, заголовки, добавить пропущенную строку или разделить объединённые товары. Повторно загружать файл не нужно.\n\nПосле правок проверьте изменённые строки, снова передайте документ в импорт и проверьте новый предпросмотр. Применение — только отдельной кнопкой.",
+      rows: [
+        [
+          {
+            text: "✏️ Да, перейти к исправлению",
+            callback_data: `ci:rr:${r.id}:${r.revision}:${r.document_review_revision}`,
+          },
+        ],
+        [{ text: "↩️ Остаться в импорте", callback_data: `ci:get:${r.id}:0` }],
+      ],
+    };
+  if (r.document_returned && r.document_return_review) {
+    const view = renderReview(r.document_return_review);
+    return {
+      ...view,
+      text:
+        "✅ Прежний предпросмотр отменён для исправления. Каталог этим возвратом не менялся. Ниже — текущий разбор документа.\n\n" +
+        view.text,
+    };
+  }
+  if (r.document_returned && r.document_review_id)
+    return {
+      text: "✅ Этот предпросмотр отменён для исправления документа.\n\nОригинал и история сохранены. Каталог этим возвратом не менялся.\n\nОткройте текущий разбор: исправьте нужные поля и проверьте строки заново. Если вы уже создали следующий импорт, он откроется из документа. Повторное нажатие старой кнопки его не отменяет.",
+      rows: [
+        [
+          {
+            text: "✏️ Открыть документ для исправления",
+            callback_data: `dr:${r.document_review_id}:0:get:0`,
+          },
+        ],
+        [{ text: "📥 К импортам", callback_data: "ci:home" }],
+      ],
+    };
+  if (r.model_comparison)
+    return renderModelComparison(r.id, r.revision, r.model_comparison, r.document_can_return);
   if (r.home)
     return {
       text: "📥 Импорт товаров и цен\n\n1️⃣ Файл\nПришлите CSV UTF-8: до 2 МБ и 5000 строк. Первая строка — заголовки. Из Excel сохраните как CSV UTF-8. XLSX/PDF и сканы отправьте через «Документы»: там можно проверить и исправить распознанные строки.\n\n2️⃣ Колонки\nУкажите артикул, название и нужные поля. Цена продажи и закупка выбираются отдельно; суммы — в рублях.\n\n3️⃣ Предпросмотр\nПроверьте изменения и только затем подтвердите импорт.\n\n🛡 Новые товары — черновики «На разбор». Публикация и отметка «Не продаём» сохраняются. Товары вне файла не меняются.\n\n👇 Начните с учебного CSV.",
@@ -191,6 +251,7 @@ export function renderImport(
           { text: "Цены: 123.45", callback_data: `ci:decimal:${r.id}:dot:${r.revision}` },
         ],
         [{ text: "👁 Построить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` }],
+        ...returnButton,
         [{ text: "Отменить импорт", callback_data: `ci:cancel:${r.id}` }],
         [{ text: "К импортам", callback_data: "ci:home" }],
       ],
@@ -334,10 +395,15 @@ export function renderImport(
     rows.push([{ text: "Откатить этот импорт…", callback_data: `ci:undo_preview:${r.id}` }]);
   if (r.state === "undo_preview")
     rows.push([{ text: "Подтвердить откат", callback_data: `ci:undo:${r.id}` }]);
-  rows.push([{ text: "К импортам", callback_data: "ci:home" }]);
+  rows.push(...returnButton, [{ text: "К импортам", callback_data: "ci:home" }]);
   return { text: lines.join("\n"), rows };
 }
 const ERRORS: Record<string, string> = {
+  IMPORT_RETURN_UNAVAILABLE:
+    "Вернуть к исправлению можно только документ из неприменённого импорта. Откройте текущее состояние импорта.",
+  IMPORT_RETURN_INPUT_ACTIVE:
+    "Сначала завершите текущий ввод. Нажмите /input для продолжения или /cancel для отмены ввода. Затем снова выберите «Исправить документ».",
+
   IMPORT_MODEL_CONFLICT:
     "Модель отличается от ранее сохранённой. Откройте импорт и сравните модели. Без отдельного решения импорт не выполнится.",
   IMPORT_MODEL_IDENTITY_REQUIRED:
@@ -358,7 +424,8 @@ const ERRORS: Record<string, string> = {
   IMPORT_NOT_FOUND: "Импорт не найден или принадлежит другому сотруднику.",
   IMPORT_BAD_INPUT: "Некорректные параметры импорта. Откройте раздел заново.",
   IMPORT_CLOSED: "Этот импорт уже закрыт. Откройте его состояние через /import.",
-  IMPORT_EXPIRED: "Срок подтверждения истёк. Для нового разбора отправьте файл заново.",
+  IMPORT_EXPIRED:
+    "Срок подтверждения истёк. Откройте импорт: для распознанного документа выберите «Исправить документ», затем подготовьте новый предпросмотр. Для обычного CSV отправьте исправленный файл заново.",
   IMPORT_STALE: "Настройки изменились. Откройте импорт заново и постройте свежий предпросмотр.",
   IMPORT_CONFLICT:
     "Товары или закупочные цены изменились после предпросмотра. Операция остановлена целиком; последующие правки сохраняются.",

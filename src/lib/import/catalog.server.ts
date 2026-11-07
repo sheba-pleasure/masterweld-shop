@@ -129,6 +129,8 @@ export async function showCatalogImport(
       if (!data.source) throw new Error("IMPORT_BAD_INPUT");
       const file: CatalogFile = { ...data.source, mapping: data.mapping };
       args.p_payload = { rows: normalizeCatalogFile(file, data.decimal) };
+    } else if (request.op === "return_confirm") {
+      args.p_payload = { review_revision: request.reviewRevision };
     } else if (["model_compare", "model_accept"].includes(request.op)) {
       args.p_payload = { line: request.line };
     } else if (request.op === "map") {
@@ -145,14 +147,15 @@ export async function showCatalogImport(
       text: importError(error instanceof Error ? error.message : undefined),
       ...(request.id &&
       error instanceof Error &&
-      [
-        "IMPORT_MODEL_CHANGED",
-        "IMPORT_MODEL_PREVIEW_REQUIRED",
-        "IMPORT_MODEL_CONFLICT",
-        "IMPORT_MODEL_IDENTITY_REQUIRED",
-        "IMPORT_MODEL_COMPARISON_REQUIRED",
-        "IMPORT_MODEL_EVIDENCE_CHANGED",
-      ].includes(error.message)
+      (["return_prepare", "return_confirm"].includes(request.op) ||
+        [
+          "IMPORT_MODEL_CHANGED",
+          "IMPORT_MODEL_PREVIEW_REQUIRED",
+          "IMPORT_MODEL_CONFLICT",
+          "IMPORT_MODEL_IDENTITY_REQUIRED",
+          "IMPORT_MODEL_COMPARISON_REQUIRED",
+          "IMPORT_MODEL_EVIDENCE_CHANGED",
+        ].includes(error.message))
         ? {
             reply_markup: {
               inline_keyboard: [

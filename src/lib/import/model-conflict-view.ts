@@ -13,7 +13,12 @@ export interface ModelComparison {
   review_id: string;
   row: number;
 }
-export function renderModelComparison(id: string, revision: number, c: ModelComparison) {
+export function renderModelComparison(
+  id: string,
+  revision: number,
+  c: ModelComparison,
+  canReturn = false,
+) {
   const rows: { text: string; callback_data: string }[][] = [];
   const identity = (value: Identity | null) =>
     modelIdentityText({ identity: value } as DocumentModelLink);
@@ -28,7 +33,9 @@ export function renderModelComparison(id: string, revision: number, c: ModelComp
       : c.conflict
         ? "⚠️ Сведения различаются. Совпадение артикула само по себе не означает, что это тот же товар."
         : "✅ Различий с сохранёнными моделями нет.",
-    "Сначала сверьте производителя, модель и модификацию. Если это другой товар — отмените импорт, исправьте артикул в исходном файле и отправьте исправленный файл через «Документы».",
+    canReturn
+      ? "Сначала сверьте производителя, модель и модификацию. Если ошибочен артикул — нажмите «Исправить документ». После подтверждения можно исправить его без повторной загрузки файла, проверить строку и создать новый предпросмотр."
+      : "Сначала сверьте производителя, модель и модификацию. Если это другой товар — отмените импорт, исправьте артикул в исходном файле и отправьте исправленный файл через «Документы».",
     c.incoming
       ? "Кнопка «Это тот же товар» сохранит ваше решение только для этого предпросмотра. После этого отдельно подтвердите импорт. Прежние сведения останутся в истории; публикация не изменится."
       : "Сначала уточните новую модель по кнопке ниже, затем вернитесь в импорт и обновите предпросмотр. Если не уверены — оставьте импорт на проверке.",
@@ -58,7 +65,10 @@ export function renderModelComparison(id: string, revision: number, c: ModelComp
   rows.push(
     [{ text: "🏷 Уточнить новую модель", callback_data: `dm:${c.review_id}:0:get:${c.row}` }],
     [{ text: "↩️ Не уверен — вернуться без решения", callback_data: `ci:get:${id}:0` }],
-    [{ text: "⛔ Другой товар — отменить весь импорт", callback_data: `ci:cancel:${id}` }],
+    ...(canReturn
+      ? [[{ text: "✏️ Исправить документ…", callback_data: `ci:rp:${id}:${revision}` }]]
+      : []),
+    [{ text: "⛔ Отменить весь импорт", callback_data: `ci:cancel:${id}` }],
   );
   return { text: lines.join("\n\n"), rows };
 }
