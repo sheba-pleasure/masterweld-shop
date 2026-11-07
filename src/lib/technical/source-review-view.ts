@@ -173,7 +173,8 @@ export const sourceFactActions = [
 export type SourceFactAction = (typeof sourceFactActions)[number];
 export type SourceFactCallback =
   | { kind: "current" }
-  | { kind: "families" | "start"; sourceReview: string; revision: number; index: number }
+  | { kind: "families"; sourceReview: string; revision: number; index: number }
+  | { kind: "start"; sourceReview: string; revision: number; index: number }
   | {
       kind: "review";
       id: string;
@@ -232,7 +233,7 @@ export function parseSourceFactCallback(data: string): SourceFactCallback | null
   return { kind: "review", id, revision: Number(bits[3]), action, index: Number(bits[5]), args };
 }
 export function sourceFactButton(
-  r: SourceFactReview["review"],
+  r: Pick<SourceFactReview["review"], "id" | "revision">,
   action: SourceFactAction,
   rowIndex = 0,
   ...args: number[]

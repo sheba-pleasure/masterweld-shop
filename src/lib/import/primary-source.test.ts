@@ -160,6 +160,22 @@ it("requires a separate human confirmation and keeps supplier material distinct"
       .some((b) => parseSourceCallback(b.callback_data)?.op === "withdraw"),
   ).toBe(false);
 });
+it("offers extraction only for a current confirmed document and keeps review recovery after withdrawal", () => {
+  const v = data();
+  const buttons = () =>
+    renderSourceReview(v)
+      .rows.flat()
+      .map((b) => b.callback_data);
+  expect(buttons().some((b) => b.startsWith("sf:f:"))).toBe(false);
+  v.review!.phase = "confirmed";
+  v.review!.usable = true;
+  v.review!.source_id = other;
+  expect(buttons()).toContain("sf:f:" + compactId(id) + ":" + v.review!.revision + ":0");
+  v.review!.usable = false;
+  expect(buttons().some((b) => b.startsWith("sf:f:"))).toBe(false);
+  v.review!.phase = "withdrawn";
+  expect(buttons()).toContain("sf:current");
+});
 it("does not offer document selection for stale model drafts", () => {
   const v = data();
   v.review!.phase = "draft";

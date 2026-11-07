@@ -20,6 +20,11 @@ import { showDocumentModel } from "@/lib/import/model.server";
 import { showProductModelLinks } from "@/lib/import/model-links.server";
 import { showModelChoice } from "@/lib/import/model-choice.server";
 import { showProductSources } from "@/lib/import/primary-source.server";
+import {
+  showSourceFactReview,
+  sourceFactControl,
+  handleSourceFactText,
+} from "@/lib/technical/source-review.server";
 import type { ImportDocument } from "@/lib/import/telegram-file.server";
 import { deliveryReport, type DeliveryRow } from "./deliveries";
 import { navigationCommand, persistentKeyboard } from "./navigation";
@@ -1047,11 +1052,13 @@ async function setEditorState(
     await tg("sendMessage", {
       chat_id: staffTelegramId,
       text:
-        error.message === "DOCUMENT_INPUT_ACTIVE"
-          ? "✏️ Сначала завершите исправление строки документа. Нажмите «Продолжить ввод» или «Отмена ввода». Текущие данные сохранены."
-          : error.message === "EDITOR_TECHNICAL_ACTIVE"
-            ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
-            : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Нажмите «Продолжить ввод», чтобы проверить текущий вопрос.",
+        error.message === "SOURCE_FACT_INPUT_ACTIVE"
+          ? "✏️ Сначала завершите исправление характеристики. Нажмите «Продолжить ввод» или «Отмена ввода». Сохранённые решения останутся в разборе."
+          : error.message === "DOCUMENT_INPUT_ACTIVE"
+            ? "✏️ Сначала завершите исправление строки документа. Нажмите «Продолжить ввод» или «Отмена ввода». Текущие данные сохранены."
+            : error.message === "EDITOR_TECHNICAL_ACTIVE"
+              ? "⚙️ Сначала завершите черновик характеристик: /technical — продолжить, /cancel — отменить с подтверждением. Новый ввод не начат; сохранённый черновик не изменён."
+              : "⚠️ Не удалось сохранить шаг. Следующий вопрос не открыт. Нажмите «Продолжить ввод», чтобы проверить текущий вопрос.",
       reply_markup: INPUT_RECOVERY_MARKUP,
     });
   }
@@ -2048,11 +2055,13 @@ async function handleCommand(
     case "/actions":
       return pendingHistory(m, chat.id);
     case "/input":
+      if (await sourceFactControl(m, chat, from, "resume")) return;
       if (await documentReviewControl(m, chat, "resume")) return;
       return resumeEditorInput(m, chat.id);
     case "/technical":
       return technicalEditor(m, chat, from, { command: "/technical" });
     case "/cancel": {
+      if (await sourceFactControl(m, chat, from, "cancel")) return;
       if (await documentReviewControl(m, chat, "cancel")) return;
       if (can(m, "edit_products") && (await technicalEditor(m, chat, from, { command: "/cancel" })))
         return;
@@ -2324,6 +2333,10 @@ export async function handleUpdate(update: TgUpdate) {
       can(m, "upload_photos")
     )
       return tg("sendMessage", { chat_id: chat.id, text: PHOTO_UPLOAD_NOT_CONNECTED_MSG });
+    if (
+      await handleSourceFactText(m, chat, from, text, update.message?.reply_to_message?.message_id)
+    )
+      return;
     if (await handleDocumentReviewText(m, chat, text, update.message?.reply_to_message?.message_id))
       return;
     if (
@@ -2388,6 +2401,7 @@ export async function handleUpdate(update: TgUpdate) {
   if (cb.data?.startsWith("mp:")) return showProductModelLinks(m, chat, cb.data);
   if (cb.data?.startsWith("pm:")) return showModelChoice(m, chat, cb.data, requestId);
   if (cb.data?.startsWith("pds:")) return showProductSources(m, chat, cb.data, requestId);
+  if (cb.data?.startsWith("sf:")) return showSourceFactReview(m, chat, from, cb.data, requestId);
   if (cb.data?.startsWith("dm:")) return showDocumentModel(m, chat, cb.data);
   if (cb.data?.startsWith("ds:")) return showDocumentStructure(m, chat, cb.data);
   if (cb.data?.startsWith("dr:")) return showDocumentReview(m, chat, cb.data);
