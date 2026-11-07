@@ -6,7 +6,7 @@ import {
   type DocumentModelLink,
   type ProductModelLinks,
 } from "./model-links-view";
-import { renderImport, type ImportView } from "./catalog-view";
+import { parseImportCallback, renderImport, type ImportView } from "./catalog-view";
 import { buildProductCardBot } from "@/lib/bot/catalog";
 import type { StaffMember } from "@/lib/bot/permissions";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), tg: vi.fn() }));
@@ -244,6 +244,63 @@ it("only offers source documents to users with the explicit card capability", ()
       .rows.flat()
       .some((b) => b.callback_data === `mp:${id}:0`),
   ).toBe(true);
+});
+it("blocks the whole preview and makes the first unresolved row reachable across pages", () => {
+  const v = renderImport({ ...batch, model_blocked: 1, model_first_blocked: 5001 });
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+  expect(v.rows.flat().some((b) => b.callback_data === `ci:mc:${id}:3:5001:0`)).toBe(true);
+  expect(v.text).toContain("Импорт целиком остановлен");
+});
+it("shows complete old/new identities and separates the decision from actual import", () => {
+  const comparison = {
+    line: 2,
+    sku: "aB-001",
+    incoming: link.identity,
+    previous: [{ ...link.identity!, model: "Old-380" }],
+    page: 0,
+    pages: 1,
+    conflict: true,
+    accepted: false,
+    review_id: id,
+    row: 0,
+  };
+  const v = renderImport({ ...batch, model_comparison: comparison });
+  expect(v.text).toContain("Old-380");
+  expect(v.text).toContain("aB-220");
+  expect(v.text).toContain("После этого отдельно подтвердите импорт");
+  expect(v.rows.flat().some((b) => b.callback_data.startsWith("ci:apply:"))).toBe(false);
+  expect(v.rows.flat().some((b) => b.callback_data === `ci:ma:${id}:3:2`)).toBe(true);
+  for (const c of [
+    { ...comparison, incoming: null },
+    { ...comparison, accepted: true },
+    { ...comparison, pages: 2 },
+  ])
+    expect(
+      renderImport({ ...batch, model_comparison: c })
+        .rows.flat()
+        .some((b) => b.callback_data.startsWith("ci:ma:")),
+    ).toBe(false);
+});
+it("routes a human model decision once, with actor, revision and exact row", async () => {
+  mocks.rpc.mockResolvedValue({ data: { ...batch, model_blocked: 0 }, error: null });
+  await showCatalogImport(admin, chat, parseImportCallback(`ci:ma:${id}:3:2`));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_catalog_import", {
+    p_actor: 101,
+    p_op: "model_accept",
+    p_id: id,
+    p_page: 0,
+    p_revision: 3,
+    p_payload: { line: 2 },
+  });
+});
+it("rejects malformed conflict decisions and respects Telegram callback length", () => {
+  const value = `ci:mc:${id}:9999999:5001:9999`;
+  expect(Buffer.byteLength(value)).toBeLessThanOrEqual(64);
+  expect(parseImportCallback(value)?.line).toBe(5001);
+  for (const suffix of ["mc:3:1:0", "mc:3:5002:0", "ma:3:2:0", "ma:3:-1", "mc:3:2:10000"]) {
+    const [op, ...parts] = suffix.split(":");
+    expect(parseImportCallback(`ci:${op}:${id}:${parts.join(":")}`)).toBeNull();
+  }
 });
 it("rejects injected product/source callbacks and bounds pagination", () => {
   expect(parseProductModelCallback(`mp:${id}:1666`)?.page).toBe(1666);

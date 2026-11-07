@@ -60,6 +60,8 @@ jobs:
         run: python3 ops/tests/document-model.py
       - name: Document model import provenance (isolated PostgreSQL)
         run: python3 ops/tests/document-model-import.py
+      - name: Model conflicts require an explicit human decision
+        run: python3 ops/tests/document-model-conflicts.py
       - name: Document upgrade and restore probe (isolated PostgreSQL)
         run: python3 ops/tests/document-upgrade.py
       - name: Offline document extraction and real OCR
