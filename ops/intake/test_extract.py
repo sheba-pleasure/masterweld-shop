@@ -3,6 +3,13 @@ import importlib.util
 import json
 import io
 import struct
+import base64
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
 import pathlib
 import xlwt
 import xlrd
@@ -93,6 +100,37 @@ class ExtractionTests(unittest.TestCase):
         self.assertTrue(result["coverage"]["complete"])
         self.assertTrue(result["tables"][0]["rows"][2][2].startswith("=Формула XLS"))
         self.assertNotIn("9999.5",json.dumps(result,ensure_ascii=False))
+
+    def test_xls_through_real_http_parser_and_sanitized_subprocess(self):
+        # Exercise the production subprocess environment, not only an in-process import.
+        revision=json.loads(pathlib.Path("/worker/manifest.json").read_text())["revision"]
+        process=subprocess.Popen([sys.executable,str(pathlib.Path(__file__).with_name("parser.py"))],
+                                 env={**os.environ,"APP_ENV":"dev","RELEASE_SHA":revision},
+                                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        try:
+            buffer=io.BytesIO();self.binary_workbook().save(buffer)
+            body=json.dumps({"file_name":"HTTP.xls","base64":base64.b64encode(buffer.getvalue()).decode()}).encode()
+            for attempt in range(40):
+                self.assertIsNone(process.poll(),"HTTP parser exited before accepting a request")
+                try:
+                    request=urllib.request.Request("http://127.0.0.1:8090/extract",data=body,
+                                                   headers={"Content-Type":"application/json"})
+                    with urllib.request.urlopen(request,timeout=10) as response:
+                        result=json.load(response)
+                    break
+                except urllib.error.HTTPError:
+                    raise
+                except urllib.error.URLError:
+                    if attempt==39:raise
+                    time.sleep(0.05)
+            self.assertTrue(result["coverage"]["complete"])
+            self.assertEqual(result["xls_table_version"],1)
+            self.assertEqual(result["tables"][0]["rows"][0],["0007","Учебный аппарат","123.45"])
+            self.assertEqual(result["tables"][0]["rows"][2][2],"=Формула XLS: введите проверенное значение")
+            self.assertEqual(result["sha256"],hashlib.sha256(buffer.getvalue()).hexdigest())
+        finally:
+            process.terminate()
+            process.wait(timeout=5)
 
     def test_xls_dates_and_errors_are_not_plain_numbers(self):
         book=xlwt.Workbook();sheet=book.add_sheet("Даты")
