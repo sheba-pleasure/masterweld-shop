@@ -365,6 +365,18 @@ try:
     v=step("preview",v)
     assert v["review"]["phase"]=="preview" and len(v["review"]["prepared_document"]["values"])==3
     assert len(v["review"]["prepared_document"]["sources"])==1 # Same physical page, separate exact private quotes.
+    assert v["document_id"]==f["id"] and v["document_checksum"]==f["checksum"]
+    assert v["next_pending"] is None and prepared[0]["next_pending"]==1
+    # Check the real PostgreSQL response against the UI boundary, not only a handwritten TS fixture.
+    script="""import { sourceFactReviewResponse, renderSourceFactReview } from './src/lib/technical/source-review-view.ts';
+      let raw=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',chunk=>raw+=chunk);
+      process.stdin.on('end',()=>{for(const value of JSON.parse(raw)) {
+        const parsed=sourceFactReviewResponse.parse(value);
+        renderSourceFactReview(parsed,'list',parsed.row.row_index);
+        renderSourceFactReview(parsed,'row',parsed.row.row_index);
+      }});"""
+    subprocess.run([str(ROOT/"node_modules/.bin/tsx"),"-e",script],cwd=ROOT,
+      input=json.dumps([prepared[0],old_question,v]),capture_output=True,text=True,check=True)
     assert snapshot()==before,"REVIEW_CHANGED_OLD_TABLES"
     assert sql("SELECT count(*) FROM technical_revisions")=="0"
     command(["docker","restart",NAME]);ready()
@@ -394,7 +406,7 @@ try:
        "audit_atomicity","CAS","human_corrections","required_conditions","duplicate_resolution",
        "bound_questions","restart_with_question","explicit_resume","cancel_input","exclusive_editors_both_orders","concurrent_editor_starts",
        "reply_audit_atomicity","revoked_restored_role","expired_question","row_action_invalidates_question","withdrawn_source_question",
-       "publisher_required","preview_only","same_page_grouping","old_data_preserved","restart",
+       "publisher_required","preview_only","same_page_grouping","ui_response_contract","next_pending","old_data_preserved","restart",
        "stale_base","withdrawn_source","cancel_receipt"]}))
 finally:
     if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)

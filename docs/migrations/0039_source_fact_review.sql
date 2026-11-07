@@ -432,8 +432,12 @@ BEGIN
   AND expires_at>now() AND r.phase='reviewing';
  RETURN jsonb_build_object('ok',true,'idle',false,'review',to_jsonb(r)-'extraction',
   'source_review_id',src.review_id,'file_name',d.file_name,'source_kind',src.source_kind,
+  'document_id',d.id,'document_checksum',src.document_checksum,
+  'product_title',(SELECT title FROM products WHERE id=r.product_id),
   'usable',coalesce(usable,false),'counts',counts,'rows',coalesce(all_rows,'[]'::jsonb),
   'row',CASE WHEN line.review_id IS NOT NULL THEN to_jsonb(line) END,
+  'next_pending',(SELECT row_index FROM source_fact_rows WHERE review_id=r.id AND decision='pending'
+    ORDER BY (row_index>p_index) DESC,row_index LIMIT 1),
   'missing_fields',r.extraction->'fields_without_candidates','warnings',r.extraction->'warnings',
   'current_model',current_model,'prompt',CASE WHEN prompt.actor IS NOT NULL THEN to_jsonb(prompt) END);
 END $review$;
