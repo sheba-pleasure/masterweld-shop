@@ -72,6 +72,8 @@ jobs:
         run: python3 ops/tests/document-upgrade.py
       - name: Production-shaped schema upgrade without live snapshots
         run: python3 ops/tests/production-schema.py
+      - name: Production migration plan and uncertain commit recovery
+        run: python3 ops/tests/production-migration-plan.py
       - name: Offline document extraction and real OCR
         run: |
           docker build --target qa --build-arg GIT_SHA="$(git rev-parse HEAD)" -t mw-document-qa -f ops/intake/Dockerfile ops/intake
