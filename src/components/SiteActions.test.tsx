@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import type { CreateOrderResult, Submission } from "@/lib/orders/submission";
 const mocks = vi.hoisted(() => ({ order: vi.fn(), reserve: vi.fn(), forget: vi.fn() }));
@@ -162,6 +162,60 @@ it.each(["PRICE_CHANGED", "REJECTED"] as const)(
     expect(JSON.parse(localStorage.getItem("mw_cart_v1")!)).toHaveLength(1);
   },
 );
+
+it.each(["cancel", "quantity"] as const)(
+  "shows the offered price in product rows without changing the saved cart, then resets on %s",
+  async (action) => {
+    mocks.order.mockResolvedValueOnce({
+      ok: false,
+      code: "PRICE_CHANGED",
+      total: 950,
+      items: [{ product_id: item.id, title: item.title, price: 950 }],
+    });
+    await checkout();
+    await screen.findByRole("button", { name: "Согласиться с новой ценой и оформить" });
+    const row = screen.getByRole("link", { name: item.title }).closest("li")!;
+    expect(within(row).getByText(/\/ шт\./)).toHaveTextContent("950");
+    expect(within(row).queryByText(/900/)).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("mw_cart_v1")!)[0].price).toBe(900);
+    expect(mocks.order).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: action === "cancel" ? "Отмена — вернуться к корзине" : "Добавить одну: " + item.title,
+      }),
+    );
+    await waitFor(() => expect(within(row).getByText(/\/ шт\./)).toHaveTextContent("900"));
+    expect(
+      screen.queryByRole("button", { name: "Согласиться с новой ценой и оформить" }),
+    ).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("mw_cart_v1")!)[0].price).toBe(900);
+    expect(mocks.order).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("sends the displayed offered price only after explicit consent", async () => {
+  mocks.order
+    .mockResolvedValueOnce({
+      ok: false,
+      code: "PRICE_CHANGED",
+      total: 950,
+      items: [{ product_id: item.id, title: item.title, price: 950 }],
+    })
+    .mockResolvedValueOnce({ ...success, total: 950 });
+  await checkout();
+  const confirm = await screen.findByRole("button", {
+    name: "Согласиться с новой ценой и оформить",
+  });
+  expect(mocks.order).toHaveBeenCalledTimes(1);
+  fireEvent.click(confirm);
+  await screen.findByText("Спасибо! Заказ #QA-123 принят.");
+  expect(mocks.order).toHaveBeenCalledTimes(2);
+  expect(mocks.order.mock.calls[1]![0].data.expected).toEqual({
+    total: 950,
+    items: [{ product_id: item.id, unit_price: 950 }],
+  });
+});
 
 it("still recovers an actually unknown result using the same attempt ID", async () => {
   mocks.order.mockRejectedValueOnce(new Error("Response lost")).mockResolvedValue(success);

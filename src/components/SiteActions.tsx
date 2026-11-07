@@ -225,6 +225,15 @@ export function SiteActions() {
     }
   };
 
+  // Show the offered prices consistently without accepting or persisting them.
+  // Cancellation or any cart edit returns to the saved cart and requires a fresh check.
+  const displayedItems = priceChange
+    ? items.map((item) => {
+        const offered = priceChange.items.find((line) => line.product_id === item.id);
+        return offered ? { ...item, price: offered.price } : item;
+      })
+    : items;
+
   // Строки, где цена в корзине покупателя отличается от серверной.
   const changedLines = priceChange
     ? priceChange.items
@@ -397,7 +406,7 @@ export function SiteActions() {
           ) : (
             <div className="checkout-layout">
               <div className="checkout-products">
-                <CartRows items={items} onNavigate={() => setOpen(false)} />
+                <CartRows items={displayedItems} onNavigate={() => setOpen(false)} />
               </div>
               <div className="checkout-details flex flex-col gap-2">
                 <p className="border-b border-brand-yellow/20 pb-2 text-sm text-primary-foreground/75">

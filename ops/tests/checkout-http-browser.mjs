@@ -118,6 +118,15 @@ try {
       exact: true,
     });
     await confirm.waitFor();
+    const productRow = page
+      .getByRole("link", { name: "Учебный HTTP товар", exact: true })
+      .locator("xpath=ancestor::li");
+    assert.equal(await productRow.count(), 1);
+    const rowText = await productRow.innerText();
+    assert.match(rowText, /950/);
+    assert.doesNotMatch(rowText, /900/);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("mw_cart_v1")));
+    assert.equal(stored[0].price, 900, "Offered prices must not silently change the saved cart");
     for (const viewport of [
       { width: 390, height: 844 },
       { width: 1440, height: 1000 },
