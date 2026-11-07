@@ -15,6 +15,14 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEV_ID = "3a6a67bc-5ce6-46a4-af72-e6ab78800e49"
 DEV_BOT = "8996533708"
+# These DEV-installed proposals are required by the current application, but
+# remain outside automatic migration runners. Inventory is not approval to apply.
+REQUIRED_PROPOSALS = {
+    "docs/proposals/0042_documentary_measurement_conditions.sql":
+        "2b258b9a2ec9253bd357c13843020c3bb26e2931d0c9e186f7c48b7fc8b4ebad",
+    "docs/proposals/0043_accessory_characteristics.sql":
+        "0c39f8ad4d53145add3c07f8df3e6ad872ef9a11a23e3e4288c07c54d51f3378",
+}
 BOT_ROLES = {
     "staff": ("TELEGRAM_", "8861999166", "masterweldermanagerbot", "/api/public/telegram/webhook"),
     "customer": ("CUSTOMER_TELEGRAM_", "9168738475", "msvarbot", "/api/public/telegram/customer"),
@@ -184,6 +192,17 @@ def schema_errors(rows, expected):
     return sorted(errors)
 
 
+def expected_schema_files(root):
+    paths = sorted((root / "drizzle/migrations").glob("*.sql")) + sorted((root / "docs/migrations").glob("*.sql"))
+    expected = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+    # Never glob arbitrary draft proposals or silently omit a missing required file.
+    for relative, checksum in REQUIRED_PROPOSALS.items():
+        if hashlib.sha256((root / relative).read_bytes()).hexdigest() != checksum:
+            raise ValueError("REQUIRED_PROPOSAL_CHECKSUM_MISMATCH")
+        expected[relative] = checksum
+    return expected
+
+
 def inspect_schema(env):
     # All docker/SQL operations here are fixed read-only calls.
     try:
@@ -200,8 +219,7 @@ def inspect_schema(env):
         state = json.loads(result.stdout)
         if state["identity"] != {"environment": "production", "instanceId": env["MW_INSTANCE_ID"]}:
             return ["SCHEMA_DATABASE_IDENTITY_MISMATCH"]
-        paths = sorted((ROOT / "drizzle/migrations").glob("*.sql")) + sorted((ROOT / "docs/migrations").glob("*.sql"))
-        expected = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+        expected = expected_schema_files(ROOT)
         return schema_errors(state["files"], expected)
     except Exception:
         return ["SCHEMA_INVENTORY_UNAVAILABLE"]

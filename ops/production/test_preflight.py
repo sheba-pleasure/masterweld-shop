@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import pathlib
@@ -6,7 +7,8 @@ import unittest
 from unittest.mock import patch
 from urllib.error import URLError
 
-from preflight import (BOT_KEYS, DATABASE_KEYS, DEV_ID, DEV_BOT, configuration_errors,
+from preflight import (BOT_KEYS, DATABASE_KEYS, DEV_ID, DEV_BOT, REQUIRED_PROPOSALS, ROOT,
+                       configuration_errors, expected_schema_files, inspect_schema,
                        inspect_bots, read_env, request_json, schema_errors, telegram_read)
 from stage_config import compose, save_candidate
 
@@ -70,6 +72,72 @@ class PreflightTest(unittest.TestCase):
                                {"old": "b", "new": "n"})
         self.assertEqual(errors, ["MIGRATION_CHECKSUM_MISMATCH:old", "MIGRATION_MISSING:new",
                                   "MIGRATION_UNEXPECTED:unexpected"])
+
+    def test_current_application_proposals_cannot_disappear_from_inventory(self):
+        expected = expected_schema_files(ROOT)
+        self.assertTrue(set(REQUIRED_PROPOSALS) <= set(expected))
+        before_proposals = [{"path": path, "sha256": checksum}
+                            for path, checksum in expected.items() if path not in REQUIRED_PROPOSALS]
+        self.assertEqual(schema_errors(before_proposals, expected),
+                         sorted("MIGRATION_MISSING:" + path for path in REQUIRED_PROPOSALS))
+        complete = [{"path": path, "sha256": checksum} for path, checksum in expected.items()]
+        self.assertEqual(schema_errors(complete, expected), [])
+        complete[-1]["sha256"] = "changed"
+        self.assertEqual(schema_errors(complete, expected),
+                         ["MIGRATION_CHECKSUM_MISMATCH:" + complete[-1]["path"]])
+
+    def test_required_proposal_files_are_exact_and_unrelated_drafts_are_ignored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            directory = root / "docs/proposals"
+            directory.mkdir(parents=True)
+            required = directory / "0042_reviewed.sql"
+            required.write_bytes(b"-- reviewed fixture")
+            expected = {"docs/proposals/0042_reviewed.sql":
+                        hashlib.sha256(required.read_bytes()).hexdigest()}
+            (directory / "9999_unreviewed.sql").write_bytes(b"-- unrelated fixture")
+            with patch("preflight.REQUIRED_PROPOSALS", expected):
+                self.assertEqual(expected_schema_files(root), expected)
+                required.write_bytes(b"-- changed fixture")
+                with self.assertRaisesRegex(ValueError, "REQUIRED_PROPOSAL_CHECKSUM_MISMATCH"):
+                    expected_schema_files(root)
+                required.unlink()
+                with self.assertRaises(FileNotFoundError):
+                    expected_schema_files(root)
+
+    def test_schema_probe_reads_only_and_reports_the_two_uninstalled_proposals(self):
+        import subprocess
+        expected = expected_schema_files(ROOT)
+        files = [{"path": path, "sha256": checksum}
+                 for path, checksum in expected.items() if path not in REQUIRED_PROPOSALS]
+        state = {"identity": {"environment": "production", "instanceId": valid()["MW_INSTANCE_ID"]},
+                 "files": files}
+        responses = [
+            subprocess.CompletedProcess([], 0, json.dumps([{"Config": {"Labels": {"mw.environment": "production"}}}])),
+            subprocess.CompletedProcess([], 0, json.dumps(state)),
+        ]
+        with patch("preflight.subprocess.run", side_effect=responses) as run:
+            self.assertEqual(inspect_schema(valid()),
+                             sorted("MIGRATION_MISSING:" + path for path in REQUIRED_PROPOSALS))
+            self.assertEqual(len(run.call_args_list), 2)
+            sql = run.call_args_list[1].args[0][-1]
+            self.assertTrue(sql.strip().startswith("SELECT json_build_object("))
+            for mutation in ("INSERT", "UPDATE", "DELETE", "CREATE", "ALTER"):
+                self.assertNotIn(mutation, sql)
+
+    def test_schema_probe_fails_closed_when_required_source_is_unavailable(self):
+        import subprocess
+        state = {"identity": {"environment": "production", "instanceId": valid()["MW_INSTANCE_ID"]},
+                 "files": []}
+        responses = [
+            subprocess.CompletedProcess([], 0, json.dumps([{"Config": {"Labels": {"mw.environment": "production"}}}])),
+            subprocess.CompletedProcess([], 0, json.dumps(state)),
+        ]
+        with (
+            patch("preflight.subprocess.run", side_effect=responses),
+            patch("preflight.expected_schema_files", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual(inspect_schema(valid()), ["SCHEMA_INVENTORY_UNAVAILABLE"])
 
     def test_webhook_inventory_never_exposes_legacy_url_or_errors(self):
         calls = []
