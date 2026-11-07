@@ -97,7 +97,7 @@ jobs:
       - name: Atomic source fact installation guards
         run: python3 ops/tests/source-facts-installation.py
       - name: Source fact review transactions
-        run: python3 ops/tests/source-fact-review.py
+        run: python3 ops/tests/source-fact-review.py --documentary-conditions
       - name: Telegram bot receipts (isolated PostgreSQL)
         run: python3 ops/tests/telegram-bots.py
       - name: Order notification claims and restart (isolated PostgreSQL)

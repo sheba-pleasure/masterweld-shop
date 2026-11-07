@@ -82,6 +82,8 @@ const contextLabels: Record<string, string> = {
   duty_pct: "Продолжительность нагрузки, %",
   material: "Материал",
   diameter_mm: "Диаметр, мм",
+  test_conditions:
+    "Условия из документа — перенесите полностью (до 500 знаков). Не подставляйте условия от другой модели или режима",
 };
 export function technicalFieldDefinition(familyCode: string, attributeCode: string) {
   const attr = dictionary.attributes.find((a) => a.code === attributeCode);
@@ -198,7 +200,7 @@ export function parseTechnicalContextValue(key: keyof Fact["context"], raw: stri
   const value =
     key === "cooling"
       ? parseTechnicalOption("cooling", text, ["air", "liquid"])
-      : ["gas", "material"].includes(key)
+      : ["gas", "material", "test_conditions"].includes(key)
         ? text
         : numeric(text);
   if (value === undefined)

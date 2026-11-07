@@ -445,6 +445,24 @@ describe("Human review screens", () => {
     );
     expect(() => renderSourceFactReview(v, "modes", 0, foreign, now)).toThrow();
   });
+  it("Shows long documentary conditions completely and keeps the correction bound to its row", () => {
+    const v = fixture();
+    const note = "🧰".repeat(500);
+    v.row!.draft!.context = { test_conditions: note };
+    for (const screen of ["conditions", "row"] as const) {
+      const view = renderSourceFactReview(v, screen, 0, 0, now);
+      expect(view.text).toContain(note);
+      expect(view.text.length).toBeLessThanOrEqual(4096);
+    }
+    const view = renderSourceFactReview(v, "conditions", 0, 0, now);
+    const button = view.rows.flat().find((b) => b.text === "Условия из документа")!;
+    const action = parseSourceFactCallback(button.callback_data);
+    expect(action?.kind).toBe("review");
+    if (action?.kind === "review") {
+      expect(action.action).toBe("prompt");
+      expect(sourceFactInputFields[action.args[0]!]).toBe("test_conditions");
+    }
+  });
   it("Generates bounded buttons for all correction fields", () => {
     const v = fixture();
     const view = renderSourceFactReview(v, "conditions", 0, 0, now);

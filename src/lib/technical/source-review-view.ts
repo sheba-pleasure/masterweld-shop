@@ -279,6 +279,7 @@ const contextLabels: Record<string, string> = {
   duty_pct: "Продолжительность нагрузки, %",
   material: "Материал",
   diameter_mm: "Диаметр, мм",
+  test_conditions: "Условия из документа",
 };
 const issueLabels: Record<string, string> = {
   model_scope_review: "Сверьте, что значение относится именно к выбранной модели и модификации.",

@@ -68,6 +68,17 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: card, error: null });
   mocks.adminRpc.mockResolvedValue({ data: { ok: true }, error: null });
 });
+it("Retains documentary conditions in the public card without interpreting or truncating them", async () => {
+  const note = "Длина кабеля: 8 м; ПН 60 %.\nОграничения — по указанному документу.";
+  mocks.rpc.mockResolvedValue({
+    data: {
+      ...card,
+      values: card.values.map((fact) => ({ ...fact, context: { test_conditions: note } })),
+    },
+    error: null,
+  });
+  expect((await readProductTechnical(id))?.values[0]?.context.test_conditions).toBe(note);
+});
 it("retains false, zero and unknown without coercion", () => {
   expect(technicalDocument.parse(doc).values[0]?.value).toBe(false);
   expect(

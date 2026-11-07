@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Isolated PostgreSQL: source-backed fact decisions, question binding and recovery."""
+import argparse
 import base64
 import copy
 import concurrent.futures
@@ -11,6 +12,9 @@ import subprocess
 import time
 import uuid
 
+parser=argparse.ArgumentParser()
+parser.add_argument("--documentary-conditions",action="store_true")
+documentary_conditions=parser.parse_args().documentary_conditions
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 NAME="mw-source-fact-qa-"+uuid.uuid4().hex[:12]
 compatibility_spec=importlib.util.spec_from_file_location("app_compatibility",ROOT/"ops/dev/app_compatibility.py")
@@ -684,6 +688,90 @@ try:
     assert snapshot()==handoff_baseline,"HANDOFF_MIGRATION_CHANGED_DATA"
     for role in ["anon","authenticated","service_role"]:
         assert sql("SELECT has_function_privilege("+lit(role)+",'mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)','EXECUTE')")=="f"
+    if documentary_conditions:
+        # Proposed 0042 runs only in this disposable database, never live DEV.
+        proposal=(ROOT/"docs/proposals/0042_documentary_measurement_conditions.sql").read_text()
+        measurement={
+          "family_code":"power_mma",
+          "sources":[{"key":"manual","kind":"synthetic","publisher":"Учебный изготовитель",
+            "model":"Учебная модель","title":"[Учебный] Условия из документа",
+            "url":"https://example.invalid/conditions","locator":"Учебная таблица",
+            "checked_on":"2026-11-06","sha256":""}],
+          "values":[{**value("mma_current_max_a",160,{"test_conditions":"Кабель: 8 м; ПН 60 %."}),
+            "state":"known","source_key":"manual"}]}
+        def validate_measurement(document,error=None):
+            return sql("SELECT validate_technical_document("+lit(json.dumps(document))+",'verified')",error)
+        validate_measurement(measurement,"TECH_BAD_CONTEXT")
+        def all_rows():
+            tables=sql("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename").splitlines()
+            return {t:sql('SELECT md5(coalesce(string_agg(row_to_json(t)::text,chr(10) ORDER BY row_to_json(t)::text),\'\')) FROM public."'+t+'" t') for t in tables}
+        baseline=all_rows()
+        acl_before=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
+          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')""")
+        sql("BEGIN;"+proposal+"COMMIT;")
+        assert all_rows()==baseline,"DOCUMENTARY_CONDITIONS_CHANGED_ROWS"
+        acl_after=sql("""SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl) ORDER BY p.oid)
+          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN('public','mw_private')
+          AND p.oid<>'mw_private.documentary_conditions_version()'::regprocedure""")
+        assert acl_before==acl_after,"DOCUMENTARY_CONDITIONS_CHANGED_ACL"
+        for role in ["anon","authenticated","service_role"]:
+            for signature in ["mw_private.documentary_conditions_version()",
+              "mw_private.validate_technical_document_before_origins(jsonb,text)",
+              "mw_private.bot_source_fact_review_before_handoff(bigint,text,uuid,integer,integer,jsonb)"]:
+                assert sql("SELECT has_function_privilege("+lit(role)+","+lit(signature)+",'EXECUTE')")=="f"
+        validate_measurement(measurement)
+        for note in ["v","Полные условия\nБез пересчёта единиц", "🧰"*500]:
+            candidate=copy.deepcopy(measurement)
+            candidate["values"][0]["context"]["test_conditions"]=note
+            validate_measurement(candidate)
+        for note in ["", " \t\r\n", "\u00a0\u2003\ufeff", "🧰"*501, " "*500+"A", 0, True, [], {}, None]:
+            candidate=copy.deepcopy(measurement)
+            candidate["values"][0]["context"]["test_conditions"]=note
+            validate_measurement(candidate,"TECH_BAD_CONTEXT")
+        distinct=copy.deepcopy(measurement)
+        distinct["values"].append({**distinct["values"][0],"value":120,
+          "context":{"test_conditions":"Кабель: 16 м; ПН 100 %."}})
+        validate_measurement(distinct)
+        distinct["values"][1]["context"]=distinct["values"][0]["context"]
+        validate_measurement(distinct,"TECH_BAD_VALUE")
+        unknown=copy.deepcopy(measurement)
+        unknown["values"][0].update(state="unknown",value=None,source_key=None)
+        validate_measurement(unknown,"TECH_UNKNOWN_HAS_VALUE")
+        # Required context remains real validation, not a UI-only prompt.
+        sql("BEGIN; UPDATE technical_attributes SET required_context=ARRAY['test_conditions'] WHERE code='mma_current_max_a';"+
+          "SELECT validate_technical_document("+lit(json.dumps({**measurement,"values":[
+            {**measurement["values"][0],"context":{}}]}))+",'verified'); ROLLBACK;",error="TECH_CONTEXT_REQUIRED")
+        sql("BEGIN;"+proposal+"ROLLBACK;",error="DOCUMENTARY_CONDITIONS_BASELINE")
+        # Same persisted question, actor, decision invalidation and handoff as every other field.
+        candidate=copy.deepcopy(payload);candidate["source_id"]=renewed["source_id"]
+        extra=facts("prepare",str(uuid.uuid4()),payload=candidate)
+        extra=step("accept",extra)
+        extra=step("prompt",extra,payload={"field":"test_conditions"})
+        assert extra["row"]["decision"]=="pending"
+        extra=step("bind",extra,payload={"message_id":942})
+        question=copy.deepcopy(extra)
+        step("reply",extra,payload={"reply_to":943,"value":"Wrong question"},error="SOURCE_FACT_WRONG_QUESTION")
+        for note in ["", "\u00a0", "🧰"*501, 17]:
+            step("reply",extra,payload={"reply_to":942,"value":note},error="TECH_BAD_CONTEXT")
+        facts("reply",extra["review"]["id"],extra["review"]["revision"],payload={"reply_to":942,"value":"Foreign"},
+          actor=102,error="SOURCE_FACT_NOT_FOUND")
+        command(["docker","restart",NAME]);ready()
+        assert facts("get",extra["review"]["id"])["prompt"]["field"]=="test_conditions"
+        note="Учебные условия: кабель 8 м; ПН 60 %.\nТолько для указанной модификации."
+        extra=step("reply",extra,payload={"reply_to":942,"value":note})
+        assert extra["row"]["draft"]["context"]["test_conditions"]==note
+        assert extra["row"]["decision"]=="pending" and extra["prompt"] is None
+        step("reply",question,payload={"reply_to":942,"value":"Duplicate"},error="SOURCE_FACT_STALE_BUTTON")
+        extra=step("accept",extra)
+        for index in [1,2,3]:extra=step("skip",extra,index=index)
+        extra=step("publisher",extra,payload={"text":"Учебный изготовитель"})
+        extra=step("preview",extra)
+        assert extra["review"]["prepared_document"]["values"][0]["context"]["test_conditions"]==note
+        transferred=step("handoff",extra,payload={"confirm_plan":True,"replace_family":False})
+        session=editor("get",{"id":transferred["review"]["editor_session_id"],"revision":0})
+        assert any(v["context"].get("test_conditions")==note for v in session["data"]["document"]["values"])
+        editor("cancel",session)
+        assert step("handoff",extra,payload={"confirm_plan":True,"replace_family":False})["review"]["editor_session_id"]==session["id"]
     def ready_facts(approval,family="power_mma",maximum=190,all_rows=True):
         candidate=copy.deepcopy(payload)
         candidate["source_id"]=approval["source_id"];candidate["result"]["family_code"]=family
@@ -895,7 +983,11 @@ try:
     command(["docker","restart",NAME]);ready()
     assert_excluded()
     assert stable_history()==excluded_history
-    print(json.dumps({"ok":True,"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
+    print(json.dumps({"ok":True,"documentary_conditions":({
+      "proposal_sha256":hashlib.sha256(proposal.encode()).hexdigest(),
+      "checks":["exact_unicode","existing_rows_unchanged","existing_acl_unchanged","distinct_conditions",
+        "required_condition","bound_human_reply","decision_withdrawal","restart_question","handoff_receipt"]
+      } if documentary_conditions else None),"migration_sha256":hashlib.sha256(migration.encode()).hexdigest(),
       "handoff_migration_sha256":hashlib.sha256(handoff_migration.encode()).hexdigest(),
       "origin_migration_sha256":hashlib.sha256(origin_migration.encode()).hexdigest(),
       "checks":["private_roles","exact_unicode_quote","table_origin","foreign_source","stable_prepare",
@@ -917,4 +1009,4 @@ try:
        "identity_old_receipts_no_republish","model_reimport_and_undo_keep_stale_origins","old_source_receipts_no_refresh",
        "excluded_reimport_and_undo_stay_hidden","import_preserves_immutable_history","excluded_restart"]}))
 finally:
-    if created:subprocess.run(["docker","rm","-f",NAME],capture_output=True)
+    if created:subprocess.run(["docker","rm","-fv",NAME],capture_output=True)

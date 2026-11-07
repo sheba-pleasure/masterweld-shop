@@ -50,6 +50,8 @@ export function formatTechnicalContext(context: TechnicalValue["context"]): stri
   if (context.material !== undefined) parts.push(`Материал: ${context.material}`);
   if (context.diameter_mm !== undefined)
     parts.push(`Диаметр: ${number.format(context.diameter_mm)} мм`);
+  if (context.test_conditions !== undefined)
+    parts.push(`Условия из документа: ${context.test_conditions}`);
   return parts;
 }
 export function groupTechnicalValues(values: TechnicalValue[]) {

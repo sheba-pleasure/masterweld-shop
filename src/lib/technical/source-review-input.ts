@@ -20,6 +20,7 @@ export const sourceFactInputFields = [
   "duty_pct",
   "material",
   "diameter_mm",
+  "test_conditions",
 ] as const;
 export const sourceFactInputField = z.enum(sourceFactInputFields);
 export type SourceFactInputField = z.infer<typeof sourceFactInputField>;
@@ -35,6 +36,8 @@ const contextQuestions = {
     "При какой продолжительности нагрузки получено значение? Укажите число от 0 до 100, в процентах.",
   material: "Для какого материала получено значение? Перенесите обозначение из документа.",
   diameter_mm: "Для какого диаметра получено значение? Укажите число в миллиметрах.",
+  test_conditions:
+    "Какие ещё условия указаны для этого значения? Перенесите их полностью из документа (до 500 знаков), вместе с единицами и ограничениями. Не сокращайте условия ради лимита: если текст длиннее или неясен, отмените ввод и пропустите строку.",
 } as const;
 
 // The caller must first check the saved actor, question message, revision and source.

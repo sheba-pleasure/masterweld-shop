@@ -29,6 +29,10 @@ export const technicalContext = z
     duty_pct: z.number().min(0).max(100).optional(),
     material: z.string().min(1).max(120).optional(),
     diameter_mm: z.number().positive().optional(),
+    test_conditions: z
+      .string()
+      .refine((value) => value.trim().length > 0 && Array.from(value).length <= 500)
+      .optional(),
   })
   .strict();
 export const technicalSource = z
