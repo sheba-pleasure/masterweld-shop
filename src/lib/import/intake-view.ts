@@ -12,7 +12,7 @@ export interface IntakeView {
   recent?: { id: string; file_name: string; state: string }[];
   extraction?: {
     tables: { label: string; header: string[]; rows: string[][]; warnings?: string[] }[];
-    blocks: { locator: string; text: string }[];
+    blocks: { locator: string; text: string; page?: number; engine?: string }[];
     warnings: string[];
     coverage: { complete?: boolean; pages?: number; processed?: number };
   };
@@ -22,6 +22,16 @@ export function parseIntakeCallback(
   data: string,
 ): { op: string; id?: string; index?: number; page?: number } | null {
   if (data === "di:home") return { op: "home" };
+  const source = data.match(
+    new RegExp(`^di:(blocks|read):(${id}):([0-9]{1,6})(?::([0-9]{1,6}))?$`),
+  );
+  if (source) {
+    if (source[1] === "blocks" && source[4] === undefined)
+      return { op: "blocks", id: source[2]!, page: Number(source[3]) };
+    if (source[1] === "read" && source[4] !== undefined)
+      return { op: "read", id: source[2]!, index: Number(source[3]), page: Number(source[4]) };
+    return null;
+  }
   let match = data.match(new RegExp(`^di:(get|cancel|text|original):(${id})$`));
   if (match) return { op: match[1]!, id: match[2]! };
   match = data.match(new RegExp(`^di:get:(${id}):([0-9]{1,2})$`));
@@ -105,7 +115,14 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
                   : "Не удалось выделить строки товаров. Проверьте, что файл содержит таблицу или читаемый текст. Для скана подготовьте более чёткую копию; таблицу сохраните как XLSX.";
       lines.push(
         "📋 Таблиц для проверки пока нет. Импорт не создан.",
-        "Дальше:\n1. Нажмите «Получить оригинал» и откройте файл.\n2. " +
+        ...(extraction.blocks.length
+          ? [
+              "Распознанный текст можно открыть кнопкой «Читать текст документа». Для паспорта без таблицы товаров это нормальный результат; не нужно переделывать его ради импорта.",
+            ]
+          : []),
+        (extraction.blocks.length
+          ? "Если здесь должен быть прайс с товарами:\n1. Нажмите «Получить оригинал» и откройте файл.\n2. "
+          : "Дальше:\n1. Нажмите «Получить оригинал» и откройте файл.\n2. ") +
           reason +
           "\n3. Пришлите исправленный файл как новый документ.",
         "Прежний оригинал остаётся сохранённым. Повторная отправка тех же байтов вернёт прежний результат и не запустит распознавание заново.",
@@ -135,8 +152,9 @@ export function renderIntake(data: IntakeView, requestedPage = 0) {
           ? [{ text: "Таблицы →", callback_data: `di:get:${data.id}:${page + 1}` }]
           : []),
       ]);
+    rows.push([{ text: "📖 Читать текст документа", callback_data: `di:blocks:${data.id}:0` }]);
     rows.push([
-      { text: "📋 Получить извлечение и источники", callback_data: `di:text:${data.id}` },
+      { text: "🛠 Скачать технический разбор (JSON)", callback_data: `di:text:${data.id}` },
     ]);
   }
   if (data.state === "failed")

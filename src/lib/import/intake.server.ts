@@ -4,6 +4,7 @@ import { isPrivateChat } from "@/lib/bot/catalog";
 import { tg } from "@/lib/bot/telegram.server";
 import { downloadIntakeDocument, type ImportDocument } from "./telegram-file.server";
 import { openDocumentReview } from "./review.server";
+import { renderSourceBlocks, renderSourceText } from "./source-reader";
 import {
   renderIntake,
   renderIntakeChecks,
@@ -65,16 +66,33 @@ export async function showIntake(m: StaffMember, chat: Chat, data = "di:home") {
   try {
     const r = await rpc("bot_document_intake", {
       p_actor: m.telegram_id,
-      p_op: request.op === "checks" ? "get" : request.op,
+      p_op: ["checks", "blocks", "read"].includes(request.op) ? "get" : request.op,
       p_id: request.id,
       p_payload: request.index === undefined ? {} : { index: request.index },
     });
-    if (r.error || !r.data?.ok) throw new Error("DOCUMENT_READ");
+    if (
+      r.error ||
+      !r.data?.ok ||
+      (["blocks", "read"].includes(request.op) && r.data.id !== request.id)
+    )
+      throw new Error("DOCUMENT_READ");
     result = r.data;
   } catch {
     return tg("sendMessage", {
       chat_id: chat.id,
       text: "⚠️ Не удалось прочитать результат. Откройте /documents; не начинайте новый импорт для восстановления старого.",
+    });
+  }
+  if (request.op === "blocks" || request.op === "read") {
+    const view =
+      request.op === "blocks"
+        ? renderSourceBlocks(result, request.page)
+        : renderSourceText(result, request.index!, request.page);
+    return tg("sendMessage", {
+      chat_id: chat.id,
+      text: view.text,
+      link_preview_options: { is_disabled: true },
+      reply_markup: { inline_keyboard: view.rows },
     });
   }
   if (request.op === "checks") {
