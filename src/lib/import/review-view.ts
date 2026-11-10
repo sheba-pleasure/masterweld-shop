@@ -134,7 +134,9 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     if (columnPage > 0) add("← Предыдущие поля", screen, r.row, columnPage - 1);
     if ((columnPage + 1) * 8 < r.header.length)
       add("Следующие поля →", screen, r.row, columnPage + 1);
-    add("↩️ К строке", "get");
+    if (r.header.length > 8 && columnPage * 8 < r.header.length)
+      add("↩️ К этой странице строки", "page", r.row, columnPage);
+    else add("↩️ К строке", "get");
   } else if (screen === "full" || screen === "orig") {
     const index = columnPage;
     if (!Number.isInteger(index) || index < 0 || index >= r.header.length) {
@@ -227,12 +229,12 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       text +=
         "\n\n🔎 В таблице есть особенности распознавания. Откройте «Что проверить в таблице» перед решением по строке.";
     add("🔎 Что проверить в таблице", "checks");
-    add("🔎 Прочитать значения целиком", "values", r.row, 0);
+    add("🔎 Прочитать значения целиком", "values", r.row, page);
     add("📎 Посмотреть исходную строку", "raw");
     rows.push([
       { text: "🏷 Модель для поиска источников", callback_data: `dm:${r.id}:0:get:${r.row}` },
     ]);
-    add("✏️ Исправить поле", "cols", r.row, 0);
+    add("✏️ Исправить поле", "cols", r.row, page);
     rows.push([
       { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },
     ]);
