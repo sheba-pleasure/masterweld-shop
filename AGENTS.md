@@ -40,6 +40,12 @@
 - Begin chat replies, interface headings, buttons and standalone messages with a capital letter (after any leading icon). Use normal sentence case, not ALL CAPS or a capital for every word.
 - Preserve exact source text, quotations, SKUs, commands, URLs and case-sensitive identifiers. Display labels may be formatted separately; never rewrite imported data just for capitalization.
 
+## Proportionate verification — owner preference, 11.11.2026
+- Prefer the shortest sufficient path to the complete requested result. Do not turn a blocked GitHub check into repeated polling or stop independent DEV work because of it.
+- Run checks appropriate to the actual change. Reuse successful evidence for unchanged code; do not repeat full suites, builds, database rehearsals or deployments merely for a status/documentation edit.
+- Keep meaningful checks for order deduplication, permissions, human confirmation, environment separation and release/rollback when those paths change. Never claim local checks are successful GitHub CI or weaken production gates.
+- Batch documentation updates with relevant completed work. Retry an externally blocked CI only when the owner requests it or there is evidence that the blocking condition changed. Record the result once and continue independent authorized work.
+
 ## Type safety
 - npm run typecheck must pass with the existing strict tsconfig. The verify workflow requires it; do not weaken compiler options or exclude failing application/test files. The check covers the tsconfig include set, not all standalone ops TypeScript scripts. Full lint has separate historical debt and is not claimed clean.
 
