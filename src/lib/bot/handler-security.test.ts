@@ -10,6 +10,7 @@ vi.mock("./telegram.server", async (original) => ({
   tg: mocks.tg,
 }));
 import { handleUpdate } from "./handler.server";
+import { assortmentView, type AssortmentResult } from "./assortment";
 import { TelegramDeliveryError } from "./telegram.server";
 const actor: StaffMember = {
   telegram_id: 101,
@@ -92,6 +93,33 @@ beforeEach(() => {
   });
 });
 describe("single service gate", () => {
+  it("opens the real main menu from new and previously delivered assortment buttons", async () => {
+    const view = assortmentView({
+      home: true,
+      counts: {},
+      recent: [],
+    } as unknown as AssortmentResult);
+    const button = view.rows.flat().find((b) => b.text === "Главное меню")!;
+    for (const data of [button.callback_data, "menu"]) {
+      mocks.tg.mockClear();
+      await handleUpdate(callback(data));
+      expect(
+        mocks.tg.mock.calls.filter(([method]) => method === "sendMessage").length,
+      ).toBeGreaterThan(0);
+      const messages = mocks.tg.mock.calls
+        .filter(([method]) => method === "sendMessage")
+        .map(([, body]) => body);
+      expect(
+        messages.some((body) =>
+          body.reply_markup?.inline_keyboard
+            ?.flat()
+            .some((b: { callback_data?: string }) => b.callback_data === "as:home"),
+        ),
+      ).toBe(true);
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(events.every((e) => e === "from:staff")).toBe(true);
+  });
   it("dev onboarding returns only the verified sender ID without granting permissions", async () => {
     member = null;
     vi.stubEnv("APP_ENV", "dev");
@@ -114,6 +142,8 @@ describe("single service gate", () => {
     }
   });
   it.each([
+    "home",
+    "menu",
     "shop_versions",
     "shop_preview",
     "shop_pro_pending",

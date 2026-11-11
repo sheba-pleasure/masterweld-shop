@@ -8,6 +8,7 @@ vi.mock("./telegram.server", async (original) => ({
 }));
 import { TelegramDeliveryError } from "./telegram.server";
 import { showAssortment } from "./assortment.server";
+import { parseAssortmentCallback } from "./assortment";
 const admin: StaffMember = {
   telegram_id: 101,
   name: "QA",
@@ -63,6 +64,54 @@ it("an unknown RPC outcome says to inspect saved state", async () => {
     expect.objectContaining({ text: expect.stringContaining("не подтверждён") }),
   );
   expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("PRIVATE_DETAIL");
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+});
+it.each(["apply", "undo", "select"])(
+  "recovers uncertain %s by reading the same selection and page",
+  async (op) => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    mocks.rpc.mockRejectedValueOnce(new Error("PRIVATE_DETAIL"));
+    await showAssortment(
+      admin,
+      { id: 101, type: "private" },
+      {
+        p_op: op,
+        p_batch_id: id,
+        p_page: 3,
+        p_value: "25",
+      },
+    );
+    const message = mocks.tg.mock.calls[0]![1];
+    expect(message.text).toContain("не подтверждён");
+    const buttons = message.reply_markup.inline_keyboard.flat();
+    const recovery = parseAssortmentCallback(buttons[0].callback_data);
+    expect(recovery).toEqual({ p_op: "get", p_batch_id: id, p_page: 3 });
+    expect(buttons.map((b: { callback_data: string }) => b.callback_data)).toEqual([
+      `as:get:${id}:3`,
+      "as:home",
+      "home",
+    ]);
+    await showAssortment(admin, { id: 101, type: "private" }, recovery);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual([op, "get"]);
+    mocks.rpc.mockClear();
+    await showAssortment({ ...admin, role: "seller" }, { id: 101, type: "private" }, recovery);
+    await showAssortment({ ...admin, active: false }, { id: 101, type: "private" }, recovery);
+    await showAssortment(admin, { id: 102, type: "private" }, recovery);
+    await showAssortment(admin, { id: 101, type: "group" }, recovery);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  },
+);
+it("reported read failure offers recovery without inventing an empty selection", async () => {
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "PRIVATE_DETAIL" } });
+  await showAssortment(admin, { id: 101, type: "private" }, { p_op: "home" });
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("не подтверждён");
+  expect(message.text).not.toContain("PRIVATE_DETAIL");
+  expect(
+    message.reply_markup.inline_keyboard
+      .flat()
+      .map((b: { callback_data: string }) => b.callback_data),
+  ).toEqual(["as:home", "home"]);
   expect(mocks.rpc).toHaveBeenCalledTimes(1);
 });
 it("rejects a seller or wrong private-chat identity before service access", async () => {
