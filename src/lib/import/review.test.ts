@@ -49,6 +49,49 @@ beforeEach(() => {
   mocks.tg.mockResolvedValue({ json: async () => ({ ok: true, result: { message_id: 501 } }) });
 });
 
+it("opens original and help as a read-only menu with page recovery and staff gating", async () => {
+  const wide = { ...review, header: Array.from({ length: 30 }, (_, i) => "Поле " + i) };
+  const before = JSON.stringify(wide);
+  const main = renderReview(wide, "page", 3);
+  const button = main.rows.flat().find((b) => parseReviewCallback(b.callback_data)?.op === "more")!;
+  expect(parseReviewCallback(button.callback_data)?.column).toBe(3);
+  expect(main.rows.flat().some((b) => b.callback_data.startsWith("dm:"))).toBe(false);
+  mocks.rpc.mockResolvedValue({ data: wide, error: null });
+  await showDocumentReview(admin, chat, button.callback_data);
+  expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual(["get"]);
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("Оригинал и помощь");
+  expect(message.reply_markup.force_reply).toBeUndefined();
+  const actions = message.reply_markup.inline_keyboard
+    .flat()
+    .map((b: { callback_data: string }) => parseReviewCallback(b.callback_data))
+    .filter(Boolean);
+  expect(actions.find((a: { op: string }) => a.op === "page").column).toBe(3);
+  expect(
+    actions.some((a: { op: string }) => ["approve", "exclude", "handoff", "edit"].includes(a.op)),
+  ).toBe(false);
+  expect(mocks.catalog).not.toHaveBeenCalled();
+  expect(JSON.stringify(wide)).toBe(before);
+  mocks.rpc.mockClear();
+  mocks.tg.mockClear();
+  for (const [member, target] of [
+    [{ ...admin, role: "seller" as const }, chat],
+    [{ ...admin, active: false }, chat],
+    [admin, { id: 102, type: "private" }],
+    [admin, { ...chat, type: "group" }],
+  ] as const)
+    await showDocumentReview(member, target, button.callback_data);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.tg).not.toHaveBeenCalled();
+  for (const bad of [`dr:${id}:3:more:0`, `dr:${id}:3:more:0:4`])
+    expect(parseReviewCallback(bad)).toBeNull();
+  expect(
+    renderReview({ ...wide, import_id: id }, "more", 3)
+      .rows.flat()
+      .some((b) => b.callback_data.startsWith("dm:")),
+  ).toBe(false);
+});
+
 it("shows a wide row in bounded pages and keeps the decision separate from reading", async () => {
   const wide: DocumentReview = {
     ...review,
