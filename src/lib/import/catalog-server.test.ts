@@ -10,6 +10,7 @@ vi.mock("@/lib/bot/telegram.server", async (original) => ({
 }));
 vi.mock("./telegram-file.server", () => ({ downloadCatalogDocument: mocks.download }));
 import { showCatalogImport, receiveCatalogDocument } from "./catalog.server";
+import { parseImportCallback } from "./catalog-view";
 import { TelegramDeliveryError } from "@/lib/bot/telegram.server";
 const admin: StaffMember = {
   telegram_id: 101,
@@ -85,6 +86,48 @@ it("unknown database outcome never claims unchanged data or exposes errors", asy
   await showCatalogImport(admin, chat, { op: "apply", id: "batch", revision: 1 });
   expect(mocks.tg.mock.calls[0]![1].text).toContain("Результат не подтверждён");
   expect(JSON.stringify(mocks.tg.mock.calls)).not.toContain("SERVICE_ROLE_SECRET");
+});
+it.each(["apply", "undo", "map"])(
+  "recovers uncertain %s through get, never mutation replay",
+  async (op) => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    mocks.rpc.mockRejectedValueOnce(new Error("PRIVATE_DB_ERROR"));
+    await showCatalogImport(admin, chat, { op, id, revision: 1, field: 3, column: 2 });
+    const message = mocks.tg.mock.calls[0]![1];
+    expect(message.text).toContain("Результат не подтверждён");
+    expect(message.text).not.toContain("PRIVATE_DB_ERROR");
+    const buttons = message.reply_markup.inline_keyboard.flat();
+    expect(
+      buttons.map((b: { callback_data: string }) => parseImportCallback(b.callback_data)?.op),
+    ).toEqual(["get", "home"]);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    const recovery = parseImportCallback(buttons[0].callback_data);
+    await showCatalogImport(admin, chat, recovery);
+    expect(mocks.rpc.mock.calls.map((c) => c[1].p_op)).toEqual([op, "get"]);
+    expect(mocks.rpc.mock.calls[1]![1].p_id).toBe(id);
+    mocks.rpc.mockClear();
+    for (const [actor, target] of [
+      [{ ...admin, role: "seller" as const }, chat],
+      [{ ...admin, active: false }, chat],
+      [admin, { id: 202, type: "private" }],
+      [admin, { id: 101, type: "group" }],
+    ] as const)
+      await showCatalogImport(actor, target, recovery);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  },
+);
+it("upload failure offers saved imports and document intake without retrying upload", async () => {
+  mocks.rpc.mockRejectedValueOnce(new Error("PRIVATE_DB_ERROR"));
+  await receiveCatalogDocument(admin, chat, { file_name: "a.csv", file_id: "secret" }, 1);
+  const message = mocks.tg.mock.calls[0]![1];
+  expect(message.text).toContain("Результат не подтверждён");
+  expect(
+    message.reply_markup.inline_keyboard
+      .flat()
+      .map((b: { callback_data: string }) => b.callback_data),
+  ).toEqual(["ci:home", "di:home"]);
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  expect(mocks.download).toHaveBeenCalledTimes(1);
 });
 it("an uneditable Telegram response never replays the applied transaction", async () => {
   mocks.tg

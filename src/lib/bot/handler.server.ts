@@ -2372,7 +2372,8 @@ export async function handleUpdate(update: TgUpdate) {
   }
   if (!isDirectPreview(update)) await tg("answerCallbackQuery", { callback_query_id: cb.id });
 
-  if (cb.data === "home") return sendMenu(chat.id, m);
+  // Keep the old assortment menu button working in already delivered messages.
+  if (cb.data === "home" || cb.data === "menu") return sendMenu(chat.id, m);
   if (cb.data === "guide:home") return handleCommand(m, chat, "/help", from, requestId);
   if (cb.data === "guide:input") return handleCommand(m, chat, "/input", from, requestId);
   if (cb.data === "guide:cancel") return handleCommand(m, chat, "/cancel", from, requestId);
