@@ -4,6 +4,7 @@ import { useState } from "react";
 import { productQuery, rub, type Photo } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductTechnical } from "@/components/ProductTechnical";
+import { ProductDocumentation } from "@/components/ProductDocumentation";
 import { validateCatalogSearch } from "@/lib/catalog-search";
 
 export const Route = createFileRoute("/product/$slug")({
@@ -135,6 +136,7 @@ function ProductPage() {
           <ProductTechnical key={p.id} productId={p.id} legacySpecs={p.specs} />
         </div>
       </div>
+      <ProductDocumentation key={`documents-${p.id}`} productId={p.id} />
       {p.description && (
         <section className="mt-12 max-w-3xl">
           <h2 className="font-display text-lg font-semibold text-foreground">Описание</h2>
