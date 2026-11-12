@@ -28,7 +28,7 @@ SHA-256: `29b2bb49b7738c1694aea26192fc1a188c68109df43c222c7d718ead8479da1b`.
 
 После неопределённого результата сначала используется `--check`. Нельзя повторять установку, удалять журнал или сбрасывать квитанции. `--finish <EXACT_SHA>` продолжает существующий переход только после проверки его результата. Предыдущий несовместимый образ нельзя запускать над новой схемой; частичная схема блокирует запуск.
 
-На момент подготовки этого документа выполнены локальные проверки исходников и изолированная SQL-репетиция. Установка в действующую DEV-базу этим документом не подтверждается; фактические commit, образ, квитанции и состояние фиксируются в `STATUS.md`. Main, production и действующие товары этой подготовкой не изменены.
+12.11.2026 штатный runner установил 0045 и приложение b621c61ea38cba94e2c2557c32b4230a8daaca68 в DEV. Журнал перехода complete, две квитанции и публичная HTTPS readiness проверены. Существующие значения и права сохранены, Сварога в products — 0; реальный CSV не применялся. Образ и подробности зафиксированы в `STATUS.md`. Main и production не менялись.
 
 ## Проверки
 
@@ -37,7 +37,7 @@ SHA-256: `29b2bb49b7738c1694aea26192fc1a188c68109df43c222c7d718ead8479da1b`.
 - `npm run typecheck`.
 - `npx vitest run src/components/AddToCartButton.test.tsx src/lib/search.test.ts src/lib/orders/orders.test.ts src/lib/bot/handler-costs.test.ts` — 55 тестов.
 - `python3 -m unittest discover -s ops/dev -p test_inquiry_price_guard.py` — 4 теста, включая все 64 сочетания признаков схемы.
-- `python3 -m unittest discover -s ops/dev -p test_inquiry_price_runner.py` — 7 тестов.
+- `python3 -m unittest discover -s ops/dev -p test_inquiry_price_runner.py` — 10 тестов.
 - `python3 -m unittest discover -s ops/dev -p test_dev_build_config.py` — 2 теста.
 - `python3 -m unittest discover -s ops/dev -p test_app_restart.py` — 20 тестов.
 - `python3 -m unittest discover -s ops/dev -p test_documentary_transition.py` — 15 тестов.
@@ -45,4 +45,4 @@ SHA-256: `29b2bb49b7738c1694aea26192fc1a188c68109df43c222c7d718ead8479da1b`.
 - `python3 ops/tests/catalog-inquiry-price.py` — PostgreSQL 17.6, отдельный контейнер без сети, полная транзакция runner: права и владелец, настройка и ревизия, preview/apply/undo, сохранение старой цены и исключения, NULL-публикация и заказ, отмена цены опубликованного товара, отмена скрытия, квитанции, откат при ошибке, повреждении данных или прав.
 - `git diff --check`.
 
-Изолированные учебные карточки не создавались в действующих базах. Проверка реального интерфейса в браузере и клиенте Telegram здесь не выполнена.
+Изолированные учебные карточки не создавались в действующих базах. После установки существующая DEV-витрина проверена в Chromium 158/Playwright 1.65 на 1440×1000 и 390×844: каталог с тремя прежними опубликованными товарами, карточка /product/dev-wire с 900 ₽, кнопка покупки и мобильные фильтры. Просмотрены семь снимков; ошибок JavaScript/HTTP и переполнения нет. Заказы и изменения данных не выполнялись. Артефакты: `ops/.state/suppliers/svarog-mail-bridge/visual-qa-storefront/` канонического проекта. NULL-черновики публично недоступны и в этой браузерной проверке не показывались; настоящий клиент Telegram ещё не проверен.
