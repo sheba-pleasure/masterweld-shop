@@ -163,7 +163,7 @@ class Adapter:
         sql(installation.transaction(record["sourceSha"], record["imageId"], accessories=True))
 
     def confirm_commit(self, record):
-        if compatibility.schema_requirements() != compatibility.KNOWN_CAPABILITIES:
+        if compatibility.schema_requirements() != compatibility.SCHEMA_0043_CAPABILITIES:
             raise RuntimeError("DOCUMENTARY_FINISH_REQUIRES_COMMITTED_SCHEMA")
         raw = sql("BEGIN READ ONLY; SET LOCAL statement_timeout='10s'; SELECT jsonb_object_agg(path,sha256) FROM "
                   "mw_private.dev_migration_receipts WHERE path IN (" +
@@ -177,7 +177,7 @@ class Adapter:
                        installation.ACCESSORY_PATH: installation.ACCESSORY_SHA256}:
             raise RuntimeError("DOCUMENTARY_FINISH_REQUIRES_RECEIPT")
         compatibility.validate_image(compatibility.inspect("image", record["imageId"]),
-                                     record["sourceSha"], compatibility.KNOWN_CAPABILITIES)
+                                     record["sourceSha"], compatibility.SCHEMA_0043_CAPABILITIES)
 
     def activate(self, record):
         old = checked_container(record["oldId"], record["oldImage"])
@@ -245,7 +245,7 @@ class Adapter:
 def prepare(sha):
     baseline()
     image_id = compatibility.validate_image(compatibility.inspect("image", "masterweld-dev:" + sha),
-                                            sha, compatibility.KNOWN_CAPABILITIES)
+                                            sha, compatibility.SCHEMA_0043_CAPABILITIES)
     old = compatibility.inspect("container", restart.APP)
     compatibility.owned(old)
     if not old["State"]["Running"]:

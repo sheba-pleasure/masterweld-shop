@@ -246,7 +246,7 @@ function normalizeProduct(p: Record<string, unknown>): BotProduct {
     title: String(p["title"]),
     brand: (p["brand"] as string | null) ?? null,
     sku: (p["sku"] as string | null) ?? null,
-    price: Number(p["price"]),
+    price: p["price"] == null ? null : Number(p["price"]),
     old_price: p["old_price"] == null ? null : Number(p["old_price"]),
     in_stock: Boolean(p["in_stock"]),
     stock_qty: p["stock_qty"] == null ? null : Number(p["stock_qty"]),
@@ -798,7 +798,7 @@ async function pricePreview(
     });
   const p = await fetchProductById(productId);
   if (!p) return tg("sendMessage", { chat_id: chatId, text: "Товар не найден." });
-  if (Math.round(p.price * 100) === Math.round(newPrice * 100))
+  if (p.price !== null && Math.round(p.price * 100) === Math.round(newPrice * 100))
     return tg("sendMessage", { chat_id: chatId, text: "Цена уже такая — изменять нечего." });
   const text = pricePreviewText(p, newPrice);
   return createPending(

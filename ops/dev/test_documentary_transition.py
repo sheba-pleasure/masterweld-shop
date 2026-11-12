@@ -202,7 +202,7 @@ class AdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "COMMITTED_SCHEMA"):
                 io.confirm_commit(record())
             sql.assert_not_called()
-        with patch.object(operator.compatibility, "schema_requirements", return_value=operator.compatibility.KNOWN_CAPABILITIES), \
+        with patch.object(operator.compatibility, "schema_requirements", return_value=operator.compatibility.SCHEMA_0043_CAPABILITIES), \
              patch.object(operator, "sql", return_value="wrong") as sql, \
              patch.object(operator.compatibility, "inspect") as inspect:
             with self.assertRaisesRegex(RuntimeError, "REQUIRES_RECEIPT"):
@@ -216,7 +216,7 @@ class AdapterTests(unittest.TestCase):
         variants = [{}, {operator.installation.PROPOSAL_PATH: operator.installation.PROPOSAL_SHA256},
                     {**expected, operator.installation.ACCESSORY_PATH: "changed"},
                     {**expected, "other": "unreviewed"}]
-        with patch.object(operator.compatibility, "schema_requirements", return_value=operator.compatibility.KNOWN_CAPABILITIES), \
+        with patch.object(operator.compatibility, "schema_requirements", return_value=operator.compatibility.SCHEMA_0043_CAPABILITIES), \
              patch.object(operator.compatibility, "inspect", return_value={"Id": IMAGE}) as inspect, \
              patch.object(operator.compatibility, "validate_image", return_value=IMAGE) as validate:
             for receipt in variants:
@@ -227,7 +227,7 @@ class AdapterTests(unittest.TestCase):
             validate.assert_not_called()
             with patch.object(operator, "sql", return_value=json.dumps(expected)):
                 operator.Adapter().confirm_commit(record())
-            validate.assert_called_once_with({"Id": IMAGE}, SHA, operator.compatibility.KNOWN_CAPABILITIES)
+            validate.assert_called_once_with({"Id": IMAGE}, SHA, operator.compatibility.SCHEMA_0043_CAPABILITIES)
 
     def test_foreign_container_name_cannot_be_stopped_during_finish(self):
         old = {"Id": record()["oldId"], "Image": record()["oldImage"], "Name": "/another-project",

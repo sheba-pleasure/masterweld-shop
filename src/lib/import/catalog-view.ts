@@ -18,6 +18,7 @@ export interface ImportView {
   sample: string[];
   mapping: Mapping;
   decimal: "comma" | "dot";
+  inquiry_price?: boolean;
   fileRows: number;
   counts: { new: number; update: number; unchanged: number; error: number; excluded: number };
   page: number;
@@ -59,10 +60,19 @@ export interface ImportRequest {
   decimal?: string;
   line?: number;
   reviewRevision?: number;
+  enabled?: boolean;
 }
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseImportCallback(data: string): ImportRequest | null {
   if (data === "ci:home" || data === "ci:template") return { op: data.slice(3) };
+  const inquiry = data.match(new RegExp(`^ci:ip:(${ID}):([01]):([0-9]{1,7})$`));
+  if (inquiry)
+    return {
+      op: "inquiry_price",
+      id: inquiry[1]!,
+      enabled: inquiry[2] === "1",
+      revision: Number(inquiry[3]),
+    };
   const returning = data.match(new RegExp(`^ci:(rp|rr):(${ID}):([0-9]{1,7})(?::([0-9]{1,7}))?$`));
   if (returning) {
     if ((returning[1] === "rr") !== (returning[4] !== undefined)) return null;
@@ -133,7 +143,8 @@ const reason: Record<string, string> = {
   DUPLICATE_SKU: "Артикул повторяется в файле",
   AMBIGUOUS_SKU: "Несколько товаров с таким артикулом",
   CATEGORY_NOT_FOUND: "Код раздела не найден",
-  NEW_REQUIRED: "Для нового товара нужны название и розничная цена",
+  NEW_REQUIRED:
+    "Для нового товара нужны название и розничная цена либо включённый режим «Цена по запросу»",
 };
 const FIELD_HELP: Record<Field, string> = {
   sku: "Артикул — код товара. По нему магазин находит существующую карточку. Эта колонка обязательна; одинаковый артикул должен означать один и тот же товар.",
@@ -141,7 +152,7 @@ const FIELD_HELP: Record<Field, string> = {
     "Название увидит покупатель. Для нового товара оно обязательно. Пустая ячейка не стирает прежнее название.",
   brand: "Бренд — марка или производитель товара. Если сведений нет, оставьте поле без импорта.",
   price:
-    "Розничная цена — сумма, которую платит покупатель, в рублях. Для нового товара она обязательна. Не выбирайте здесь закупочную цену.",
+    "Розничная цена — сумма, которую платит покупатель, в рублях. Для новых товаров без согласованной цены включите «Цена по запросу». Не выбирайте здесь закупочную цену или РРЦ поставщика без решения магазина.",
   cost_price:
     "Закупочная цена — сколько магазин платит поставщику, в рублях. Её видят только сотрудники с нужными правами. Цена для покупателя и наценка автоматически не рассчитываются.",
   in_stock:
@@ -262,7 +273,10 @@ export function renderImport(
         }.`,
         "2️⃣ Выберите, как записаны копейки в вашем файле: 123,45 или 123.45. ✅ Отмечен текущий вариант.",
         "3️⃣ Нажмите «Построить предпросмотр». Товары пока не изменятся — сначала вы увидите, что будет добавлено или исправлено.",
-        "Для нового товара нужны артикул, название и розничная цена. Пустые ячейки сохраняют прежние значения. Закупка не заменяет цену продажи. Фото и публикация этим файлом не меняются.",
+        r.inquiry_price
+          ? "Цена по запросу включена: новые товары без цены станут черновиками. Цены существующих товаров при пустой ячейке сохранятся. Непустые выбранные цены импортируются как обычно — проверьте колонку."
+          : "Для нового товара нужны артикул, название и розничная цена. Если цена ещё не согласована, включите «Цена по запросу».",
+        "Пустые ячейки сохраняют прежние значения. Закупка не заменяет цену продажи. Фото и публикация этим файлом не меняются.",
       ].join("\n\n"),
       rows: [
         ...FIELDS.map((f, index) => [
@@ -278,6 +292,18 @@ export function renderImport(
             callback_data: `ci:decimal:${r.id}:dot:${r.revision}`,
           },
         ],
+        ...(typeof r.inquiry_price === "boolean"
+          ? [
+              [
+                {
+                  text: r.inquiry_price
+                    ? "Цена по запросу: включена — выключить"
+                    : "Новые товары без цены: включить",
+                  callback_data: `ci:ip:${r.id}:${r.inquiry_price ? 0 : 1}:${r.revision}`,
+                },
+              ],
+            ]
+          : []),
         [{ text: "👁 Построить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` }],
         ...returnButton,
         [{ text: "Отменить импорт", callback_data: `ci:cancel:${r.id}` }],
@@ -363,13 +389,26 @@ export function renderImport(
           { text: `📎 Строка ${i.line}: источники товара`, callback_data: `mp:${l.product_id}:0` },
         ]);
     }
-    const oldPrice = Number(i.before_product?.price ?? 0),
-      newPrice = Number(i.after_product?.price ?? 0);
-    if (oldPrice > 0 && Math.abs(newPrice - oldPrice) / oldPrice >= 0.3)
+    if (i.kind === "new" && i.after_product?.price === null)
+      lines.push("Цена продажи: по запросу. Новая карточка останется черновиком.");
+    const oldPrice = i.before_product?.price == null ? null : Number(i.before_product.price),
+      newPrice = i.after_product?.price == null ? null : Number(i.after_product.price);
+    if (
+      oldPrice !== null &&
+      newPrice !== null &&
+      Number.isFinite(newPrice) &&
+      oldPrice > 0 &&
+      Math.abs(newPrice - oldPrice) / oldPrice >= 0.3
+    )
       lines.push(
         `⚠️ Внимание: цена меняется на ${Math.round(((newPrice - oldPrice) / oldPrice) * 100)}%. Проверьте сумму.`,
       );
-    if (i.after_cost && newPrice < Number(i.after_cost.cost_price))
+    if (
+      i.after_cost &&
+      newPrice !== null &&
+      Number.isFinite(newPrice) &&
+      newPrice < Number(i.after_cost.cost_price)
+    )
       lines.push("⚠️ Внимание: розничная цена ниже закупочной.");
     if (i.errors.length)
       lines.push([...new Set(i.errors)].map((e) => reason[e] ?? "Ошибка строки").join("; "));

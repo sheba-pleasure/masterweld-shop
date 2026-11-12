@@ -11,7 +11,7 @@ export interface BotProduct {
   title: string;
   brand: string | null;
   sku: string | null;
-  price: number;
+  price: number | null;
   old_price: number | null;
   in_stock: boolean;
   stock_qty: number | null;
@@ -140,7 +140,8 @@ export function botStatusLabel(status: string): string {
   return BOT_STATUS_LABEL[status] ?? status;
 }
 
-export function formatRub(value: number): string {
+export function formatRub(value: number | null): string {
+  if (value === null) return "Цена по запросу";
   // toLocaleString("ru-RU") может давать неразрывный пробел — приводим к обычному.
   return `${Math.round(Number(value) || 0)
     .toLocaleString("ru-RU")

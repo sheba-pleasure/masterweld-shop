@@ -137,6 +137,26 @@ it("an uneditable Telegram response never replays the applied transaction", asyn
   expect(mocks.rpc).toHaveBeenCalledTimes(1);
   expect(mocks.tg.mock.calls.map((c) => c[0])).toEqual(["editMessageText", "sendMessage"]);
 });
+it("passes only the explicit inquiry choice and original revision to the owned RPC", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  await showCatalogImport(admin, chat, { op: "inquiry_price", id, revision: 7, enabled: true });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bot_catalog_import", {
+    p_actor: 101,
+    p_op: "inquiry_price",
+    p_id: id,
+    p_page: 0,
+    p_revision: 7,
+    p_payload: { enabled: true },
+  });
+  mocks.rpc.mockClear();
+  await showCatalogImport({ ...admin, role: "seller" }, chat, {
+    op: "inquiry_price",
+    id,
+    revision: 7,
+    enabled: true,
+  });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
 it("temporary delivery failure propagates without another database operation", async () => {
   mocks.tg.mockRejectedValueOnce(new TelegramDeliveryError("network", true));
   await expect(

@@ -38,7 +38,7 @@ class CompatibilityTests(unittest.TestCase):
     def test_empty_old_schema_and_complete_new_schema(self):
         for needed in (False, True):
             self.assertEqual(compatibility.validate_schema(
-                {"identity": compatibility.IDENTITY, "sourceFacts": [needed] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}),
+                {"identity": compatibility.IDENTITY, "sourceFacts": [needed] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}),
                 SOURCE_REQUIRED if needed else frozenset())
 
     def test_partial_schema_bad_identity_and_unknown_values_fail_closed(self):
@@ -57,18 +57,18 @@ class CompatibilityTests(unittest.TestCase):
     def test_documentary_schema_requires_all_markers_and_source_dependencies(self):
         for mask in range(64):
             value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6,
-                     "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
+                     "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
             if mask in (0, 63):
                 self.assertEqual(compatibility.validate_schema(value),
                                  DOCUMENTARY_REQUIRED if mask == 63 else SOURCE_REQUIRED)
             else:
                 with self.assertRaisesRegex(RuntimeError, "DEV_DOCUMENTARY_SCHEMA_INCOMPLETE"):
                     compatibility.validate_schema(value)
-        value = {"identity": compatibility.IDENTITY, "sourceFacts": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
+        value = {"identity": compatibility.IDENTITY, "sourceFacts": [False] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
         with self.assertRaisesRegex(RuntimeError, "DEV_DOCUMENTARY_SCHEMA_INCOMPLETE"):
             compatibility.validate_schema(value)
         for flags in [None, [], [False] * 5, [1] * 6, "false"]:
-            value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
+            value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
             with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_INVALID"):
                 compatibility.validate_schema(value)
 
@@ -76,15 +76,15 @@ class CompatibilityTests(unittest.TestCase):
     def test_accessory_schema_requires_exact_dictionary_and_dependencies(self):
         for mask in range(16):
             value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [True] * 6,
-                     "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
+                     "inquiryPrice": [False] * 6, "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
             if mask in (0, 15):
                 self.assertEqual(compatibility.validate_schema(value),
-                                 compatibility.KNOWN_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
+                                 compatibility.SCHEMA_0043_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
             else:
                 with self.assertRaisesRegex(RuntimeError, "DEV_ACCESSORY_SCHEMA_INCOMPLETE"):
                     compatibility.validate_schema(value)
         value = {"identity": compatibility.IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [False] * 6,
-                 "accessoryDictionary": [True] * 4}
+                 "inquiryPrice": [False] * 6, "accessoryDictionary": [True] * 4}
         with self.assertRaisesRegex(RuntimeError, "DEV_ACCESSORY_SCHEMA_INCOMPLETE"):
             compatibility.validate_schema(value)
         for flags in [None, [], [False] * 3, [1] * 4, "false"]:
@@ -99,9 +99,9 @@ class CompatibilityTests(unittest.TestCase):
             if label is not None:
                 target["Config"]["Labels"][compatibility.ACCESSORY_CAPABILITY] = label
             with self.assertRaisesRegex(RuntimeError, "DEV_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"):
-                compatibility.validate_image(target, NEW_SHA, compatibility.KNOWN_CAPABILITIES)
+                compatibility.validate_image(target, NEW_SHA, compatibility.SCHEMA_0043_CAPABILITIES)
         target["Config"]["Labels"][compatibility.ACCESSORY_CAPABILITY] = "1"
-        self.assertEqual(compatibility.validate_image(target, NEW_SHA, compatibility.KNOWN_CAPABILITIES), NEW_ID)
+        self.assertEqual(compatibility.validate_image(target, NEW_SHA, compatibility.SCHEMA_0043_CAPABILITIES), NEW_ID)
         with self.assertRaisesRegex(RuntimeError, "DEV_SCHEMA_REQUIREMENTS_INVALID"):
             compatibility.validate_image(target, NEW_SHA, SOURCE_REQUIRED | {compatibility.ACCESSORY_CAPABILITY})
 

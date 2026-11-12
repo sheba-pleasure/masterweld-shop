@@ -142,6 +142,7 @@ export async function showCatalogImport(
     } else if (request.op === "map") {
       args.p_payload = { field: FIELDS[request.field!], column: request.column };
     } else if (request.op === "decimal") args.p_payload = { decimal: request.decimal };
+    else if (request.op === "inquiry_price") args.p_payload = { enabled: request.enabled };
     result = await call(
       m.telegram_id,
       ["config", "field"].includes(request.op) ? "get" : request.op,

@@ -38,6 +38,8 @@ jobs:
           node --test ops/runtime/environment.test.mjs
           python3 -m unittest discover -s ops/production -p 'test_*.py'
           python3 -m unittest discover -s ops/standalone -p 'test_*.py'
+      - name: Svarog private price intake, mail bridge and review report
+        run: python3 -B -m unittest discover -s ops/suppliers -p 'test_svarog_*.py'
       - name: Independent source and dependency graph
         run: node ops/check-independence.mjs
       - name: Research dictionary coverage stays current
@@ -46,6 +48,12 @@ jobs:
         run: python3 ops/tests/assortment.py
       - name: Catalog import transactions (isolated PostgreSQL)
         run: python3 ops/tests/catalog-import.py
+      - name: Explicit inquiry-price import and migration guards
+        run: |
+          python3 -m unittest discover -s ops/dev -p test_inquiry_price_guard.py
+          python3 -m unittest discover -s ops/dev -p test_inquiry_price_runner.py
+          python3 -m unittest discover -s ops/dev -p test_dev_build_config.py
+          python3 ops/tests/catalog-inquiry-price.py
       - name: Direct preview request recovery (isolated PostgreSQL)
         run: python3 ops/tests/preview-requests.py
       - name: Pending result recovery (isolated PostgreSQL)
