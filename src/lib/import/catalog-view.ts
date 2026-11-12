@@ -18,6 +18,7 @@ export interface ImportView {
   sample: string[];
   mapping: Mapping;
   decimal: "comma" | "dot";
+  inquiry_price?: boolean;
   fileRows: number;
   counts: { new: number; update: number; unchanged: number; error: number; excluded: number };
   page: number;
@@ -59,10 +60,19 @@ export interface ImportRequest {
   decimal?: string;
   line?: number;
   reviewRevision?: number;
+  enabled?: boolean;
 }
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseImportCallback(data: string): ImportRequest | null {
   if (data === "ci:home" || data === "ci:template") return { op: data.slice(3) };
+  const inquiry = data.match(new RegExp(`^ci:ip:(${ID}):([01]):([0-9]{1,7})$`));
+  if (inquiry)
+    return {
+      op: "inquiry_price",
+      id: inquiry[1]!,
+      enabled: inquiry[2] === "1",
+      revision: Number(inquiry[3]),
+    };
   const returning = data.match(new RegExp(`^ci:(rp|rr):(${ID}):([0-9]{1,7})(?::([0-9]{1,7}))?$`));
   if (returning) {
     if ((returning[1] === "rr") !== (returning[4] !== undefined)) return null;
@@ -133,7 +143,24 @@ const reason: Record<string, string> = {
   DUPLICATE_SKU: "Артикул повторяется в файле",
   AMBIGUOUS_SKU: "Несколько товаров с таким артикулом",
   CATEGORY_NOT_FOUND: "Код раздела не найден",
-  NEW_REQUIRED: "Для нового товара нужны название и розничная цена",
+  NEW_REQUIRED:
+    "Для нового товара нужны название и розничная цена либо включённый режим «Цена по запросу»",
+};
+const FIELD_HELP: Record<Field, string> = {
+  sku: "Артикул — код товара. По нему магазин находит существующую карточку. Эта колонка обязательна; одинаковый артикул должен означать один и тот же товар.",
+  title:
+    "Название увидит покупатель. Для нового товара оно обязательно. Пустая ячейка не стирает прежнее название.",
+  brand: "Бренд — марка или производитель товара. Если сведений нет, оставьте поле без импорта.",
+  price:
+    "Розничная цена — сумма, которую платит покупатель, в рублях. Для новых товаров без согласованной цены включите «Цена по запросу». Не выбирайте здесь закупочную цену или РРЦ поставщика без решения магазина.",
+  cost_price:
+    "Закупочная цена — сколько магазин платит поставщику, в рублях. Её видят только сотрудники с нужными правами. Цена для покупателя и наценка автоматически не рассчитываются.",
+  in_stock:
+    "Наличие отвечает на вопрос «Есть ли товар сейчас?». Подходят значения «Да», «Нет», «Есть», «Под заказ». Если выбрано количество, оно должно согласоваться с наличием.",
+  stock_qty:
+    "Количество — остаток товара, целое число. Ноль означает «Нет в наличии», число больше нуля — «Есть в наличии». Пустая ячейка не стирает прежний остаток.",
+  category_slug:
+    "Код раздела связывает товар с существующим разделом каталога. Это служебный код, а не название. Если точный код неизвестен, выберите «Не импортировать это поле». Новый раздел не создаётся.",
 };
 function value(v: unknown): string {
   if (typeof v === "boolean") return v ? "да" : "нет";
@@ -206,21 +233,25 @@ export function renderImport(
   if (typeof screen === "number" && ["config", "preview"].includes(r.state)) {
     const field = FIELDS[screen]!;
     return {
-      text: `🗂 Выберите колонку: ${FIELD_LABEL[field]}\nФайл: ${short(r.file)}\nПример — первая строка данных. «Не импортировать» оставляет прежнее поле без изменения.`,
+      text: `🗂 Выберите колонку: ${FIELD_LABEL[field]}\nФайл: ${short(r.file)}\n\n${FIELD_HELP[field]}\n\nНажмите кнопку с нужной колонкой. Рядом с её названием — пример из первой строки. ✅ Отмечен текущий выбор.\n\n${field === "sku" ? "Без артикула импорт невозможен." : "«Не импортировать это поле» сохраняет прежние значения."}\nВыбор колонки ещё не меняет товары.`,
       rows: [
         ...r.header.map((h, index) => [
           {
-            text: `${index + 1}. ${short(catalogColumnLabel(h, index), 25)} · ${short(r.sample?.[index], 30)}`,
+            text: `${r.mapping[field] === index ? "✅ " : ""}${index + 1}. ${short(catalogColumnLabel(h, index), 25)} · ${short(r.sample?.[index], 30)}`,
             callback_data: `ci:map:${r.id}:${screen}:${index}:${r.revision}`,
           },
         ]),
-        [
-          {
-            text: "Не импортировать это поле",
-            callback_data: `ci:map:${r.id}:${screen}:-1:${r.revision}`,
-          },
-        ],
-        [{ text: "К настройке", callback_data: `ci:config:${r.id}` }],
+        ...(field === "sku"
+          ? []
+          : [
+              [
+                {
+                  text: `${r.mapping[field] < 0 ? "✅ " : ""}Не импортировать это поле`,
+                  callback_data: `ci:map:${r.id}:${screen}:-1:${r.revision}`,
+                },
+              ],
+            ]),
+        [{ text: "↩️ К настройке колонок", callback_data: `ci:config:${r.id}` }],
       ],
     };
   }
@@ -228,10 +259,10 @@ export function renderImport(
     return {
       text: [
         `⚙️ Настройка импорта · ${r.id.slice(0, 8)}\nФайл: ${short(r.file)}\nСтрок в файле: ${r.fileRows}.`,
-        "Проверьте каждую колонку. Сопоставление товаров — только по уникальному артикулу.",
+        "1️⃣ Проверьте, откуда брать сведения. Чтобы изменить выбор, нажмите «Колонка» с названием поля. Артикул — код, по которому магазин узнаёт товар.",
         ...FIELDS.map(
           (f) =>
-            `${FIELD_LABEL[f]}: ${r.mapping[f] >= 0 ? short(catalogColumnLabel(r.header[r.mapping[f]], r.mapping[f]), 45) : "не импортировать"}`,
+            `${FIELD_LABEL[f]}: ${r.mapping[f] >= 0 ? short(catalogColumnLabel(r.header[r.mapping[f]], r.mapping[f]), 45) : f === "sku" ? "Не выбрана — укажите обязательно" : "Не импортировать"}`,
         ),
         `Десятичный разделитель: ${r.decimal === "comma" ? "запятая (123,45)" : "точка (123.45)"}.`,
         `Неиспользуемые колонки: ${
@@ -240,17 +271,39 @@ export function renderImport(
             .map((h) => short(h, 25))
             .join(", ") || "нет"
         }.`,
-        "Пустые ячейки сохраняют прежние значения. Количество автоматически задаёт наличие: 0 — нет, больше 0 — есть. Закупка не заменяет розничную цену; наценка автоматически не рассчитывается.",
-        "Для новых товаров обязательны артикул, название и розничная цена. Код раздела — существующий slug; разделы не создаются автоматически. Фото и публикация этим файлом не меняются.",
+        "2️⃣ Выберите, как записаны копейки в вашем файле: 123,45 или 123.45. ✅ Отмечен текущий вариант.",
+        "3️⃣ Нажмите «Построить предпросмотр». Товары пока не изменятся — сначала вы увидите, что будет добавлено или исправлено.",
+        r.inquiry_price
+          ? "Цена по запросу включена: новые товары без цены станут черновиками. Цены существующих товаров при пустой ячейке сохранятся. Непустые выбранные цены импортируются как обычно — проверьте колонку."
+          : "Для нового товара нужны артикул, название и розничная цена. Если цена ещё не согласована, включите «Цена по запросу».",
+        "Пустые ячейки сохраняют прежние значения. Закупка не заменяет цену продажи. Фото и публикация этим файлом не меняются.",
       ].join("\n\n"),
       rows: [
         ...FIELDS.map((f, index) => [
           { text: `Колонка: ${FIELD_LABEL[f]}`, callback_data: `ci:field:${r.id}:${index}` },
         ]),
         [
-          { text: "Цены: 123,45", callback_data: `ci:decimal:${r.id}:comma:${r.revision}` },
-          { text: "Цены: 123.45", callback_data: `ci:decimal:${r.id}:dot:${r.revision}` },
+          {
+            text: `${r.decimal === "comma" ? "✅ " : ""}Цены: 123,45`,
+            callback_data: `ci:decimal:${r.id}:comma:${r.revision}`,
+          },
+          {
+            text: `${r.decimal === "dot" ? "✅ " : ""}Цены: 123.45`,
+            callback_data: `ci:decimal:${r.id}:dot:${r.revision}`,
+          },
         ],
+        ...(typeof r.inquiry_price === "boolean"
+          ? [
+              [
+                {
+                  text: r.inquiry_price
+                    ? "Цена по запросу: включена — выключить"
+                    : "Новые товары без цены: включить",
+                  callback_data: `ci:ip:${r.id}:${r.inquiry_price ? 0 : 1}:${r.revision}`,
+                },
+              ],
+            ]
+          : []),
         [{ text: "👁 Построить предпросмотр", callback_data: `ci:preview:${r.id}:${r.revision}` }],
         ...returnButton,
         [{ text: "Отменить импорт", callback_data: `ci:cancel:${r.id}` }],
@@ -336,13 +389,26 @@ export function renderImport(
           { text: `📎 Строка ${i.line}: источники товара`, callback_data: `mp:${l.product_id}:0` },
         ]);
     }
-    const oldPrice = Number(i.before_product?.price ?? 0),
-      newPrice = Number(i.after_product?.price ?? 0);
-    if (oldPrice > 0 && Math.abs(newPrice - oldPrice) / oldPrice >= 0.3)
+    if (i.kind === "new" && i.after_product?.price === null)
+      lines.push("Цена продажи: по запросу. Новая карточка останется черновиком.");
+    const oldPrice = i.before_product?.price == null ? null : Number(i.before_product.price),
+      newPrice = i.after_product?.price == null ? null : Number(i.after_product.price);
+    if (
+      oldPrice !== null &&
+      newPrice !== null &&
+      Number.isFinite(newPrice) &&
+      oldPrice > 0 &&
+      Math.abs(newPrice - oldPrice) / oldPrice >= 0.3
+    )
       lines.push(
         `⚠️ Внимание: цена меняется на ${Math.round(((newPrice - oldPrice) / oldPrice) * 100)}%. Проверьте сумму.`,
       );
-    if (i.after_cost && newPrice < Number(i.after_cost.cost_price))
+    if (
+      i.after_cost &&
+      newPrice !== null &&
+      Number.isFinite(newPrice) &&
+      newPrice < Number(i.after_cost.cost_price)
+    )
       lines.push("⚠️ Внимание: розничная цена ниже закупочной.");
     if (i.errors.length)
       lines.push([...new Set(i.errors)].map((e) => reason[e] ?? "Ошибка строки").join("; "));
@@ -444,7 +510,8 @@ const ERRORS: Record<string, string> = {
   EMPTY_FILE: "Файл пуст или не содержит данных.",
   BAD_HEADER: "Нужен заголовок из 2–30 колонок, до 100 символов каждый.",
   CELL_TOO_LARGE: "Слишком длинная ячейка, больше 30 колонок или недопустимый символ.",
-  FILE_FORMAT: "Сейчас принимается только CSV UTF-8. XLSX/PDF сохраните как CSV UTF-8.",
+  FILE_FORMAT:
+    "В этом разделе нужен файл CSV UTF-8. Для Excel, PDF или скана нажмите «Загрузить Excel, PDF или скан»: там можно проверить распознанные строки перед импортом.",
   FILE_DOWNLOAD:
     "Файл не удалось получить из Telegram. Каталог на этапе загрузки не меняется. Отправьте файл ещё раз.",
 };

@@ -122,21 +122,21 @@ try:
         "previous-test": "unchanged", installation.PROPOSAL_PATH: installation.PROPOSAL_SHA256,
         installation.ACCESSORY_PATH: installation.ACCESSORY_SHA256}
     state = json.loads(sql(dev.SCHEMA_SQL))
-    assert dev.validate_schema(state) == dev.KNOWN_CAPABILITIES
-    assert prod.validate_schema(state, installation.IDENTITY) == prod.KNOWN_CAPABILITIES
+    assert dev.validate_schema(state) == dev.SCHEMA_0043_CAPABILITIES
+    assert prod.validate_schema(state, installation.IDENTITY) == prod.SCHEMA_0043_CAPABILITIES
     for gate, error, prefix in [(dev, RuntimeError, "DEV"), (prod, ValueError, "PROD")]:
         labels = {"org.opencontainers.image.revision": "a" * 40, gate.CAPABILITY: "1", gate.DOCUMENTARY_CAPABILITY: "1"}
         if gate is dev:
             labels["mw.environment"] = "dev"
         image = {"Id": "sha256:" + "b" * 64, "Config": {"Labels": labels}}
         try:
-            gate.validate_image(image, "a" * 40, gate.KNOWN_CAPABILITIES)
+            gate.validate_image(image, "a" * 40, gate.SCHEMA_0043_CAPABILITIES)
         except error as failure:
             assert str(failure) == prefix + "_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"
         else:
             raise AssertionError("OLD_IMAGE_ACCEPTED_AFTER_DICTIONARY")
         labels[gate.ACCESSORY_CAPABILITY] = "1"
-        assert gate.validate_image(image, "a" * 40, gate.KNOWN_CAPABILITIES) == image["Id"]
+        assert gate.validate_image(image, "a" * 40, gate.SCHEMA_0043_CAPABILITIES) == image["Id"]
     corruptions = [
         "DROP FUNCTION mw_private.accessory_dictionary_version();",
         "CREATE OR REPLACE FUNCTION mw_private.accessory_dictionary_version() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 2';",

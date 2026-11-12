@@ -129,6 +129,11 @@ export function describePendingChange(
 ): string {
   const b = (before ?? {}) as Record<string, unknown>;
   const a = (after ?? {}) as Record<string, unknown>;
+  if (action === "price" && (b["price"] === null || a["price"] === null)) {
+    const label = (value: unknown) =>
+      value === null ? "Цена по запросу" : `${Number(value).toLocaleString("ru-RU")} ₽`;
+    return `${label(b["price"])} → ${label(a["price"])}`;
+  }
   if (action === "price") return describePriceChange(Number(b["price"]), Number(a["price"]));
   if (action === "stock")
     return describeStockChange(Boolean(b["in_stock"]), Boolean(a["in_stock"]));

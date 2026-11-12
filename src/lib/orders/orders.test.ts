@@ -78,6 +78,12 @@ describe("валидация заказа", () => {
 });
 
 describe("серверный пересчёт заказа", () => {
+  it("товар с ценой по запросу нельзя превратить в бесплатный заказ", () => {
+    expect(computeOrder(payload(), [P({ price: null })])).toMatchObject({
+      ok: false,
+      code: "BAD_PRICE",
+    });
+  });
   it("считает сумму по серверным ценам, игнорируя клиентские", () => {
     const r = computeOrder(payload({ items: [{ product_id: P().id, qty: 3 }] }), [
       P({ price: 250 }),

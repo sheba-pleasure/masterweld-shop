@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Build the exact local commit using only public DEV configuration."""
-import pathlib, subprocess, tempfile
+import os, pathlib, subprocess, tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-public = dict(line.split("=", 1) for line in (ROOT / "ops/.secrets/dev/build-public.env").read_text().splitlines() if line and not line.startswith("#"))
+# An isolated source worktree may read the canonical public build configuration.
+# This is a path only: no credential copying or alternative source archive.
+PUBLIC_CONFIG = pathlib.Path(os.environ.get("MW_DEV_PUBLIC_CONFIG", str(ROOT / "ops/.secrets/dev/build-public.env")))
+public = dict(line.split("=", 1) for line in PUBLIC_CONFIG.read_text().splitlines() if line and not line.startswith("#"))
 sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True).strip():
     raise SystemExit("Commit or isolate all source changes before building DEV")

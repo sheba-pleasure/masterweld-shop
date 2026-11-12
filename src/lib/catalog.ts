@@ -12,7 +12,7 @@ export interface ProductCard {
   title: string;
   brand: string | null;
   sku: string | null;
-  price: number;
+  price: number | null;
   old_price: number | null;
   in_stock: boolean;
   category_id: string | null;
@@ -72,4 +72,5 @@ export const mainPhoto = (photos: Photo[] | undefined) =>
     (a, b) => Number(b.is_main) - Number(a.is_main) || a.sort_order - b.sort_order,
   )[0]?.url;
 
-export const rub = (n: number) => new Intl.NumberFormat("ru-RU").format(Math.round(n)) + " ₽";
+export const rub = (n: number | null) =>
+  n === null ? "Цена по запросу" : new Intl.NumberFormat("ru-RU").format(Math.round(n)) + " ₽";

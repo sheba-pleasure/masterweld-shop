@@ -519,7 +519,11 @@ function Catalog() {
                           <span
                             className={`text-xs ${p.in_stock ? "text-primary" : "text-muted-foreground"}`}
                           >
-                            {p.in_stock ? "Отмечено в наличии" : "Под заказ"}
+                            {p.price === null
+                              ? "Наличие уточняется"
+                              : p.in_stock
+                                ? "Отмечено в наличии"
+                                : "Под заказ"}
                           </span>
                         </div>
                       </Link>
@@ -530,6 +534,7 @@ function Catalog() {
                             id: p.id,
                             slug: p.slug,
                             title: p.title,
+                            sku: p.sku,
                             price: p.price,
                             photo: img ?? null,
                           }}

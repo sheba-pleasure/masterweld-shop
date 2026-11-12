@@ -55,7 +55,7 @@ export interface OrderProductRow {
   id: string;
   slug: string;
   title: string;
-  price: number;
+  price: number | null;
   status: "draft" | "published" | "hidden";
   in_stock: boolean;
 }
@@ -101,6 +101,12 @@ export function computeOrder(
     if (!p) return { ok: false, code: "NOT_FOUND", message: "Товар не найден" };
     if (p.status !== "published")
       return { ok: false, code: "NOT_PUBLISHED", message: "Товар недоступен для заказа" };
+    if (p.price === null)
+      return {
+        ok: false,
+        code: "BAD_PRICE",
+        message: "Цена товара требует согласования. Свяжитесь с магазином.",
+      };
     const price = Number(p.price);
     if (!Number.isFinite(price) || price < 0)
       return { ok: false, code: "BAD_PRICE", message: "Некорректная цена товара" };

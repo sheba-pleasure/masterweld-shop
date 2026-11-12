@@ -11,7 +11,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ops/production"))
 from preflight import expected_schema_files, schema_errors
-from app_compatibility import SCHEMA_SQL, KNOWN_CAPABILITIES, validate_schema
+from app_compatibility import SCHEMA_SQL, SCHEMA_0043_CAPABILITIES, validate_schema
 
 NAME = "mw-prod-schema-qa-" + uuid.uuid4().hex[:12]
 IMAGE = "postgres:17.6-alpine"
@@ -159,7 +159,7 @@ def check_target(hashes):
     ledger = json.loads(sql("SELECT json_agg(s ORDER BY path) FROM mw_private.schema_files s;"))
     if schema_errors(ledger, hashes):
         raise RuntimeError("TARGET_LEDGER_MISMATCH")
-    if validate_schema(json.loads(sql(SCHEMA_SQL)), IDENTITY) != KNOWN_CAPABILITIES:
+    if validate_schema(json.loads(sql(SCHEMA_SQL)), IDENTITY) != SCHEMA_0043_CAPABILITIES:
         raise RuntimeError("TARGET_CAPABILITIES_MISMATCH")
     sql(NEW_ACCESS_CHECK)
     check_dictionary()

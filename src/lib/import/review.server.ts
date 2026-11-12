@@ -180,7 +180,7 @@ export async function showDocumentReview(m: StaffMember, chat: Chat, data: strin
     }
     const r = await call(
       m,
-      ["cols", "raw", "values", "full", "orig", "checks", "page"].includes(op) ? "get" : op,
+      ["cols", "raw", "values", "full", "orig", "checks", "page", "more"].includes(op) ? "get" : op,
       {
         p_id: id,
         p_revision: revision,

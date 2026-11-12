@@ -120,7 +120,7 @@ export type Database = {
           in_stock: boolean
           match_key: string | null
           old_price: number | null
-          price: number
+          price: number | null
           sku: string | null
           slug: string
           source_url: string | null
@@ -139,7 +139,7 @@ export type Database = {
           in_stock?: boolean
           match_key?: string | null
           old_price?: number | null
-          price?: number
+          price?: number | null
           sku?: string | null
           slug: string
           source_url?: string | null
@@ -158,7 +158,7 @@ export type Database = {
           in_stock?: boolean
           match_key?: string | null
           old_price?: number | null
-          price?: number
+          price?: number | null
           sku?: string | null
           slug?: string
           source_url?: string | null

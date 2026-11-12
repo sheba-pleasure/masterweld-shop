@@ -49,8 +49,11 @@ export async function showProductCosts(
       .maybeSingle();
     if (costs.error) throw new Error("READ_FAILED");
     const cost = costs.data?.cost_price == null ? null : Number(costs.data.cost_price);
-    const retail = Number(product.data.price);
-    if (!Number.isFinite(retail) || (cost !== null && (!Number.isFinite(cost) || cost < 0)))
+    const retail = product.data.price === null ? null : Number(product.data.price);
+    if (
+      (retail !== null && !Number.isFinite(retail)) ||
+      (cost !== null && (!Number.isFinite(cost) || cost < 0))
+    )
       throw new Error("INVALID_PRICE");
     // Record the disclosure without copying financial values into audit details.
     const audit = await supabaseAdmin.from("staff_audit_log").insert({
@@ -62,9 +65,11 @@ export async function showProductCosts(
     text = [
       "💰 Цены товара",
       product.data.title + "\nАртикул: " + (product.data.sku ?? "не указан"),
-      "🛒 Розничная цена: " +
-        money(retail) +
-        "\nПо этой цене товар предлагается покупателю на сайте.",
+      retail === null
+        ? "🛒 Розничная цена: по запросу. Согласованной цены магазина ещё нет."
+        : "🛒 Розничная цена: " +
+          money(retail) +
+          "\nПо этой цене товар предлагается покупателю на сайте.",
       cost === null
         ? "📦 Закупочная цена: пока не указана.\nУточните её у администратора. Это не означает, что товар закуплен за 0 ₽."
         : "📦 Закупочная цена: " +

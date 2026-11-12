@@ -19,10 +19,10 @@ export const Route = createFileRoute("/product/$slug")({
           { title: `${loaderData.title} — купить | Мастер Сварщик` },
           {
             name: "description",
-            content: `${loaderData.title} по цене ${rub(Number(loaderData.price))}. Условия получения уточните в магазине.`,
+            content: `${loaderData.title}. ${rub(loaderData.price)}. Условия получения уточните в магазине.`,
           },
           { property: "og:title", content: loaderData.title },
-          { property: "og:description", content: `Цена ${rub(Number(loaderData.price))}` },
+          { property: "og:description", content: rub(loaderData.price) },
           { property: "og:type", content: "product" },
           { name: "twitter:card", content: "summary_large_image" },
         ]
@@ -106,19 +106,25 @@ function ProductPage() {
           {p.sku && <p className="mt-2 text-sm text-muted-foreground">Артикул: {p.sku}</p>}
           <div className="mt-6 flex items-baseline gap-3">
             <span className="font-display text-3xl font-bold text-foreground">
-              {rub(Number(p.price))}
+              {rub(p.price)}
             </span>
-            {p.old_price && Number(p.old_price) > Number(p.price) && (
+            {p.price !== null && p.old_price && Number(p.old_price) > Number(p.price) && (
               <span className="text-muted-foreground line-through">{rub(Number(p.old_price))}</span>
             )}
           </div>
           <p className={`mt-2 text-sm ${p.in_stock ? "text-primary" : "text-muted-foreground"}`}>
-            {p.in_stock ? "Отмечено в наличии" : "Под заказ"}
+            {p.price === null
+              ? "Наличие уточняется"
+              : p.in_stock
+                ? "Отмечено в наличии"
+                : "Под заказ"}
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            {p.in_stock
-              ? "Наличие подтвердим при обработке заказа."
-              : "Срок поставки уточнит сотрудник магазина после заказа."}
+            {p.price === null
+              ? "Запрос откроется в вашей почтовой программе. Цена и срок поставки требуют согласования."
+              : p.in_stock
+                ? "Наличие подтвердим при обработке заказа."
+                : "Срок поставки уточнит сотрудник магазина после заказа."}
           </p>
           <div className="mt-6">
             <AddToCartButton
@@ -127,7 +133,8 @@ function ProductPage() {
                 id: p.id,
                 slug: p.slug,
                 title: p.title,
-                price: Number(p.price),
+                sku: p.sku,
+                price: p.price,
                 photo: photos[active]?.url ?? photos[0]?.url ?? null,
               }}
             />

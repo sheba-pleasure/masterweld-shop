@@ -49,13 +49,16 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 export function parseReviewCallback(value: string): ReviewAction | null {
   const m = value.match(
     new RegExp(
-      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|resume|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks|page):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
+      `^dr:(${uuid}):([0-9]{1,7}):(get|next|summary|edit|resume|cancel|approve|exclude|pending|handoff|cols|raw|values|full|orig|checks|page|more):([0-9]{1,4})(?::([0-9]{1,2}))?$`,
     ),
   );
   if (!m || Number(m[4]) > 4999 || (m[5] !== undefined && Number(m[5]) > 29)) return null;
-  if (["edit", "cols", "values", "full", "orig", "page"].includes(m[3]!) !== (m[5] !== undefined))
+  if (
+    ["edit", "cols", "values", "full", "orig", "page", "more"].includes(m[3]!) !==
+    (m[5] !== undefined)
+  )
     return null;
-  if (["values", "page"].includes(m[3]!) && Number(m[5]) > 3) return null;
+  if (["values", "page", "more"].includes(m[3]!) && Number(m[5]) > 3) return null;
   return {
     id: m[1]!,
     revision: Number(m[2]),
@@ -94,6 +97,17 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     rows.push([
       { text: "📥 Открыть подготовленный импорт", callback_data: `ci:get:${r.import_id}:0` },
     ]);
+  } else if (screen === "more") {
+    text +=
+      "\n📎 Оригинал и помощь\n\nСравните строку с исходным файлом или прочитайте подсказки. Выбор модели — отдельный дополнительный шаг для будущего поиска сведений о товаре. Само открытие этого меню ничего не меняет.";
+    add("📎 Посмотреть исходную строку", "raw");
+    add("🔎 Что проверить в таблице", "checks");
+    rows.push([
+      { text: "🏷 Модель для поиска источников", callback_data: `dm:${r.id}:0:get:${r.row}` },
+    ]);
+    if (r.header.length > 8 && columnPage * 8 < r.header.length)
+      add("↩️ Назад к проверке строки", "page", r.row, columnPage);
+    else add("↩️ Назад к проверке строки", "get");
   } else if (screen === "checks") {
     text += "\n" + documentGuidance(r.warnings, r.coverage);
     add("↩️ К строке", "get");
@@ -134,7 +148,9 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     if (columnPage > 0) add("← Предыдущие поля", screen, r.row, columnPage - 1);
     if ((columnPage + 1) * 8 < r.header.length)
       add("Следующие поля →", screen, r.row, columnPage + 1);
-    add("↩️ К строке", "get");
+    if (r.header.length > 8 && columnPage * 8 < r.header.length)
+      add("↩️ К этой странице строки", "page", r.row, columnPage);
+    else add("↩️ К строке", "get");
   } else if (screen === "full" || screen === "orig") {
     const index = columnPage;
     if (!Number.isInteger(index) || index < 0 || index >= r.header.length) {
@@ -219,23 +235,16 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
       text +=
         "\n\n⚠️ Число ячеек не совпадает с заголовком. Недостающие поля можно заполнить. Лишние ячейки видны в исходной строке; такую строку пропустите и подготовьте исправленный файл.";
     text +=
-      "\n\nСверьте строку с оригиналом. «Строка проверена» означает, что данные верны. «Пропустить» исключает строку только из этого импорта, а не удаляет товар из магазина.";
+      "\n\nЧто сделать:\n1. Сверьте название, артикул и цены с оригиналом.\n2. Есть ошибка — нажмите «Исправить поле».\n3. Всё верно — «Строка проверена». Ненужная строка — «Пропустить».\n\n«Пропустить» исключает строку только из этого импорта. Товар из магазина не удаляется.";
     if (r.cells.some((value) => value.length > 100))
       text +=
         "\n\n🔎 Длинные значения здесь сокращены. Нажмите «Прочитать значения целиком», чтобы увидеть весь сохранённый текст.";
     if (r.warnings.length || !r.coverage?.complete)
       text +=
         "\n\n🔎 В таблице есть особенности распознавания. Откройте «Что проверить в таблице» перед решением по строке.";
-    add("🔎 Что проверить в таблице", "checks");
-    add("🔎 Прочитать значения целиком", "values", r.row, 0);
-    add("📎 Посмотреть исходную строку", "raw");
-    rows.push([
-      { text: "🏷 Модель для поиска источников", callback_data: `dm:${r.id}:0:get:${r.row}` },
-    ]);
-    add("✏️ Исправить поле", "cols", r.row, 0);
-    rows.push([
-      { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },
-    ]);
+    if (r.warnings.length || !r.coverage?.complete) add("🔎 Что проверить в таблице", "checks");
+    add("🔎 Прочитать значения целиком", "values", r.row, page);
+    add("✏️ Исправить поле", "cols", r.row, page);
     if (page + 1 === pageCount) {
       if (r.decision !== "approved") add("✅ Строка проверена → следующая", "approve");
       if (r.decision !== "excluded") add("⏭ Пропустить → следующая", "exclude");
@@ -248,9 +257,14 @@ export function renderReview(r: DocumentReview, screen = "get", columnPage = 0) 
     if (next !== null) nav.push(reviewButton(r, "Строка →", "get", next));
     if (nav.length) rows.push(nav);
     if (c.pending) add("🔎 Следующая непроверенная", "next");
+    rows.push([
+      { text: "🛠 Исправить таблицу", callback_data: `ds:${r.id}:${r.revision}:tools:${r.row}` },
+    ]);
+    add("📎 Оригинал и помощь", "more", r.row, page);
     add("📋 Итог и передача в импорт", "summary");
   }
-  rows.push([{ text: "📎 Скачать оригинал", callback_data: `di:original:${r.document_id}` }]);
+  if (!["get", "page", "next", "approve", "exclude", "pending"].includes(screen))
+    rows.push([{ text: "📎 Скачать оригинал", callback_data: `di:original:${r.document_id}` }]);
   rows.push([{ text: "📚 К документу", callback_data: `di:get:${r.document_id}` }]);
   return { text, rows };
 }

@@ -40,7 +40,7 @@ class ProductionCompatibilityTests(unittest.TestCase):
     def test_no_schema_full_schema_and_every_partial_schema(self):
         for mask in range(64):
             flags = [bool(mask & (1 << n)) for n in range(6)]
-            value = {"identity": IDENTITY, "sourceFacts": flags, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}
+            value = {"identity": IDENTITY, "sourceFacts": flags, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6}
             if mask in (0, 63):
                 self.assertEqual(guard.validate_schema(value, IDENTITY), SOURCE_REQUIRED if mask == 63 else frozenset())
             else:
@@ -57,18 +57,18 @@ class ProductionCompatibilityTests(unittest.TestCase):
     def test_documentary_schema_requires_all_markers_and_source_dependencies(self):
         for mask in range(64):
             value = {"identity": IDENTITY, "sourceFacts": [True] * 6,
-                     "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
+                     "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [bool(mask & (1 << n)) for n in range(6)]}
             if mask in (0, 63):
                 self.assertEqual(guard.validate_schema(value, IDENTITY),
                                  DOCUMENTARY_REQUIRED if mask == 63 else SOURCE_REQUIRED)
             else:
                 with self.assertRaisesRegex(ValueError, "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE"):
                     guard.validate_schema(value, IDENTITY)
-        value = {"identity": IDENTITY, "sourceFacts": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
+        value = {"identity": IDENTITY, "sourceFacts": [False] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [True] * 6}
         with self.assertRaisesRegex(ValueError, "PROD_DOCUMENTARY_SCHEMA_INCOMPLETE"):
             guard.validate_schema(value, IDENTITY)
         for flags in [None, [], [False] * 5, [1] * 6, "false"]:
-            value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
+            value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": flags}
             with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_INVALID"):
                 guard.validate_schema(value, IDENTITY)
 
@@ -76,15 +76,15 @@ class ProductionCompatibilityTests(unittest.TestCase):
     def test_accessory_schema_requires_exact_dictionary_and_dependencies(self):
         for mask in range(16):
             value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [True] * 6,
-                     "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
+                     "inquiryPrice": [False] * 6, "accessoryDictionary": [bool(mask & (1 << n)) for n in range(4)]}
             if mask in (0, 15):
                 self.assertEqual(guard.validate_schema(value, IDENTITY),
-                                 guard.KNOWN_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
+                                 guard.SCHEMA_0043_CAPABILITIES if mask == 15 else DOCUMENTARY_REQUIRED)
             else:
                 with self.assertRaisesRegex(ValueError, "PROD_ACCESSORY_SCHEMA_INCOMPLETE"):
                     guard.validate_schema(value, IDENTITY)
         value = {"identity": IDENTITY, "sourceFacts": [True] * 6, "documentaryConditions": [False] * 6,
-                 "accessoryDictionary": [True] * 4}
+                 "inquiryPrice": [False] * 6, "accessoryDictionary": [True] * 4}
         with self.assertRaisesRegex(ValueError, "PROD_ACCESSORY_SCHEMA_INCOMPLETE"):
             guard.validate_schema(value, IDENTITY)
         for flags in [None, [], [False] * 3, [1] * 4, "false"]:
@@ -99,9 +99,9 @@ class ProductionCompatibilityTests(unittest.TestCase):
             if label is not None:
                 target["Config"]["Labels"][guard.ACCESSORY_CAPABILITY] = label
             with self.assertRaisesRegex(ValueError, "PROD_IMAGE_ACCESSORY_DICTIONARY_UNSUPPORTED"):
-                guard.validate_image(target, SHA, guard.KNOWN_CAPABILITIES)
+                guard.validate_image(target, SHA, guard.SCHEMA_0043_CAPABILITIES)
         target["Config"]["Labels"][guard.ACCESSORY_CAPABILITY] = "1"
-        self.assertEqual(guard.validate_image(target, SHA, guard.KNOWN_CAPABILITIES), IMAGE_ID)
+        self.assertEqual(guard.validate_image(target, SHA, guard.SCHEMA_0043_CAPABILITIES), IMAGE_ID)
         with self.assertRaisesRegex(ValueError, "PROD_SCHEMA_REQUIREMENTS_INVALID"):
             guard.validate_image(target, SHA, SOURCE_REQUIRED | {guard.ACCESSORY_CAPABILITY})
 
@@ -174,7 +174,7 @@ class ProductionCompatibilityTests(unittest.TestCase):
 
     def test_database_ownership_running_and_read_only_query(self):
         db = {"Config": {"Labels": {"mw.environment": "production"}}, "State": {"Running": True}}
-        result = json.dumps({"identity": IDENTITY, "sourceFacts": [True] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6})
+        result = json.dumps({"identity": IDENTITY, "sourceFacts": [True] * 6, "inquiryPrice": [False] * 6, "accessoryDictionary": [False] * 4, "documentaryConditions": [False] * 6})
         with patch.object(guard, "inspect", return_value=db), patch.object(guard.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, result, "")
             self.assertEqual(guard.schema_requirements(IDENTITY, "isolated-db", "postgres"), SOURCE_REQUIRED)

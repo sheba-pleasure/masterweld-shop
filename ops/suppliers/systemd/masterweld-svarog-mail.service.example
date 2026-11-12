@@ -1,0 +1,19 @@
+# Template only. Not installed or enabled. Replace placeholders after reviewed setup.
+[Unit]
+Description=Masterweld private Svarog price review intake
+ConditionPathExists=@ENABLE_FILE@
+ConditionPathExists=@CREDENTIALS@
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/codex/projects/masterweld.ru
+ExecStart=/usr/bin/python3 -B @RUNNER_DIR@/svarog_mail_bridge.py --state @STATE@ poll --credentials @CREDENTIALS@ --since 2026-11-11 --opt-in
+UMask=0077
+TimeoutStartSec=20min
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=@STATE@
+StandardOutput=journal
+StandardError=journal
