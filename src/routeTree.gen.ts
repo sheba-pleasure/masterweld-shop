@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as ApiPublicWebmasterDiagnosticsRouteImport } from './routes/api/public/webmaster-diagnostics'
 import { Route as ApiPublicB2bIngestRouteImport } from './routes/api/public/b2b/ingest'
@@ -19,6 +20,11 @@ import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactsRoute = ContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
@@ -52,6 +58,7 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
@@ -60,6 +67,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
@@ -69,6 +77,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/product/$slug': typeof ProductSlugRoute
   '/api/public/webmaster-diagnostics': typeof ApiPublicWebmasterDiagnosticsRoute
   '/api/public/b2b/ingest': typeof ApiPublicB2bIngestRoute
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contacts'
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contacts'
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/contacts'
     | '/product/$slug'
     | '/api/public/webmaster-diagnostics'
     | '/api/public/b2b/ingest'
@@ -104,6 +116,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContactsRoute: typeof ContactsRoute
   ProductSlugRoute: typeof ProductSlugRoute
   ApiPublicWebmasterDiagnosticsRoute: typeof ApiPublicWebmasterDiagnosticsRoute
   ApiPublicB2bIngestRoute: typeof ApiPublicB2bIngestRoute
@@ -118,6 +131,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contacts': {
+      id: '/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof ContactsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/product/$slug': {
@@ -160,6 +180,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContactsRoute: ContactsRoute,
   ProductSlugRoute: ProductSlugRoute,
   ApiPublicWebmasterDiagnosticsRoute: ApiPublicWebmasterDiagnosticsRoute,
   ApiPublicB2bIngestRoute: ApiPublicB2bIngestRoute,
