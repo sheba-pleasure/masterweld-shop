@@ -252,21 +252,25 @@ export function SiteActions() {
         <SheetTrigger asChild>
           <button type="button" className="head-btn" aria-label={`Корзина: ${count} шт.`}>
             <span className="relative">
-              <ShoppingCart className="h-4 w-4" strokeWidth={2.4} />
+              <ShoppingCart className="h-4 w-4 text-mw-cyan" strokeWidth={2.2} />
               {count > 0 && <span className="cart-badge">{count > 99 ? "99+" : count}</span>}
             </span>
             <span className="hidden 2xl:inline">Корзина</span>
-            {total > 0 && <span className="hidden 2xl:inline opacity-70">{rub(total)}</span>}
+            {total > 0 && (
+              <span className="hidden font-mono text-xs text-muted-foreground tabular-nums 2xl:inline">
+                {rub(total)}
+              </span>
+            )}
           </button>
         </SheetTrigger>
         <SheetContent
           side="right"
-          className="checkout-sheet menu-panel inset-y-2 right-2 h-auto w-[calc(100%-16px)] overflow-y-auto rounded-md border border-brand-yellow/60 bg-brand-deep p-0 text-primary-foreground sm:max-w-3xl"
+          className="checkout-sheet menu-panel inset-y-2 right-2 h-auto w-[calc(100%-16px)] overflow-y-auto rounded-2xl border border-white/12 p-0 text-foreground sm:max-w-3xl"
         >
-          <SheetHeader className="border-b border-brand-yellow/20 px-4 py-3 text-left">
-            <SheetTitle className="menu-label menu-label--title text-brand-yellow">
-              Корзина{" "}
-              <span className="ml-2 text-xs font-normal text-primary-foreground/60">
+          <SheetHeader className="border-b border-white/10 px-4 py-4 text-left">
+            <SheetTitle className="menu-label menu-label--title flex items-center text-white">
+              <span>Корзина</span>
+              <span className="ml-3 font-mono text-xs font-medium text-muted-foreground tabular-nums">
                 {attempt?.items.length ?? items.length} поз. ·{" "}
                 {attempt ? attempt.items.reduce((n, i) => n + i.qty, 0) : count} шт.
               </span>
@@ -274,31 +278,33 @@ export function SiteActions() {
           </SheetHeader>
 
           {done ? (
-            <div className="px-5 pb-6 text-sm">
-              <p className="font-semibold text-brand-yellow">
+            <div className="px-5 py-6 text-sm">
+              <p className="font-display text-base font-bold text-mw-emerald">
                 Спасибо! Заказ {doneInfo.number ?? ""} принят.
               </p>
-              <p className="mt-2 text-primary-foreground/70">
+              <p className="mt-2 text-muted-foreground">
                 {import.meta.env["VITE_APP_ENV"] === "dev"
                   ? "Учебный заказ сохранён. Звонка, оплаты и доставки не будет."
                   : `Позвоним на ${phone.trim()} и уточним доставку.`}
               </p>
               {doneInfo.total !== undefined && (
-                <p className="mt-1 text-primary-foreground/70">
+                <p className="mt-2 text-muted-foreground">
                   Итог по нашим ценам:{" "}
-                  <span className="font-semibold text-brand-yellow">{rub(doneInfo.total)}</span>
+                  <span className="font-display font-bold text-white tabular-nums">
+                    {rub(doneInfo.total)}
+                  </span>
                 </p>
               )}
               {lastAccepted?.requestId === reusedRequestId && (
-                <div className="mt-4 space-y-3">
-                  <p role="status">
+                <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-mw-void/70 p-4">
+                  <p role="status" className="text-secondary-foreground">
                     Найден результат ранее начатого оформления. Второй заказ не создан.
                     {items.length > 0 &&
                       " Товары оставлены в корзине. Если нужен ещё один заказ, подтвердите это отдельно."}
                   </p>
                   {items.length > 0 && (
                     <Button
-                      className="h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep hover:bg-brand-yellow/90"
+                      className="h-auto min-h-11 rounded-full whitespace-normal bg-mw-amber px-5 text-white hover:bg-mw-amber/90"
                       onClick={() => {
                         setRepeatConfirmed(true);
                         setDone(false);
@@ -311,15 +317,15 @@ export function SiteActions() {
                 </div>
               )}
               {doneInfo.backorder && import.meta.env["VITE_APP_ENV"] !== "dev" && (
-                <p className="mt-2 text-xs text-primary-foreground/60">
+                <p className="mt-3 text-xs text-muted-foreground">
                   Часть позиций отмечена как отсутствующая на складе — это заказ «под заказ», срок
                   поставки подтвердит менеджер по телефону.
                 </p>
               )}
             </div>
           ) : attempt ? (
-            <div className="px-5 pb-6 pt-4 text-sm">
-              <p className="font-semibold text-brand-yellow">
+            <div className="px-5 py-6 text-sm">
+              <p className="font-display text-base font-bold text-mw-amber">
                 {resolution?.ok
                   ? `Заказ ${resolution.number ?? ""} сохранён.`
                   : resolution?.code === "PRICE_CHANGED"
@@ -330,20 +336,20 @@ export function SiteActions() {
                         ? "Проверяем оформление…"
                         : "Проверим результат оформления"}
               </p>
-              <p className="mt-2 break-words">
+              <p className="mt-2 break-words text-white">
                 {attempt.name} · {attempt.phone}
               </p>
               {import.meta.env["VITE_APP_ENV"] === "dev" && (
-                <p className="mt-2 text-primary-foreground/70">
+                <p className="mt-2 text-muted-foreground">
                   Учебный магазин · DEV. Звонка, оплаты и доставки не будет.
                 </p>
               )}
-              <p className="mt-1">
+              <p className="mt-2 text-secondary-foreground">
                 Позиций: {attempt.items.length}.{" "}
                 {resolution?.ok && resolution.total !== undefined
                   ? "Сумма заказа: "
                   : "Сумма при отправке: "}
-                <span className="whitespace-nowrap">
+                <span className="whitespace-nowrap font-mono font-bold text-white tabular-nums">
                   {rub(
                     resolution?.ok && resolution.total !== undefined
                       ? resolution.total
@@ -352,7 +358,7 @@ export function SiteActions() {
                 </span>
                 .
               </p>
-              <p role="status" className="mt-3">
+              <p role="status" className="mt-3 rounded-xl border border-white/10 bg-mw-void/70 p-3">
                 {error ??
                   (resolution
                     ? "Завершаем оформление в браузере. Новый заказ не отправляется."
@@ -363,7 +369,7 @@ export function SiteActions() {
               <Button
                 onClick={send}
                 disabled={sending}
-                className="checkout-submit mt-4 h-auto min-h-11 whitespace-normal bg-brand-yellow text-brand-deep hover:bg-brand-yellow/90"
+                className="checkout-submit mt-4 h-auto min-h-11 rounded-full whitespace-normal bg-mw-amber px-6 font-bold text-white hover:bg-mw-amber/90"
               >
                 {resolution
                   ? sending
@@ -373,7 +379,7 @@ export function SiteActions() {
                     ? "Проверяем…"
                     : "Проверить и завершить заказ"}
               </Button>
-              <p className="mt-3 text-xs text-primary-foreground/70">
+              <p className="mt-3 text-xs text-muted-foreground">
                 {resolution?.ok
                   ? "Заказ уже сохранён. Не оформляйте его заново. Кнопка выше завершит работу с этой корзиной."
                   : resolution?.code === "PRICE_CHANGED"
@@ -382,24 +388,27 @@ export function SiteActions() {
                       ? "После завершения исправьте данные заказа. Затем его можно отправить заново."
                       : "Не закрывайте эту вкладку и не оформляйте тот же заказ в другой. При повторной проверке вернётся результат этой попытки."}
               </p>
-              <p className="mt-2 break-all text-xs text-primary-foreground/60">
+              <p className="mt-3 break-all font-mono text-xs text-muted-foreground">
                 Код для проверки магазином: {attempt.requestId}
               </p>
-              <a href={PHONE.href} className="mt-2 inline-block text-brand-yellow">
+              <a
+                href={PHONE.href}
+                className="mt-2 inline-block font-mono text-sm font-semibold text-mw-cyan hover:text-white"
+              >
                 {PHONE.display}
               </a>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col gap-3 px-5 pb-6">
-              <p className="text-primary-foreground">В корзине пока ничего нет</p>
+            <div className="flex flex-col gap-4 px-5 py-8">
+              <p className="text-secondary-foreground">В корзине пока ничего нет</p>
               <Link
                 to="/"
                 onClick={() => setOpen(false)}
-                className="menu-pill menu-pill--accent flex min-h-11 items-center justify-center"
+                className="menu-pill menu-pill--accent flex min-h-11 items-center justify-center font-semibold"
               >
                 Открыть каталог
               </Link>
-              <a href={PHONE.href} className="text-sm text-brand-yellow">
+              <a href={PHONE.href} className="font-mono text-sm text-mw-cyan hover:text-white">
                 Помочь с подбором? {PHONE.display}
               </a>
             </div>
@@ -408,65 +417,72 @@ export function SiteActions() {
               <div className="checkout-products">
                 <CartRows items={displayedItems} onNavigate={() => setOpen(false)} />
               </div>
-              <div className="checkout-details flex flex-col gap-2">
-                <p className="border-b border-brand-yellow/20 pb-2 text-sm text-primary-foreground/75">
+              <div className="checkout-details flex flex-col gap-2.5">
+                <p className="border-b border-white/10 pb-2.5 text-sm text-muted-foreground">
                   {repeatConfirmed
                     ? "Вы создаёте ещё один заказ. Проверьте товары, сумму и контакты, затем подтвердите оформление."
                     : "Для заказа регистрация не нужна."}
                 </p>
 
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-primary-foreground/70">Итого</span>
-                  <span className="font-display text-xl font-bold text-brand-yellow">
+                <div className="flex items-baseline justify-between py-1">
+                  <span className="text-sm text-muted-foreground">Итого</span>
+                  <span className="font-display text-2xl font-semibold text-white tabular-nums">
                     {rub(priceChange?.total ?? total)}
                   </span>
                 </div>
-                <label htmlFor="checkout-name" className="text-sm text-primary-foreground">
+                <label
+                  htmlFor="checkout-name"
+                  className="text-xs font-medium text-secondary-foreground"
+                >
                   Имя
                 </label>
                 <input
                   id="checkout-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Имя"
                   aria-label="Имя покупателя"
                   autoComplete="name"
                   className="menu-field checkout-field"
                 />
-                <label htmlFor="checkout-phone" className="text-sm text-primary-foreground">
+                <label
+                  htmlFor="checkout-phone"
+                  className="text-xs font-medium text-secondary-foreground"
+                >
                   Телефон
                 </label>
                 <input
                   id="checkout-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Телефон"
+                  placeholder="+7 (999) 000-00-00"
                   aria-label="Телефон покупателя"
                   autoComplete="tel"
                   type="tel"
                   inputMode="tel"
                   className="menu-field checkout-field"
                 />
-                <label htmlFor="checkout-comment" className="text-sm text-primary-foreground">
+                <label
+                  htmlFor="checkout-comment"
+                  className="text-xs font-medium text-secondary-foreground"
+                >
                   Комментарий (необязательно)
                 </label>
                 <textarea
                   id="checkout-comment"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Комментарий к заказу (необязательно)"
                   rows={2}
                   aria-label="Комментарий к заказу"
                   className="menu-field checkout-field resize-none"
                 />
-                <p className="text-xs leading-relaxed text-primary-foreground/75">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Онлайн-оплата пока недоступна. Условия оплаты и получения уточните у сотрудника
                   магазина.
                 </p>
                 <Button
                   onClick={send}
                   disabled={sending || !storageReady || !name.trim() || !phone.trim()}
-                  className="checkout-submit h-auto min-h-11 whitespace-normal bg-brand-yellow px-3 py-2 text-brand-deep hover:bg-brand-yellow/90"
+                  className="checkout-submit h-auto min-h-11 rounded-xl whitespace-normal bg-mw-amber px-4 py-2.5 font-semibold text-white hover:bg-mw-amber/90"
                 >
                   {sending
                     ? "Отправляем…"
@@ -477,46 +493,51 @@ export function SiteActions() {
                         : "Оформить заказ"}
                 </Button>
                 {(!name.trim() || !phone.trim()) && (
-                  <p className="text-xs text-primary-foreground/75">
+                  <p className="text-xs text-muted-foreground">
                     Укажите имя и телефон, чтобы оформить заказ.
                   </p>
                 )}
                 {priceChange && (
-                  <div className="rounded-md border border-brand-yellow/50 p-3 text-xs">
-                    <p className="font-semibold text-brand-yellow">
+                  <div className="rounded-2xl border border-mw-amber/45 bg-mw-amber/10 p-3.5 text-xs">
+                    <p className="font-semibold text-mw-amber">
                       Цены изменились — заказ пока не оформлен.
                     </p>
-                    <ul className="mt-2 flex flex-col gap-1 text-primary-foreground/80">
+                    <ul className="mt-2 flex flex-col gap-1 text-secondary-foreground">
                       {changedLines.map((l) => (
                         <li key={l.title} className="line-clamp-2">
-                          {l.title}: <span className="line-through opacity-70">{rub(l.was)}</span> →{" "}
-                          <span className="font-semibold text-brand-yellow">{rub(l.now)}</span>
+                          {l.title}:{" "}
+                          <span className="font-mono line-through opacity-70">{rub(l.was)}</span> →{" "}
+                          <span className="font-mono font-semibold text-white">{rub(l.now)}</span>
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-primary-foreground/80">
-                      Итог: <span className="line-through opacity-70">{rub(total)}</span> →{" "}
-                      <span className="font-semibold text-brand-yellow">
+                    <p className="mt-2 text-secondary-foreground">
+                      Итог: <span className="font-mono line-through opacity-70">{rub(total)}</span>{" "}
+                      →{" "}
+                      <span className="font-mono font-semibold text-mw-amber">
                         {rub(priceChange.total)}
                       </span>
                     </p>
                     <button
                       type="button"
                       onClick={() => setPriceChange(null)}
-                      className="mt-2 underline opacity-80"
+                      className="mt-2 text-mw-cyan underline underline-offset-4 hover:text-white"
                     >
                       Отмена — вернуться к корзине
                     </button>
                   </div>
                 )}
                 {error && (
-                  <p role="alert" className="text-xs text-brand-yellow">
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-mw-amber/40 bg-mw-amber/10 px-3 py-2 text-xs text-mw-amber"
+                  >
                     {error}
                   </p>
                 )}
-                <p className="text-xs text-primary-foreground/50">
+                <p className="text-xs text-muted-foreground">
                   Или просто позвоните:{" "}
-                  <a href={PHONE.href} className="text-brand-yellow">
+                  <a href={PHONE.href} className="font-mono text-mw-cyan hover:text-white">
                     {PHONE.display}
                   </a>
                 </p>
