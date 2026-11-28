@@ -23,3 +23,5 @@ Telegram → реальный отправитель/private chat → staff/пр
 28.11.2026: Industrial Pro c628998 интегрирован и установлен в DEV как b884e8192c4774bdda1eeda428572c828847d7f9. Текущий runtime: https://masterweld-dev.213-165-53-111.sslip.io. Worktree /home/codex/.devspace/worktrees/masterweld-ui-20261128; прежняя UI-ветка GitHub сама не разворачивалась. Полные проверки/откат — STATUS.md и docs/UI-INDUSTRIAL-PRO-DEV.md.
 
 28.11.2026: по замечаниям владельца первый экран переработан в сцену сварочного цеха; оригинальный логотип, более тихий UI и отдельная осциллограмма. Источники/устройство/проверки: docs/WORKSHOP-HERO.md. Установленную версию подтверждает последняя запись STATUS.md.
+
+28.11.2026: сцена сварочного цеха установлена только DEV: 7bec86335c805c0a11a56594d61cc0cccd047f2f. Источники/пауза/ресурсная модель/ограничения — docs/WORKSHOP-HERO.md; текущий адрес https://masterweld-dev.213-165-53-111.sslip.io. БД/main/production не обновлялись.

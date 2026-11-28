@@ -27,3 +27,18 @@ Three.js импортируется динамически только на к�
 TypeScript и 1258 Vitest / 70 файлов прошли; изменённые TS/TSX проверены ESLint/Prettier. Browser QA: desktop 1440×1000, mobile 390×844, tablet 820×1080, Chromium с программным SwiftShader. Проверяются кадр/перекрытия, исходный логотип, поиск/корзина, пауза, offscreen/hidden, SPA cleanup/remount, reduced-motion и потеря WebGL-контекста. Итоговую сборку и внешнюю HTTPS-проверку фиксирует STATUS.md/CHANGELOG после установки. Настоящий телефон/GPU и полевые показатели производительности не измерены. БД/заказы/main/production/боты не меняются.
 
 Доказательства: /home/codex/server-control/baselines/20261128-workshop-scene. Для отката сохраняется предыдущий DEV-образ b884e819 и контейнер. Никаких миграций, новых резервных копий БД или расписаний.
+
+## Сварочный цех установлен в DEV — 28.11.2026 (МСК)
+
+Адрес: https://masterweld-dev.213-165-53-111.sslip.io. Установлен исходный **7bec86335c805c0a11a56594d61cc0cccd047f2f**, образ **sha256:0cb79685fc87540dce008bd89bde8009f92d963ba5438d0060a5e454d66117af**; ветка `codex/ui-industrial-pro-dev-20261128`, исходный worktree `/home/codex/.devspace/worktrees/masterweld-ui-20261128`.
+
+По замечаниям владельца: оригинальный овальный логотип в шапке, панорама цеха на всю ширину, настоящий 3D-знак/свет/искры над фотографической основой, отдельная осциллограмма. Убраны загрузочное интро, игровой курсор, бегущая строка и магнитные перемещения кнопок. Пауза, приостановка offscreen/hidden, reduced-motion и статичный fallback при потере WebGL. Панорама WebP — 232460 байт; источники и архитектура: docs/WORKSHOP-HERO.md.
+
+PASS: TypeScript; 1258 Vitest / 70 файлов; ESLint/Prettier изменённых TS/TSX; Docker из точного коммита; совместимость и штатный кандидат; внешний Windows HTTPS release-health с этим SHA. Итоговый браузер по публичному HTTPS: Chromium/SwiftShader, 1440×1000, 390×844, 820×1080 — сцена, знак, отсутствие перекрытия осциллограммой/горизонтального переполнения, поиск, корзина, пауза, offscreen, SPA cleanup/remount, переключение reduced-motion, context-loss fallback; JS/HTTP-ошибок нет. Скриншоты всех трёх размеров просмотрены в ходе визуальной доработки. Это программный рендеринг/эмуляция; настоящий мобильный GPU/FPS не измерен. Заказы не отправлялись.
+
+Доказательства: `/home/codex/server-control/baselines/20261128-workshop-scene/verification.json`, browser-https.log, build.log, restart.log, снимки. Все остальные работающие контейнеры сохранили ID/StartedAt. Предпросмотр без публичного порта удалён. База/схема/main/production/Caddy/VPN/firewall/боты не менялись. Откат: `mw-dev-previous` с прежней 3D-независимой версией b884e819; совместимость проверяет штатный restart.py. Существующие незавершённые изменения канонического дерева сохранены. Изменения продолжены в PR №94; GitHub CI не объявляется успешным по локальным проверкам.
+
+
+Client scene chunk build evidence:
+
+#12 3.918 .output/public/assets/scene-Cnq2zi9N.js                                        598.73 kB │ gzip: 150.37 kB
