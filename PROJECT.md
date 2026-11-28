@@ -19,3 +19,5 @@ Telegram → реальный отправитель/private chat → staff/пр
 Исследование характеристик сварочного оборудования и UX каталога (06.11.2026): `research/welding-catalog-2026-11-06/` — 5 исходных файлов и ZIP-пакет, проверенные после копирования на сервер. Это материалы для дальнейшего внедрения, а не реализованные фильтры или наполненные характеристики товаров. История сохранения: `CHANGELOG.md`.
 
 Обновление интерфейса 28.11.2026: [Industrial Pro — источник, интеграция и проверки](docs/UI-INDUSTRIAL-PRO-DEV.md). Фактическую установку подтверждают release-health и итоговая запись CHANGELOG.
+
+28.11.2026: Industrial Pro c628998 интегрирован и установлен в DEV как b884e8192c4774bdda1eeda428572c828847d7f9. Текущий runtime: https://masterweld-dev.213-165-53-111.sslip.io. Worktree /home/codex/.devspace/worktrees/masterweld-ui-20261128; прежняя UI-ветка GitHub сама не разворачивалась. Полные проверки/откат — STATUS.md и docs/UI-INDUSTRIAL-PRO-DEV.md.
