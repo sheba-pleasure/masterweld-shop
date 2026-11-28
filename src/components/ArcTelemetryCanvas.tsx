@@ -50,16 +50,9 @@ const ARC_MODES: {
   },
 ];
 
-export function ArcTelemetryCanvas({
-  compact = false,
-  paused = false,
-}: {
-  compact?: boolean;
-  paused?: boolean;
-}) {
+export function ArcTelemetryCanvas({ compact = false }: { compact?: boolean }) {
   const [mode, setMode] = useState<ArcModeKey>("mig");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const phaseRef = useRef(0);
   const current = ARC_MODES.find((m) => m.key === mode) ?? ARC_MODES[0]!;
 
   useEffect(() => {
@@ -70,15 +63,9 @@ export function ArcTelemetryCanvas({
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
-    let phase = phaseRef.current;
-    let visible = true;
-    let last = 0;
+    let phase = 0;
 
-    const draw = (now = 0) => {
-      frame = 0;
-      if (last && !paused && !reduced) phase += Math.min((now - last) / 1000, 0.05) * 1.6;
-      last = now;
-      phaseRef.current = phase;
+    const draw = () => {
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
@@ -99,7 +86,7 @@ export function ArcTelemetryCanvas({
 
       // Secondary cyan voltage wave
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(134, 182, 196, 0.58)";
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.45)";
       ctx.lineWidth = 1.4;
       for (let x = 0; x < w; x += 2) {
         const t = x * 0.045 + phase * 1.1;
@@ -117,10 +104,10 @@ export function ArcTelemetryCanvas({
 
       // Primary amber current wave
       ctx.beginPath();
-      ctx.strokeStyle = "#d6b16e";
+      ctx.strokeStyle = "#ff5500";
       ctx.lineWidth = 2.2;
-      ctx.shadowColor = "rgba(214, 177, 110, 0.2)";
-      ctx.shadowBlur = 3;
+      ctx.shadowColor = "rgba(255, 85, 0, 0.55)";
+      ctx.shadowBlur = 10;
       for (let x = 0; x < w; x += 2) {
         const t = x * 0.06 + phase * 1.8;
         let amp = 0;
@@ -140,45 +127,27 @@ export function ArcTelemetryCanvas({
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      if (!reduced && !paused && visible && !document.hidden) {
+      if (!reduced) {
+        phase += 0.045;
         frame = requestAnimationFrame(draw);
       }
     };
 
-    const schedule = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = 0;
-      last = 0;
-      if (visible && !document.hidden) draw();
-    };
-    const observer = new IntersectionObserver((entries) => {
-      visible = entries[0]?.isIntersecting ?? false;
-      schedule();
-    });
-    observer.observe(canvas);
-    document.addEventListener("visibilitychange", schedule);
     draw();
     return () => {
       if (frame) cancelAnimationFrame(frame);
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", schedule);
     };
-  }, [mode, paused]);
+  }, [mode]);
 
   return (
     <div className="bezel-outer">
       <div className={`bezel-inner relative overflow-hidden ${compact ? "p-4" : "p-5"}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div
-            data-instrument-heading
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-mw-cyan"
-          >
+          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-mw-cyan">
             <span className="h-2 w-2 rounded-full bg-mw-amber shadow-[0_0_8px_var(--mw-amber)]" />
             <span>Осциллограмма дуги</span>
           </div>
-          <span data-instrument-note className="font-mono text-[11px] text-muted-foreground">
-            Учебный режим · {current.note}
-          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">{current.note}</span>
         </div>
 
         {/* Mode selector with custom hardware SVG icons */}
@@ -208,10 +177,7 @@ export function ArcTelemetryCanvas({
         </div>
 
         {/* Live canvas */}
-        <div
-          data-instrument-graph
-          className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-mw-void/95 p-2"
-        >
+        <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-mw-void/95 p-2">
           <canvas
             ref={canvasRef}
             width={420}
@@ -221,10 +187,7 @@ export function ArcTelemetryCanvas({
         </div>
 
         {/* Readout strip */}
-        <div
-          data-instrument-readout
-          className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs tabular-nums"
-        >
+        <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs tabular-nums">
           <div className="rounded-xl border border-white/8 bg-mw-void/80 px-3 py-2">
             <div className="text-[10px] uppercase text-muted-foreground">Ток</div>
             <div className="mt-0.5 font-semibold text-white">{current.amps}</div>
