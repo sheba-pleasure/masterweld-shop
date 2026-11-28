@@ -1,10 +1,8 @@
-import { ArcIgnitionLoader } from "@/components/ArcIgnitionLoader";
-import { MasterWeldMark } from "@/components/icons/MasterWeldLogo";
+import originalLogo from "@/assets/brand/master_svarshchik_3d_256px.png";
 import { SiteMenu } from "@/components/SiteMenu";
 import { TelegramShopBridge } from "@/components/TelegramShopBridge";
 import { SiteActions } from "@/components/SiteActions";
 import { SiteFooter } from "@/components/SiteFooter";
-import { WeldingChrome } from "@/components/WeldingCursor";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -156,21 +154,19 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ArcIgnitionLoader />
-      <WeldingChrome />
       <TelegramShopBridge />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       {import.meta.env["VITE_APP_ENV"] === "dev" && (
         <div
           role="note"
-          className="border-b border-mw-amber/30 bg-mw-amber/12 px-4 py-2 text-center text-xs leading-relaxed text-amber-100 sm:text-sm"
+          className="border-b border-white/10 bg-[#202728] px-4 py-1.5 text-center text-[11px] leading-relaxed text-stone-300"
         >
           <strong className="font-mono font-semibold text-mw-amber">Тестовый магазин · DEV.</strong>{" "}
           Здесь можно пробовать. Товары и заказы учебные, покупки не отправляются.
         </div>
       )}
-      <div className="sticky top-0 z-30 px-3 pt-3 sm:px-6">
-        <header className="glass-pill mx-auto max-w-7xl rounded-full px-2.5 py-2 sm:px-4">
+      <div className="sticky top-0 z-30">
+        <header className="workshop-header">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3.5">
               <SiteMenu />
@@ -179,11 +175,17 @@ function RootComponent() {
                 className="group flex min-w-0 items-center gap-2.5"
                 aria-label="Мастер Сварщик — на главную"
               >
-                <MasterWeldMark
-                  size={30}
-                  className="hidden shrink-0 text-white transition-transform duration-200 group-hover:scale-105 sm:block"
+                <img
+                  src={originalLogo}
+                  alt="Мастер Сварщик"
+                  width={98}
+                  height={54}
+                  className="original-header-logo"
                 />
-                <span className="wordmark truncate">Мастер Сварщик</span>
+                <span className="hidden text-xs leading-relaxed text-stone-300 xl:block">
+                  Сварочное оборудование
+                  <br />и расходные материалы
+                </span>
               </Link>
               <nav
                 aria-label="Основная навигация"

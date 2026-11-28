@@ -1,9 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
-import hero from "@/assets/brand/hero-workshop.jpg";
-import { ArcTelemetryCanvas } from "@/components/ArcTelemetryCanvas";
+import { LayoutGrid, List, SlidersHorizontal } from "lucide-react";
+import { WorkshopHero } from "@/components/WorkshopHero";
 import { SpotlightBezel } from "@/components/MagneticWrap";
 import { CategoryWeldingIcon, CrosshairIcon } from "@/components/icons/WeldingIcons";
 import { categoriesQuery, mainPhoto, productsQuery, rub } from "@/lib/catalog";
@@ -47,73 +46,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Catalog,
 });
-
-const SLIDES = [
-  {
-    title: "Всё для сварки — высшей марки",
-    text: "Сварочные аппараты, горелки, расходники, маски и газовое оборудование.",
-  },
-  {
-    title: "Работаем более 30 лет",
-    text: "Товарный знак зарегистрирован в 2002 г. Доставка по всей России и СНГ.",
-  },
-  {
-    title: "Всё для сварки и резки металла",
-    text: "Принимаем заявки на FoxWeld, VARTEG, «Сварог» и другие марки.",
-  },
-];
-
-function HeroSlides() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI((n) => (n + 1) % SLIDES.length), 5500);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="max-w-xl">
-      <div className="grid">
-        {SLIDES.map((s, n) => (
-          <div
-            key={s.title}
-            aria-hidden={n !== i}
-            className={`col-start-1 row-start-1 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-              n === i ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
-            }`}
-          >
-            {n === 0 ? (
-              <h1 className="font-display text-2xl font-bold leading-[1.08] text-white sm:text-4xl lg:text-[2.75rem]">
-                {s.title}
-              </h1>
-            ) : (
-              <p className="font-display text-2xl font-bold leading-[1.08] text-white sm:text-4xl lg:text-[2.75rem]">
-                {s.title}
-              </p>
-            )}
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-secondary-foreground/85 sm:text-base">
-              {s.text}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 flex items-center gap-2">
-        {SLIDES.map((s, n) => (
-          <button
-            key={s.title}
-            type="button"
-            onClick={() => setI(n)}
-            aria-label={`Слайд ${n + 1}`}
-            className={`h-2 rounded-full transition-[width,background-color] duration-200 ${
-              n === i
-                ? "w-9 bg-mw-amber shadow-[0_0_10px_color-mix(in_oklab,var(--mw-amber)_60%,transparent)]"
-                : "w-2 bg-white/25 hover:bg-white/50"
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function Catalog() {
   const { cat, q, brand, min, max, instock, sale, sort } = Route.useSearch();
@@ -190,136 +122,22 @@ function Catalog() {
 
   const visibleTops = tops.filter((c) => counts.get(c.id));
 
-  const tickerItems = useMemo(() => {
-    const brandLabels = brands.slice(0, 10).map(([, name]) => name.toUpperCase());
-    const base = [
-      ...brandLabels,
-      "С 1993 ГОДА",
-      "ДОСТАВКА ПО РФ И СНГ",
-      `ПОЗИЦИЙ В КАТАЛОГЕ: ${products.length}`,
-    ];
-    return [...base, ...base];
-  }, [brands, products.length]);
-
   return (
     <main>
-      {/* Editorial Split Industrial Hero + Live Oscilloscope Telemetry */}
-      <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
-        <div className="bezel-outer overflow-hidden">
-          <div className="bezel-inner relative overflow-hidden p-6 sm:p-10">
-            <img
-              src={hero}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 right-0 h-full w-full object-cover object-center opacity-22 mix-blend-lighten lg:w-3/5 lg:opacity-35"
-            />
-            <div className="mw-blueprint-grid pointer-events-none absolute inset-0 opacity-40" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-mw-void via-mw-void/90 via-55% to-mw-void/45" />
-
-            {/* Drafting corner markers */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute left-4 top-3 font-mono text-[10px] text-white/25"
-            >
-              +
-            </span>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute right-4 top-3 font-mono text-[10px] text-white/25"
-            >
-              +
-            </span>
-
-            <div className="relative z-10 grid items-center gap-8 lg:grid-cols-12">
-              <div className="lg:col-span-7">
-                <div className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-mw-amber">
-                  <CrosshairIcon size={14} className="text-mw-cyan" />
-                  <span>EST. 1993 // МАСТЕР СВАРЩИК</span>
-                </div>
-
-                <HeroSlides />
-
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="relative w-full max-w-md">
-                    <Search
-                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mw-cyan"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="search"
-                      value={q ?? ""}
-                      placeholder="Модель, артикул или бренд…"
-                      aria-label="Поиск по каталогу: модель, артикул или бренд"
-                      onChange={(e) => setParam("q", e.target.value || undefined)}
-                      className="search-field search-field--hero"
-                    />
-                  </div>
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    <strong className="text-white">{products.length}</strong> поз.
-                    {brands.length > 0 ? (
-                      <>
-                        {" "}
-                        · <strong className="text-mw-cyan">{brands.length}</strong> брендов
-                      </>
-                    ) : null}
-                  </span>
-                </div>
-
-                {visibleTops.length > 0 && (
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {visibleTops.slice(0, 6).map((c) => (
-                      <Link
-                        key={c.id}
-                        to="/"
-                        search={(s) => ({ ...s, cat: c.slug })}
-                        hash="catalog"
-                        className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
-                          activeTop === c.id
-                            ? "border-mw-amber bg-mw-amber text-white"
-                            : "border-white/12 bg-mw-void/80 text-secondary-foreground hover:border-mw-cyan/50 hover:text-white"
-                        }`}
-                      >
-                        <CategoryWeldingIcon
-                          slug={c.slug}
-                          name={c.name}
-                          size={14}
-                          className={activeTop === c.id ? "text-white" : "text-mw-cyan"}
-                        />
-                        <span>{c.name}</span>
-                        <span className="font-mono text-[11px] opacity-70 tabular-nums">
-                          {counts.get(c.id)}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Live Interactive Arc Oscillogram */}
-              <div className="lg:col-span-5">
-                <ArcTelemetryCanvas />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Kinetic Hardware Marquee */}
-      <div
-        aria-hidden="true"
-        className="mw-marquee mx-auto mt-6 max-w-7xl border-y border-white/8 py-3"
-      >
-        <div className="mw-marquee-track font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
-          {tickerItems.map((item, idx) => (
-            <span key={`${item}-${idx}`} className="inline-flex items-center gap-4">
-              <span className={idx % 3 === 0 ? "text-white/90" : "text-muted-foreground"}>
-                {item}
-              </span>
-              <span className="text-mw-amber">//</span>
-            </span>
-          ))}
-        </div>
-      </div>
+      <WorkshopHero search={q ?? ""} onSearch={(value) => setParam("q", value || undefined)}>
+        {visibleTops.slice(0, 6).map((category) => (
+          <Link
+            key={category.id}
+            to="/"
+            search={(current) => ({ ...current, cat: category.slug })}
+            hash="catalog"
+            className="inline-flex items-center gap-2 border px-3 py-2 text-xs"
+          >
+            <CategoryWeldingIcon slug={category.slug} name={category.name} size={14} />
+            <span>{category.name}</span>
+          </Link>
+        ))}
+      </WorkshopHero>
 
       {/* Catalog Section */}
       <section id="catalog" className="workshop-catalog scroll-mt-24">

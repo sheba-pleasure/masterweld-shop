@@ -1,7 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArcTelemetryCanvas } from "@/components/ArcTelemetryCanvas";
 import { SpotlightBezel } from "@/components/MagneticWrap";
 import { CategoryWeldingIcon } from "@/components/icons/WeldingIcons";
 import { productQuery, rub, type Photo } from "@/lib/catalog";
@@ -143,8 +142,6 @@ function ProductPage() {
               </div>
             )}
           </SpotlightBezel>
-
-          <ArcTelemetryCanvas compact />
 
           <div className="glass-panel grid gap-4 rounded-2xl p-4 sm:grid-cols-2">
             <div>

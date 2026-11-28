@@ -1,19 +1,21 @@
 import { Link } from "@tanstack/react-router";
-import { Phone, RotateCcw } from "lucide-react";
+import { Phone } from "lucide-react";
 import emblem from "@/assets/brand/master_svarshchik_3d_256px.png";
-import { replayArcIntro } from "@/lib/arc-intro";
-import { MasterWeldMark } from "@/components/icons/MasterWeldLogo";
 import { CONTACTS } from "@/lib/contacts";
 
 export function SiteFooter() {
   return (
     <footer className="relative mt-20 overflow-hidden border-t border-white/10 bg-mw-surface/95 text-foreground">
-      <div className="mw-blueprint-grid pointer-events-none absolute inset-0 opacity-30" />
-
       <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6">
         <div className="flex flex-col gap-5 border-b border-white/10 pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-center gap-4">
-            <MasterWeldMark size={44} className="shrink-0 text-white" />
+            <img
+              src={emblem}
+              alt="Мастер Сварщик"
+              width={80}
+              height={44}
+              className="h-auto w-20 shrink-0"
+            />
             <p className="foot-slogan text-white">
               <span className="text-mw-amber">Качество</span> — самое главное!
             </p>
@@ -36,14 +38,6 @@ export function SiteFooter() {
             >
               Яндекс.Карты
             </a>
-            <button
-              type="button"
-              onClick={replayArcIntro}
-              className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:text-mw-amber"
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Интро</span>
-            </button>
           </nav>
         </div>
 

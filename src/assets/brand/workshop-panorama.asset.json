@@ -1,0 +1,9 @@
+{
+  "source": "imagegen",
+  "created": "2026-11-28",
+  "reference": "hero-workshop.jpg",
+  "original_generation": "exec-b7c0e023-962b-4025-ad73-72e219af91f2.png",
+  "sha256": "562b3aaf7cea23a3c7f5a4321d2152a3595f91852789ba82f7cdbbe9793e1719",
+  "bytes": 232460,
+  "use": "photographic plate behind progressive WebGL scene"
+}
