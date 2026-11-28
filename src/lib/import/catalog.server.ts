@@ -91,6 +91,12 @@ export async function receiveCatalogDocument(
     return tg("sendMessage", {
       chat_id: chat.id,
       text: importError(error instanceof Error ? error.message : undefined),
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "📥 Открыть последние импорты", callback_data: "ci:home" }],
+          [{ text: "📚 Загрузить Excel, PDF или скан", callback_data: "di:home" }],
+        ],
+      },
     });
   }
   return deliver(chat, result);
@@ -136,6 +142,7 @@ export async function showCatalogImport(
     } else if (request.op === "map") {
       args.p_payload = { field: FIELDS[request.field!], column: request.column };
     } else if (request.op === "decimal") args.p_payload = { decimal: request.decimal };
+    else if (request.op === "inquiry_price") args.p_payload = { enabled: request.enabled };
     result = await call(
       m.telegram_id,
       ["config", "field"].includes(request.op) ? "get" : request.op,
@@ -145,25 +152,18 @@ export async function showCatalogImport(
     return tg("sendMessage", {
       chat_id: chat.id,
       text: importError(error instanceof Error ? error.message : undefined),
-      ...(request.id &&
-      error instanceof Error &&
-      (["return_prepare", "return_confirm"].includes(request.op) ||
-        [
-          "IMPORT_MODEL_CHANGED",
-          "IMPORT_MODEL_PREVIEW_REQUIRED",
-          "IMPORT_MODEL_CONFLICT",
-          "IMPORT_MODEL_IDENTITY_REQUIRED",
-          "IMPORT_MODEL_COMPARISON_REQUIRED",
-          "IMPORT_MODEL_EVIDENCE_CHANGED",
-        ].includes(error.message))
-        ? {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "📥 Открыть текущий импорт", callback_data: `ci:get:${request.id}:0` }],
-              ],
-            },
-          }
-        : {}),
+      // Recovery only reads saved state. Never offer a blind retry of a mutation.
+      reply_markup: {
+        inline_keyboard: [
+          ...(request.id
+            ? [[{ text: "📥 Открыть текущий импорт", callback_data: `ci:get:${request.id}:0` }]]
+            : []),
+          [{ text: "📋 К списку импортов", callback_data: "ci:home" }],
+          ...(error instanceof Error && error.message === "IMPORT_RETURN_INPUT_ACTIVE"
+            ? [[{ text: "✏️ Продолжить начатый ввод", callback_data: "guide:input" }]]
+            : []),
+        ],
+      },
     });
   }
   return deliver(

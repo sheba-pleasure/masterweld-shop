@@ -7,7 +7,7 @@ export interface SearchableProduct {
   title: string;
   brand: string | null;
   sku?: string | null;
-  price: number;
+  price: number | null;
   old_price: number | null;
   in_stock: boolean;
   category_id: string | null;
@@ -20,7 +20,12 @@ export function normalizeText(value: string): string {
 
 /** Скидка показывается только когда старое цена реально выше текущей. */
 export function isDiscounted(p: Pick<SearchableProduct, "price" | "old_price">): boolean {
-  return p.old_price !== null && p.old_price !== undefined && Number(p.old_price) > Number(p.price);
+  return (
+    p.price !== null &&
+    p.old_price !== null &&
+    p.old_price !== undefined &&
+    Number(p.old_price) > Number(p.price)
+  );
 }
 
 export type CatalogSort = "name" | "price-asc" | "price-desc";
@@ -60,6 +65,7 @@ export function searchProducts<T extends SearchableProduct>(
 
   const result = products.filter((p) => {
     if (brand && normalizeText(p.brand ?? "") !== brand) return false;
+    if (p.price === null && (minPrice !== undefined || maxPrice !== undefined)) return false;
     if (minPrice !== undefined && Number(p.price) < minPrice) return false;
     if (maxPrice !== undefined && Number(p.price) > maxPrice) return false;
     if (query.inStock && !p.in_stock) return false;
@@ -75,8 +81,9 @@ export function searchProducts<T extends SearchableProduct>(
 
   const sort = query.sort ?? "name";
   const sorted = [...result];
-  if (sort === "price-asc") sorted.sort((a, b) => Number(a.price) - Number(b.price));
-  else if (sort === "price-desc") sorted.sort((a, b) => Number(b.price) - Number(a.price));
+  if (sort === "price-asc") sorted.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  else if (sort === "price-desc")
+    sorted.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
   else sorted.sort((a, b) => a.title.localeCompare(b.title, "ru"));
   return sorted;
 }

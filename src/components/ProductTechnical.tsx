@@ -14,27 +14,31 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
   return (
     <>
       {synthetic ? (
-        <p className="mt-3 rounded border border-border bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground">
+        <p className="mt-3 rounded-xl border border-mw-amber/35 bg-mw-amber/10 px-4 py-3 text-sm font-semibold text-white">
           Учебные данные — не паспорт товара. Значения вымышлены для проверки магазина.
         </p>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 font-mono text-xs text-muted-foreground">
           Проверено по источникам {formatTechnicalDate(card.verified_on)}.
         </p>
       )}
-      <p className="mt-3 text-sm text-muted-foreground">{card.family.label}</p>
+      <p className="mt-3 text-sm text-secondary-foreground">{card.family.label}</p>
       {card.values.length === 0 && (
-        <p className="mt-3 text-sm">
+        <p className="mt-3 text-sm text-muted-foreground">
           Параметры ещё не заполнены. Уточните их у сотрудника магазина.
         </p>
       )}
-      <div className="mt-4 space-y-5">
+      <div className="mt-4 space-y-4">
         {groupTechnicalValues(card.values).map((group) => (
-          <section key={group.process} aria-label={group.label}>
-            <h3 className="border-b-2 border-primary pb-2 text-sm font-semibold text-foreground">
+          <section
+            key={group.process}
+            aria-label={group.label}
+            className="glass-panel overflow-hidden rounded-xl p-4"
+          >
+            <h3 className="border-b border-white/10 pb-3 text-sm font-semibold text-white">
               {group.label}
             </h3>
-            <dl className="divide-y divide-border">
+            <dl className="divide-y divide-white/8">
               {group.values.map((fact, index) => {
                 const sourceIndex = card.sources.findIndex((s) => s.key === fact.source_key);
                 return (
@@ -50,14 +54,16 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
                     <dd className="min-w-0 break-words text-sm text-foreground">
                       <span
                         className={
-                          fact.state === "known" ? "font-semibold" : "text-muted-foreground"
+                          fact.state === "known"
+                            ? "font-mono font-semibold text-white tabular-nums"
+                            : "text-muted-foreground"
                         }
                       >
                         {formatTechnicalValue(fact)}
                       </span>
                       {formatTechnicalContext(fact.context).length > 0 && (
                         <ul
-                          className="mt-1 space-y-0.5 text-xs leading-relaxed text-muted-foreground"
+                          className="mt-1 space-y-0.5 font-mono text-xs leading-relaxed text-muted-foreground"
                           aria-label="Условия измерения"
                         >
                           {formatTechnicalContext(fact.context).map((part) => (
@@ -66,7 +72,7 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
                         </ul>
                       )}
                       {sourceIndex >= 0 && (
-                        <span className="mt-1 block text-xs text-muted-foreground">
+                        <span className="mt-1 block font-mono text-xs text-muted-foreground">
                           Источник {sourceIndex + 1}
                         </span>
                       )}
@@ -79,21 +85,21 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
         ))}
       </div>
       {card.sources.length > 0 && (
-        <details className="mt-5 rounded-lg border border-border bg-card px-4">
-          <summary className="cursor-pointer py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <details className="glass-panel mt-4 rounded-xl px-4">
+          <summary className="cursor-pointer py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             Источники характеристик ({card.sources.length})
           </summary>
-          <ol className="divide-y divide-border">
+          <ol className="divide-y divide-white/10">
             {card.sources.map((source, index) => (
               <li key={source.key} className="min-w-0 break-words py-4 text-sm">
-                <p className="font-semibold">
+                <p className="font-semibold text-white">
                   Источник {index + 1}. {source.title}
                 </p>
-                <p className="mt-2">
+                <p className="mt-2 text-secondary-foreground">
                   {source.publisher}. Модель: {source.model}.
                 </p>
                 <p className="mt-1 text-muted-foreground">{source.locator}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
                   Источник проверен {formatTechnicalDate(source.checked_on)}
                 </p>
                 {source.kind === "synthetic" ? (
@@ -105,7 +111,7 @@ function VerifiedTechnical({ card }: { card: PublicTechnicalCard }) {
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-block py-2 text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="mt-2 inline-block py-2 text-mw-cyan underline underline-offset-4 transition-colors duration-150 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     Открыть источник (новая вкладка)
                   </a>
@@ -138,14 +144,14 @@ export function ProductTechnical({
   return (
     <section aria-labelledby={headingId} className="mt-8 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <h2 id={headingId} className="font-display text-lg font-semibold text-foreground">
+        <h2 id={headingId} className="font-display text-lg font-semibold text-white">
           Характеристики
         </h2>
         <button
           type="button"
           onClick={() => void query.refetch()}
           disabled={query.isFetching || query.isPaused}
-          className="min-h-11 rounded px-2 text-sm text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-wait disabled:text-muted-foreground disabled:no-underline"
+          className="min-h-10 text-sm font-medium text-mw-cyan underline underline-offset-4 transition-colors duration-150 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-wait disabled:text-muted-foreground disabled:no-underline"
         >
           {query.isFetching ? "Обновляем…" : "Обновить характеристики"}
         </button>
@@ -159,7 +165,10 @@ export function ProductTechnical({
           Загружаем проверенные характеристики…
         </p>
       ) : query.isError ? (
-        <p role="alert" className="mt-3 border-l-2 border-destructive pl-3 text-sm text-foreground">
+        <p
+          role="alert"
+          className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground"
+        >
           Не удалось загрузить характеристики. Нажмите «Обновить характеристики» или уточните
           параметры у магазина.
         </p>
@@ -172,16 +181,16 @@ export function ProductTechnical({
         </p>
       )}
       {legacy.length > 0 && (
-        <details className="mt-4 rounded-lg border border-border px-4">
-          <summary className="cursor-pointer py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <details className="glass-panel mt-4 rounded-xl px-4">
+          <summary className="cursor-pointer py-3 text-sm font-medium text-secondary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             Характеристики из прежнего описания
           </summary>
           <p className="pb-2 text-xs text-muted-foreground">
             Исходный текст сохранён. Его проверка по источникам ещё не подтверждена.
           </p>
-          <ul className="divide-y divide-border pb-2">
+          <ul className="divide-y divide-white/8 pb-2">
             {legacy.map((line, index) => (
-              <li key={index} className="break-words py-2 text-sm">
+              <li key={index} className="break-words py-2 font-mono text-xs text-foreground">
                 {line}
               </li>
             ))}

@@ -83,12 +83,12 @@ export function parseAssortmentCallback(data: string): AssortmentRequest | null 
 }
 const compact = (s: string, n: number) => s.replace(/\s+/g, " ").slice(0, n);
 const stateLabel: Record<string, string> = {
-  selecting: "выбор",
-  preview: "подтверждение",
-  applied: "применено",
-  undo_preview: "отмена изменений",
-  undone: "изменения отменены",
-  canceled: "отменено",
+  selecting: "Выбор",
+  preview: "Подтверждение",
+  applied: "Применено",
+  undo_preview: "Отмена изменений",
+  undone: "Изменения отменены",
+  canceled: "Отменено",
 };
 export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRows } {
   if (r.home) {
@@ -112,7 +112,7 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
             callback_data: `as:get:${b.id}`,
           },
         ]),
-        [{ text: "Главное меню", callback_data: "menu" }],
+        [{ text: "Главное меню", callback_data: "home" }],
       ],
     };
   }
@@ -122,11 +122,13 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
     `Группа: ${r.filter === "all" ? "Все товары" : DECISION[r.filter]}${r.query ? " · Поиск: " + compact(r.query, 120) : ""}`,
     `\n📦 В списке: ${r.total}\n☑️ Выбрано: ${r.selected}\n`,
     selecting
-      ? "Нажмите на товары для выбора. «Выбрать все» охватывает весь этот список, включая другие страницы."
-      : "Ниже только выбранные товары. Состав зафиксирован; новые совпадения сюда не добавляются.",
+      ? r.total === 0
+        ? "В этом списке товаров нет. Нажмите «К ассортименту» и выберите другую группу или уточните поиск."
+        : "1️⃣ Нажмите «Выбрать» рядом с нужными товарами. Повторное нажатие «Убрать» снимает только отметку — товар сохраняется.\n2️⃣ Выберите действие ниже. Бот сначала покажет последствия; товары изменятся только после подтверждения.\n«Выбрать все» охватывает весь список, включая другие страницы."
+      : "Ниже только выбранные товары. Показано их состояние до этой операции — для сравнения. Это не текущая проверка каталога. Состав зафиксирован; новые совпадения сюда не добавляются.",
     ...(r.action
       ? [
-          `${r.state === "undone" ? "Отменённое действие" : r.state === "undo_preview" ? "Отменяемое действие" : "Действие"}: ${ACTION[r.action]}.`,
+          `${r.state === "undone" ? "Отменённое действие" : r.state === "undo_preview" ? "Отменяемое действие" : r.state === "applied" ? "Выполненное действие" : "Действие"}: ${ACTION[r.action]}.`,
           ...(["selecting", "preview", "applied"].includes(r.state) ? [EFFECT[r.action]] : []),
         ]
       : []),
@@ -138,13 +140,13 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
     "",
     ...r.items.map(
       (i) =>
-        `${i.selected ? "☑" : "☐"} ${compact(i.title, 85)}${i.sku ? " · " + compact(i.sku, 35) : ""}\n${DECISION[i.before_decision]} · ${STATUS[i.before_status]}${i.category ? " · " + compact(i.category, 35) : ""}`,
+        `${i.position}. ${i.selected ? "☑" : "☐"} ${compact(i.title, 85)}${i.sku ? " · " + compact(i.sku, 35) : ""}\n${DECISION[i.before_decision]} · ${STATUS[i.before_status]}${i.category ? " · " + compact(i.category, 35) : ""}`,
     ),
     "",
     `Страница ${r.page + 1} из ${r.pages}.`,
     ...(r.state === "preview"
       ? [
-          "Подтверждение действует 30 минут. Если карточки изменились, вся операция будет остановлена.",
+          "Проверьте действие и выбранные товары на всех страницах. Затем нажмите «Подтвердить» или «Отменить выбор». До подтверждения товары не меняются. Подтверждение действует 30 минут; изменившиеся карточки остановят всю операцию.",
         ]
       : []),
     ...(r.state === "applied"
@@ -159,11 +161,11 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
     ...(r.state === "canceled" ? ["Этот выбор закрыт. Товары этим выбором не изменены."] : []),
   ].join("\n");
   const rows: BtnRows = [];
-  if (selecting) {
+  if (selecting && r.total > 0) {
     rows.push(
       ...r.items.map((i) => [
         {
-          text: `${i.selected ? "☑ Убрать" : "☐ Выбрать"}: ${compact(i.title, 45)}`,
+          text: `${i.position}. ${i.selected ? "☑ Убрать" : "☐ Выбрать"}: ${compact(i.title, 40)}`,
           callback_data: `as:${i.selected ? "unselect" : "select"}:${r.id}:${i.position}:${r.page}`,
         },
       ]),
@@ -184,20 +186,28 @@ export function assortmentView(r: AssortmentResult): { text: string; rows: BtnRo
   }
   if (r.pages > 1)
     rows.push([
-      ...(r.page > 0 ? [{ text: "←", callback_data: `as:get:${r.id}:${r.page - 1}` }] : []),
+      ...(r.page > 0
+        ? [{ text: "← Предыдущие товары", callback_data: `as:get:${r.id}:${r.page - 1}` }]
+        : []),
       ...(r.page + 1 < r.pages
-        ? [{ text: "→", callback_data: `as:get:${r.id}:${r.page + 1}` }]
+        ? [{ text: "Следующие товары →", callback_data: `as:get:${r.id}:${r.page + 1}` }]
         : []),
     ]);
   if (r.state === "preview")
     rows.push([
-      { text: `✅ Подтвердить для ${r.selected} товаров`, callback_data: `as:apply:${r.id}` },
+      {
+        text: `✅ Подтвердить для ${r.selected} ${r.selected % 10 === 1 && r.selected % 100 !== 11 ? "товара" : "товаров"}`,
+        callback_data: `as:apply:${r.id}`,
+      },
     ]);
   if (r.state === "applied")
     rows.push([{ text: "↩️ Отменить эти изменения…", callback_data: `as:undo_preview:${r.id}` }]);
   if (r.state === "undo_preview") {
     rows.push([
-      { text: `Подтвердить отмену для ${r.selected} товаров`, callback_data: `as:undo:${r.id}` },
+      {
+        text: `Подтвердить отмену для ${r.selected} ${r.selected % 10 === 1 && r.selected % 100 !== 11 ? "товара" : "товаров"}`,
+        callback_data: `as:undo:${r.id}`,
+      },
     ]);
   }
   if (selecting || r.state === "preview")

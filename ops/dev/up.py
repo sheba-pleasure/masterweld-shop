@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 PRIVATE = ROOT / "ops/.secrets/dev"
 STATE = ROOT / "ops/.state/dev"
 INSTANCE = "3a6a67bc-5ce6-46a4-af72-e6ab78800e49"
-DOMAIN = "masterweld-dev.138-124-106-211.sslip.io"
+DOMAIN = "masterweld-dev.213-165-53-111.sslip.io"
 
 def run(args, **kw):
     return subprocess.run(args, check=True, **kw)

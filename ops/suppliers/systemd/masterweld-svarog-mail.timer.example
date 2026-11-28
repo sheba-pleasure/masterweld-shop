@@ -1,0 +1,12 @@
+# Template only. Installation and enablement require a verified OAuth/mailbox run.
+[Unit]
+Description=Hourly Svarog private review intake
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=2min
+Persistent=true
+Unit=masterweld-svarog-mail.service
+
+[Install]
+WantedBy=timers.target

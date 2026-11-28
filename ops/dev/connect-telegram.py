@@ -4,7 +4,7 @@ import json, os, pathlib, secrets, subprocess, urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 PRIVATE=ROOT/"ops/.secrets/dev"
 EXPECTED="testmw639bot"
-ORIGIN="https://masterweld-dev.138-124-106-211.sslip.io"
+ORIGIN="https://masterweld-dev.213-165-53-111.sslip.io"
 def call(token,method,body=None):
     req=urllib.request.Request("https://api.telegram.org/bot"+token+"/"+method,
         data=json.dumps(body or {}).encode(),headers={"Content-Type":"application/json"})

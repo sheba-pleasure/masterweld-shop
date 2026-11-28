@@ -1,0 +1,45 @@
+{
+  "source": "imagegen",
+  "reference": "User-supplied workshop photo, 2026-11-28",
+  "composition": "separate photographic plate, floating mark and vapor; no embedded lower caption",
+  "layers": [
+    {
+      "file": "living-workshop-plate.webp",
+      "size": [
+        2098,
+        749
+      ],
+      "mode": "RGB",
+      "bytes": 177718,
+      "sha256": "cb830c11cd2d79ea0ee5f93e526fb16373c4ae0ced5c373c97bbff873698797b"
+    },
+    {
+      "file": "living-workshop-mark.webp",
+      "size": [
+        1752,
+        897
+      ],
+      "mode": "RGBA",
+      "bytes": 365438,
+      "sha256": "c91bc296ca1a0e87dc5fd4808aa750ecdce840d9f490d377b840aa74c2bc0369",
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    {
+      "file": "living-workshop-fume.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "mode": "RGBA",
+      "bytes": 224988,
+      "sha256": "541ebb1119eb28d7504fb23cafb3976bad4a8f49a0fba24d272be48f477164a1",
+      "alpha": [
+        0,
+        248
+      ]
+    }
+  ]
+}

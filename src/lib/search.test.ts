@@ -56,6 +56,27 @@ const mask = p({
 });
 const all = [fox, tig, rod, mask];
 
+describe("Цена по запросу", () => {
+  const inquiry = p({ id: "inquiry", title: "Сварог", sku: "SW-1", price: null, old_price: 1000 });
+
+  it("находится по артикулу и не считается скидкой от нулевой цены", () => {
+    expect(searchProducts([inquiry, ...all], { q: "SW-1" })).toEqual([inquiry]);
+    expect(isDiscounted(inquiry)).toBe(false);
+    expect(searchProducts([inquiry], { onSale: true })).toEqual([]);
+  });
+
+  it("не входит в числовой диапазон цены", () => {
+    expect(searchProducts([inquiry], { minPrice: 0 })).toEqual([]);
+    expect(searchProducts([inquiry], { maxPrice: 1000000 })).toEqual([]);
+  });
+
+  it("показывается после известных цен в обоих направлениях сортировки", () => {
+    const list = [inquiry, fox, rod];
+    expect(searchProducts(list, { sort: "price-asc" }).map((item) => item.id)).toEqual(["3", "1", "inquiry"]);
+    expect(searchProducts(list, { sort: "price-desc" }).map((item) => item.id)).toEqual(["1", "3", "inquiry"]);
+  });
+});
+
 describe("normalizeText", () => {
   it("приводит регистр, ё→е, тире и лишние пробелы к одному виду", () => {
     expect(normalizeText("  Горелка  TIG—26  ")).toBe("горелка tig-26");

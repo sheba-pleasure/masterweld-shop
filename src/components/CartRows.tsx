@@ -17,12 +17,14 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
               to="/product/$slug"
               params={{ slug: item.slug }}
               onClick={onNavigate}
-              className="line-clamp-2 text-sm font-semibold leading-tight text-primary-foreground"
+              className="line-clamp-2 text-sm font-semibold leading-tight text-white transition-colors duration-150 hover:text-mw-cyan"
             >
               {item.title}
             </Link>
-            <p className="mt-1 text-xs text-primary-foreground/60">{rub(item.price)} / шт.</p>
-            <div className="mt-2 flex flex-wrap items-center gap-1">
+            <p className="mt-1 font-mono text-xs text-muted-foreground tabular-nums">
+              {rub(item.price)} / шт.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
@@ -31,9 +33,11 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
                 className="checkout-icon"
                 onClick={() => adjustQty(item.id, -1)}
               >
-                <Minus />
+                <Minus className="h-4 w-4" />
               </Button>
-              <span className="w-8 text-center text-sm font-semibold">{item.qty}</span>
+              <span className="w-8 text-center font-mono text-sm font-semibold text-white tabular-nums">
+                {item.qty}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -42,19 +46,19 @@ export function CartRows({ items, onNavigate }: { items: CartItem[]; onNavigate:
                 className="checkout-icon"
                 onClick={() => adjustQty(item.id, 1)}
               >
-                <Plus />
+                <Plus className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label={`Удалить из корзины: ${item.title}`}
                 title="Удалить из корзины"
-                className="checkout-icon ml-2"
+                className="checkout-icon ml-1"
                 onClick={() => removeItem(item.id)}
               >
-                <Trash2 />
+                <Trash2 className="h-4 w-4" />
               </Button>
-              <span className="ml-auto whitespace-nowrap text-sm font-bold text-brand-yellow">
+              <span className="ml-auto whitespace-nowrap font-display text-sm font-semibold text-mw-amber tabular-nums">
                 {rub(item.price * item.qty)}
               </span>
             </div>

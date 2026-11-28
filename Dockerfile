@@ -35,7 +35,8 @@ LABEL org.opencontainers.image.revision=$GIT_SHA \
       org.opencontainers.image.title="masterweld-shop" \
       mw.capabilities.source-facts="1" \
       mw.capabilities.documentary-conditions="1" \
-      mw.capabilities.accessory-dictionary="1"
+      mw.capabilities.accessory-dictionary="1" \
+      mw.capabilities.inquiry-price="1"
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 RELEASE_SHA=$GIT_SHA
 WORKDIR /app
 COPY --from=build --chown=node:node /app/.output ./.output

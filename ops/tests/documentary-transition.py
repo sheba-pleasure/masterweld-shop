@@ -151,7 +151,7 @@ try:
             assert not gate.inspect("container",old["Id"])["State"]["Running"]
             assert not gate.inspect("container",worker["Id"])["State"]["Running"]
             assert op.sql("SELECT count(*) FROM mw_private.dev_migration_receipts")=="2"
-            assert gate.schema_requirements()==gate.KNOWN_CAPABILITIES
+            assert gate.schema_requirements()==gate.SCHEMA_0043_CAPABILITIES
             # Disallow any migration call while a new process finishes the saved transition.
             saved=op.check_record(json.loads(op.JOURNAL.read_text()))
             if scenario=="failed_readiness":
