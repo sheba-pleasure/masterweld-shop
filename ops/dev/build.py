@@ -12,7 +12,7 @@ if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=n
 if public.get("VITE_APP_ENV") != "dev" or public.get("VITE_SUPABASE_PROJECT_ID") != "mw-dev":
     raise SystemExit("Not a dev build configuration")
 args = ["docker", "build", "--label", "mw.environment=dev", "--build-arg", "GIT_SHA=" + sha,
-        "--build-arg", "PUBLIC_ORIGIN=https://masterweld-dev.138-124-106-211.sslip.io"]
+        "--build-arg", "PUBLIC_ORIGIN=https://masterweld-dev.213-165-53-111.sslip.io"]
 for key in ("VITE_APP_ENV", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PROJECT_ID"):
     args += ["--build-arg", key + "=" + public[key]]
 args += ["-t", "masterweld-dev:" + sha, "-"]

@@ -1,8 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
 import hero from "@/assets/brand/hero-workshop.jpg";
+import { ArcTelemetryCanvas } from "@/components/ArcTelemetryCanvas";
+import { SpotlightBezel } from "@/components/MagneticWrap";
+import { CategoryWeldingIcon, CrosshairIcon } from "@/components/icons/WeldingIcons";
 import { categoriesQuery, mainPhoto, productsQuery, rub } from "@/lib/catalog";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { validateCatalogSearch, type CatalogSearch } from "@/lib/catalog-search";
@@ -63,40 +66,48 @@ const SLIDES = [
 function HeroSlides() {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((n) => (n + 1) % SLIDES.length), 5000);
+    const t = setInterval(() => setI((n) => (n + 1) % SLIDES.length), 5500);
     return () => clearInterval(t);
   }, []);
+
   return (
-    <div className="mt-40 max-w-3xl md:mt-5">
+    <div className="max-w-xl">
       <div className="grid">
         {SLIDES.map((s, n) => (
           <div
             key={s.title}
             aria-hidden={n !== i}
-            className={`col-start-1 row-start-1 transition-all ${n === i ? "duration-700 translate-x-0 opacity-100" : "duration-200 pointer-events-none translate-x-6 opacity-0"}`}
+            className={`col-start-1 row-start-1 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+              n === i ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
+            }`}
           >
             {n === 0 ? (
-              <h1 className="font-display text-xl font-bold uppercase leading-tight text-primary-foreground md:text-4xl">
+              <h1 className="font-display text-2xl font-bold leading-[1.08] text-white sm:text-4xl lg:text-[2.75rem]">
                 {s.title}
               </h1>
             ) : (
-              <p className="font-display text-xl font-bold uppercase leading-tight text-primary-foreground md:text-4xl">
+              <p className="font-display text-2xl font-bold leading-[1.08] text-white sm:text-4xl lg:text-[2.75rem]">
                 {s.title}
               </p>
             )}
-            <p className="mt-2 max-w-xl text-sm text-primary-foreground/80 md:mt-3 md:text-base">
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-secondary-foreground/85 sm:text-base">
               {s.text}
             </p>
           </div>
         ))}
       </div>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-5 flex items-center gap-2">
         {SLIDES.map((s, n) => (
           <button
             key={s.title}
+            type="button"
             onClick={() => setI(n)}
             aria-label={`Слайд ${n + 1}`}
-            className={`h-2.5 rounded-full transition-all ${n === i ? "w-8 bg-brand-yellow" : "w-2.5 bg-primary-foreground/40"}`}
+            className={`h-2 rounded-full transition-[width,background-color] duration-200 ${
+              n === i
+                ? "w-9 bg-mw-amber shadow-[0_0_10px_color-mix(in_oklab,var(--mw-amber)_60%,transparent)]"
+                : "w-2 bg-white/25 hover:bg-white/50"
+            }`}
           />
         ))}
       </div>
@@ -112,6 +123,7 @@ function Catalog() {
   const activeCat = cats.find((c) => c.slug === cat);
   const [limit, setLimit] = useState(48);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const tops = cats.filter((c) => !c.parent_id);
   const topOf = useMemo(() => {
     const m = new Map<string, string>();
@@ -125,7 +137,6 @@ function Catalog() {
     ? (sort as CatalogSort)
     : "name";
 
-  // Сначала категория (та же логика, что и раньше), затем поиск/фильтры/сортировка.
   const catFiltered = useMemo(
     () =>
       products.filter((p) => {
@@ -158,7 +169,6 @@ function Catalog() {
     [catFiltered, q, brand, min, max, instock, sale, activeSort],
   );
 
-  // При смене запроса/фильтров показываем первую страницу выдачи.
   useEffect(() => {
     setLimit(48);
   }, [q, brand, min, max, instock, sale, sort, cat]);
@@ -178,67 +188,203 @@ function Catalog() {
   const setParam = (key: keyof CatalogSearch, value: string | undefined) =>
     navigate({ search: (s) => ({ ...s, [key]: value }), replace: true });
 
+  const visibleTops = tops.filter((c) => counts.get(c.id));
+
+  const tickerItems = useMemo(() => {
+    const brandLabels = brands.slice(0, 10).map(([, name]) => name.toUpperCase());
+    const base = [
+      ...brandLabels,
+      "С 1993 ГОДА",
+      "ДОСТАВКА ПО РФ И СНГ",
+      `ПОЗИЦИЙ В КАТАЛОГЕ: ${products.length}`,
+    ];
+    return [...base, ...base];
+  }, [brands, products.length]);
+
   return (
     <main>
-      {/* Компактный hero: поиск виден сразу, слайды — ниже и скромнее */}
-      <section className="relative overflow-hidden border-b-2 border-brand-yellow bg-brand-deep">
-        <img
-          src={hero}
-          alt=""
-          aria-hidden
-          className="absolute right-0 top-12 h-[280px] w-full object-cover object-[center_45%] opacity-95 md:inset-y-0 md:h-full md:w-2/3 md:opacity-100"
-        />
-        {/* Осветлённое затемнение: знак читается целиком; плотный чёрный — только у самого левого края под текст */}
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-deep/95 from-5% via-brand-deep/40 via-55% to-transparent" />
-        {/* Короткий переход в тёмную шапку: сверху сплошной цвет, ниже — быстрый прозрачный сход */}
-        <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-brand-deep via-brand-deep/55 to-transparent" />
-        <div className="relative mx-auto max-w-7xl px-4 pb-6 pt-4 md:py-10">
-          <p className="font-display text-xs font-bold uppercase tracking-normal text-brand-yellow">
-            Интернет-магазин «Мастер Сварщик»
-          </p>
-          <div className="relative mt-2 w-full max-w-80 md:mt-3 md:max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="search"
-              value={q ?? ""}
-              placeholder="Модель, артикул или бренд…"
-              aria-label="Поиск по каталогу: модель, артикул или бренд"
-              onChange={(e) => setParam("q", e.target.value || undefined)}
-              className="search-field search-field--hero"
+      {/* Editorial Split Industrial Hero + Live Oscilloscope Telemetry */}
+      <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
+        <div className="bezel-outer overflow-hidden">
+          <div className="bezel-inner relative overflow-hidden p-6 sm:p-10">
+            <img
+              src={hero}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0 h-full w-full object-cover object-center opacity-22 mix-blend-lighten lg:w-3/5 lg:opacity-35"
             />
+            <div className="mw-blueprint-grid pointer-events-none absolute inset-0 opacity-40" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-mw-void via-mw-void/90 via-55% to-mw-void/45" />
+
+            {/* Drafting corner markers */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-3 font-mono text-[10px] text-white/25"
+            >
+              +
+            </span>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute right-4 top-3 font-mono text-[10px] text-white/25"
+            >
+              +
+            </span>
+
+            <div className="relative z-10 grid items-center gap-8 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <div className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-mw-amber">
+                  <CrosshairIcon size={14} className="text-mw-cyan" />
+                  <span>EST. 1993 // МАСТЕР СВАРЩИК</span>
+                </div>
+
+                <HeroSlides />
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative w-full max-w-md">
+                    <Search
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mw-cyan"
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="search"
+                      value={q ?? ""}
+                      placeholder="Модель, артикул или бренд…"
+                      aria-label="Поиск по каталогу: модель, артикул или бренд"
+                      onChange={(e) => setParam("q", e.target.value || undefined)}
+                      className="search-field search-field--hero"
+                    />
+                  </div>
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    <strong className="text-white">{products.length}</strong> поз.
+                    {brands.length > 0 ? (
+                      <>
+                        {" "}
+                        · <strong className="text-mw-cyan">{brands.length}</strong> брендов
+                      </>
+                    ) : null}
+                  </span>
+                </div>
+
+                {visibleTops.length > 0 && (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {visibleTops.slice(0, 6).map((c) => (
+                      <Link
+                        key={c.id}
+                        to="/"
+                        search={(s) => ({ ...s, cat: c.slug })}
+                        hash="catalog"
+                        className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                          activeTop === c.id
+                            ? "border-mw-amber bg-mw-amber text-white"
+                            : "border-white/12 bg-mw-void/80 text-secondary-foreground hover:border-mw-cyan/50 hover:text-white"
+                        }`}
+                      >
+                        <CategoryWeldingIcon
+                          slug={c.slug}
+                          name={c.name}
+                          size={14}
+                          className={activeTop === c.id ? "text-white" : "text-mw-cyan"}
+                        />
+                        <span>{c.name}</span>
+                        <span className="font-mono text-[11px] opacity-70 tabular-nums">
+                          {counts.get(c.id)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Live Interactive Arc Oscillogram */}
+              <div className="lg:col-span-5">
+                <ArcTelemetryCanvas />
+              </div>
+            </div>
           </div>
-          <HeroSlides />
         </div>
       </section>
 
-      <section id="catalog" className="workshop-catalog scroll-mt-24">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-8 md:grid-cols-[220px_1fr] md:pt-16">
-          <nav aria-label="Категории каталога" className="hidden gap-2 md:flex md:flex-col">
-            <Link
-              to="/"
-              search={(s) => ({ ...s, cat: undefined })}
-              aria-current={!cat ? "page" : undefined}
-              className={`whitespace-nowrap rounded-md px-3 py-2 text-sm md:whitespace-normal ${!cat ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
-            >
-              Все товары <span className="opacity-60">{products.length}</span>
-            </Link>
-            {tops
-              .filter((c) => counts.get(c.id))
-              .map((c) => (
-                <Link
-                  key={c.id}
-                  to="/"
-                  search={(s) => ({ ...s, cat: c.slug })}
-                  aria-current={activeCat?.id === c.id ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-md px-3 py-2 text-sm md:whitespace-normal ${activeTop === c.id ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
-                >
-                  {c.name} <span className="opacity-60">{counts.get(c.id)}</span>
-                </Link>
-              ))}
-          </nav>
+      {/* Kinetic Hardware Marquee */}
+      <div
+        aria-hidden="true"
+        className="mw-marquee mx-auto mt-6 max-w-7xl border-y border-white/8 py-3"
+      >
+        <div className="mw-marquee-track font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
+          {tickerItems.map((item, idx) => (
+            <span key={`${item}-${idx}`} className="inline-flex items-center gap-4">
+              <span className={idx % 3 === 0 ? "text-white/90" : "text-muted-foreground"}>
+                {item}
+              </span>
+              <span className="text-mw-amber">//</span>
+            </span>
+          ))}
+        </div>
+      </div>
 
+      {/* Catalog Section */}
+      <section id="catalog" className="workshop-catalog scroll-mt-24">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 pb-12 pt-8 sm:px-6 md:grid-cols-[248px_1fr]">
+          {/* Sticky Category Rail with Custom CAD Icons */}
+          <aside className="hidden md:block">
+            <div className="glass-panel sticky top-24 rounded-3xl p-3.5">
+              <nav aria-label="Категории каталога" className="flex flex-col gap-1">
+                <Link
+                  to="/"
+                  search={(s) => ({ ...s, cat: undefined })}
+                  aria-current={!cat ? "page" : undefined}
+                  className={`flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors duration-150 ${
+                    !cat
+                      ? "bg-mw-amber font-semibold text-white"
+                      : "text-secondary-foreground hover:bg-white/6 hover:text-white"
+                  }`}
+                >
+                  <span className="inline-flex min-w-0 items-center gap-2.5">
+                    <CrosshairIcon
+                      size={15}
+                      className={!cat ? "shrink-0 text-white" : "shrink-0 text-mw-cyan"}
+                    />
+                    <span className="truncate">Все товары</span>
+                  </span>
+                  <span className="font-mono text-xs opacity-75 tabular-nums">
+                    {products.length}
+                  </span>
+                </Link>
+                {visibleTops.map((c) => {
+                  const isActive = activeTop === c.id;
+                  return (
+                    <Link
+                      key={c.id}
+                      to="/"
+                      search={(s) => ({ ...s, cat: c.slug })}
+                      aria-current={activeCat?.id === c.id ? "page" : undefined}
+                      className={`flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors duration-150 ${
+                        isActive
+                          ? "bg-mw-amber font-semibold text-white"
+                          : "text-secondary-foreground hover:bg-white/6 hover:text-white"
+                      }`}
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-2.5">
+                        <CategoryWeldingIcon
+                          slug={c.slug}
+                          name={c.name}
+                          size={15}
+                          className={isActive ? "shrink-0 text-white" : "shrink-0 text-mw-cyan"}
+                        />
+                        <span className="truncate">{c.name}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-xs opacity-75 tabular-nums">
+                        {counts.get(c.id)}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Catalog Column */}
           <div className="min-w-0">
-            <label className="mb-5 flex flex-col gap-2 text-sm md:hidden">
+            <label className="mb-4 flex flex-col gap-1.5 text-xs font-medium text-muted-foreground md:hidden">
               Раздел каталога
               <select
                 aria-label="Раздел каталога"
@@ -264,28 +410,66 @@ function Catalog() {
                 ))}
               </select>
             </label>
-            <nav aria-label="Путь по каталогу" className="mb-3 flex flex-wrap gap-2 text-sm">
-              {activeCat && (
-                <Link to="/" search={(s) => ({ ...s, cat: undefined })} className="underline">
+
+            {activeCat && (
+              <nav
+                aria-label="Путь по каталогу"
+                className="mb-3 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground"
+              >
+                <Link
+                  to="/"
+                  search={(s) => ({ ...s, cat: undefined })}
+                  className="transition-colors duration-150 hover:text-white"
+                >
                   Все товары
                 </Link>
-              )}
-              {activeCat?.parent_id && (
-                <>
-                  <span aria-hidden>/</span>
-                  <Link
-                    to="/"
-                    search={(s) => ({ ...s, cat: cats.find((c) => c.id === activeTop)?.slug })}
-                    className="underline"
-                  >
-                    {cats.find((c) => c.id === activeTop)?.name}
-                  </Link>
-                </>
-              )}
-            </nav>
-            <h2 className="mb-4 font-display text-xl text-foreground">
-              {activeCat?.name ?? (cat ? "Раздел не найден" : "Каталог товаров")}
-            </h2>
+                {activeCat.parent_id && (
+                  <>
+                    <span aria-hidden>/</span>
+                    <Link
+                      to="/"
+                      search={(s) => ({
+                        ...s,
+                        cat: cats.find((c) => c.id === activeTop)?.slug,
+                      })}
+                      className="transition-colors duration-150 hover:text-white"
+                    >
+                      {cats.find((c) => c.id === activeTop)?.name}
+                    </Link>
+                  </>
+                )}
+                <span aria-hidden>/</span>
+                <span className="text-mw-cyan">{activeCat.name}</span>
+              </nav>
+            )}
+
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-2xl font-bold text-white sm:text-3xl">
+                {activeCat?.name ?? (cat ? "Раздел не найден" : "Каталог товаров")}
+              </h2>
+
+              <div className="segmented-track" role="group" aria-label="Вид списка товаров">
+                <button
+                  type="button"
+                  aria-pressed={viewMode === "cards"}
+                  onClick={() => setViewMode("cards")}
+                  className="segmented-item inline-flex items-center gap-1.5"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Карточки</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={viewMode === "table"}
+                  onClick={() => setViewMode("table")}
+                  className="segmented-item inline-flex items-center gap-1.5"
+                >
+                  <List className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Таблица</span>
+                </button>
+              </div>
+            </div>
+
             {subs.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {subs
@@ -296,15 +480,21 @@ function Catalog() {
                       to="/"
                       search={(s) => ({ ...s, cat: c.slug })}
                       aria-current={activeCat?.id === c.id ? "page" : undefined}
-                      className={`rounded-full border px-3 py-2 text-xs ${activeCat?.id === c.id ? "border-primary bg-accent text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                      className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                        activeCat?.id === c.id
+                          ? "border-mw-cyan bg-mw-cyan/15 text-white"
+                          : "border-white/10 bg-mw-surface text-muted-foreground hover:border-white/25 hover:text-white"
+                      }`}
                     >
-                      {c.name} · {counts.get(c.id)}
+                      {c.name}{" "}
+                      <span className="ml-1 font-mono opacity-70 tabular-nums">
+                        {counts.get(c.id)}
+                      </span>
                     </Link>
                   ))}
               </div>
             )}
 
-            {/* Фильтры и сортировка: только по реальным полям базы */}
             {hasFilters && (
               <div aria-label="Выбранные фильтры" className="mb-4 flex flex-wrap gap-2">
                 {(
@@ -329,14 +519,18 @@ function Catalog() {
                       type="button"
                       aria-label={`Убрать фильтр «${label}»`}
                       onClick={() => setParam(key, undefined)}
-                      className="filter-chip max-w-full break-words text-left"
+                      className="filter-chip max-w-full break-words border-mw-cyan/45 text-left text-white"
                     >
-                      {label} <span aria-hidden>×</span>
+                      {label}{" "}
+                      <span className="text-mw-cyan" aria-hidden>
+                        ×
+                      </span>
                     </button>
                   ))}
               </div>
             )}
-            <div className="workshop-filters mb-6 flex flex-col gap-3">
+
+            <div className="glass-panel mb-6 flex flex-col gap-3 rounded-3xl p-4 sm:p-5">
               <div className="md:hidden">
                 <button
                   type="button"
@@ -345,64 +539,76 @@ function Catalog() {
                   onClick={() => setFiltersOpen((open) => !open)}
                   className="filter-chip w-full justify-between"
                 >
-                  Фильтры и сортировка <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4 text-mw-cyan" aria-hidden="true" />
+                    Фильтры и сортировка
+                  </span>
+                  <span aria-hidden>{filtersOpen ? "−" : "+"}</span>
                 </button>
               </div>
               <div
                 id="catalog-filters"
-                className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
+                className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-end gap-2.5 md:flex`}
               >
-                <select
-                  aria-label="Сортировка"
-                  value={activeSort}
-                  onChange={(e) =>
-                    setParam("sort", e.target.value === "name" ? undefined : e.target.value)
-                  }
-                  className="filter-field"
-                >
-                  {CATALOG_SORTS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Бренд"
-                  value={brand ?? ""}
-                  onChange={(e) => setParam("brand", e.target.value || undefined)}
-                  className="filter-field"
-                >
-                  <option value="">Все бренды</option>
-                  {brands.map(([key, name]) => (
-                    <option key={key} value={key}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex flex-col gap-1 text-xs">
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Сортировка
+                  <select
+                    aria-label="Сортировка"
+                    value={activeSort}
+                    onChange={(e) =>
+                      setParam("sort", e.target.value === "name" ? undefined : e.target.value)
+                    }
+                    className="filter-field"
+                  >
+                    {CATALOG_SORTS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Бренд
+                  <select
+                    aria-label="Бренд"
+                    value={brand ?? ""}
+                    onChange={(e) => setParam("brand", e.target.value || undefined)}
+                    className="filter-field"
+                  >
+                    <option value="">Все бренды</option>
+                    {brands.map(([key, name]) => (
+                      <option key={key} value={key}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                   Цена от, ₽
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="От"
                     aria-label="Минимальная цена, рублей"
                     value={min ?? ""}
                     onChange={(e) => setParam("min", e.target.value || undefined)}
-                    className="filter-field w-28"
+                    className="filter-field w-28 font-mono tabular-nums"
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-xs">
+
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                   Цена до, ₽
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="до, ₽"
                     aria-label="Максимальная цена, рублей"
                     value={max ?? ""}
                     onChange={(e) => setParam("max", e.target.value || undefined)}
-                    className="filter-field w-24"
+                    className="filter-field w-28 font-mono tabular-nums"
                   />
                 </label>
+
                 <button
                   type="button"
                   aria-pressed={instock === "1"}
@@ -429,23 +635,32 @@ function Catalog() {
                   </button>
                 )}
               </div>
-              <p aria-live="polite" className="text-sm text-muted-foreground">
-                Найдено: {list.length}
+
+              <p
+                aria-live="polite"
+                className="border-t border-white/8 pt-3 font-mono text-xs text-muted-foreground tabular-nums"
+              >
+                Найдено: <strong className="text-white">{list.length}</strong>
               </p>
             </div>
 
             {cat && !activeCat ? (
-              <div className="py-12">
-                <p className="text-muted-foreground">
+              <div className="glass-panel rounded-3xl p-8 text-center">
+                <p className="text-secondary-foreground">
                   Ссылка ведёт в раздел, которого сейчас нет в каталоге.
                 </p>
-                <Link to="/" search={{}} hash="catalog" className="mt-3 inline-block underline">
+                <Link
+                  to="/"
+                  search={{}}
+                  hash="catalog"
+                  className="btn-pill-secondary mt-4 inline-flex"
+                >
                   Открыть весь каталог
                 </Link>
               </div>
             ) : list.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-muted-foreground">
+              <div className="glass-panel rounded-3xl p-10 text-center">
+                <p className="text-secondary-foreground">
                   {hasFilters
                     ? "По вашему запросу ничего не нашлось."
                     : "В этом разделе пока нет товаров."}
@@ -456,7 +671,7 @@ function Catalog() {
                     <button
                       type="button"
                       onClick={() => navigate({ search: (s) => ({ cat: s.cat }) })}
-                      className="underline hover:text-foreground"
+                      className="text-mw-cyan underline underline-offset-4 hover:text-white"
                     >
                       сбросить фильтры
                     </button>
@@ -464,92 +679,194 @@ function Catalog() {
                   </p>
                 )}
               </div>
+            ) : viewMode === "table" ? (
+              <div className="glass-panel overflow-x-auto rounded-3xl">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-mw-void font-mono text-xs text-muted-foreground">
+                      <th className="p-4 font-medium">Товар</th>
+                      <th className="p-4 font-medium">Бренд</th>
+                      <th className="p-4 font-medium">Артикул</th>
+                      <th className="p-4 font-medium">Наличие</th>
+                      <th className="p-4 text-right font-medium">Цена</th>
+                      <th className="p-4 text-right font-medium">Заказ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/8">
+                    {list.slice(0, limit).map((p) => {
+                      const img = mainPhoto(p.product_photos);
+                      return (
+                        <tr
+                          key={p.id}
+                          className="transition-colors duration-150 hover:bg-white/[0.03]"
+                        >
+                          <td className="p-4">
+                            <Link
+                              to="/product/$slug"
+                              params={{ slug: p.slug }}
+                              search={{ cat, q, brand, min, max, instock, sale, sort }}
+                              className="flex items-center gap-3 font-medium text-white transition-colors duration-150 hover:text-mw-cyan"
+                            >
+                              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1">
+                                {img ? (
+                                  <img
+                                    src={img}
+                                    alt=""
+                                    loading="lazy"
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-slate-500">Фото</span>
+                                )}
+                              </span>
+                              <span className="line-clamp-2">{p.title}</span>
+                            </Link>
+                          </td>
+                          <td className="p-4 font-mono text-xs text-mw-cyan">{p.brand ?? "—"}</td>
+                          <td className="p-4 font-mono text-xs text-muted-foreground">
+                            {p.sku ?? "—"}
+                          </td>
+                          <td className="p-4 font-mono text-xs">
+                            <span
+                              className={p.in_stock ? "text-mw-emerald" : "text-muted-foreground"}
+                            >
+                              {p.price === null
+                                ? "Наличие уточняется"
+                                : p.in_stock
+                                  ? "Отмечено в наличии"
+                                  : "Под заказ"}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right whitespace-nowrap">
+                            <div className="font-display text-base font-semibold text-white tabular-nums">
+                              {rub(p.price)}
+                            </div>
+                            {isDiscounted(p) && (
+                              <div className="font-mono text-xs text-muted-foreground line-through tabular-nums">
+                                {rub(Number(p.old_price))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="inline-flex justify-end">
+                              <AddToCartButton
+                                item={{
+                                  id: p.id,
+                                  slug: p.slug,
+                                  title: p.title,
+                                  sku: p.sku,
+                                  price: p.price,
+                                  photo: img ?? null,
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <ul className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {list.slice(0, limit).map((p) => {
                   const img = mainPhoto(p.product_photos);
+                  const productCat = cats.find((c) => c.id === p.category_id);
                   return (
-                    <li
-                      key={p.id}
-                      className="group flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-shadow hover:shadow-lg"
-                    >
-                      <Link
-                        to="/product/$slug"
-                        params={{ slug: p.slug }}
-                        search={{ cat, q, brand, min, max, instock, sale, sort }}
-                        className="flex h-full flex-col"
+                    <li key={p.id} className="h-full">
+                      <SpotlightBezel
+                        className="flex h-full"
+                        innerClassName="flex h-full w-full flex-col overflow-hidden"
                       >
-                        <div className="relative flex aspect-square items-center justify-center bg-background p-4">
-                          {img ? (
-                            <img
-                              src={img}
-                              alt={p.title}
-                              loading="lazy"
-                              className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Нет фото</span>
-                          )}
-                          {isDiscounted(p) && <span className="sale-badge">Цена снижена</span>}
-                        </div>
-                        <div className="flex flex-1 flex-col gap-1.5 border-t border-border p-3">
-                          {p.brand && (
-                            <span className="truncate text-xs uppercase tracking-wide text-muted-foreground">
-                              {p.brand}
-                            </span>
-                          )}
-                          <h2 className="line-clamp-3 text-sm font-medium text-card-foreground">
-                            {p.title}
-                          </h2>
-                          {p.sku && (
-                            <span className="truncate text-xs text-muted-foreground">
-                              Артикул: {p.sku}
-                            </span>
-                          )}
-                          <div className="mt-auto flex flex-wrap items-baseline gap-2">
-                            <span className="font-display text-lg font-bold text-foreground">
-                              {rub(p.price)}
-                            </span>
-                            {isDiscounted(p) && (
-                              <span className="text-xs text-muted-foreground line-through">
-                                {rub(Number(p.old_price))}
+                        <Link
+                          to="/product/$slug"
+                          params={{ slug: p.slug }}
+                          search={{ cat, q, brand, min, max, instock, sale, sort }}
+                          className="group flex flex-1 flex-col"
+                        >
+                          <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white p-4">
+                            {img ? (
+                              <img
+                                src={img}
+                                alt={p.title}
+                                loading="lazy"
+                                className="max-h-full max-w-full object-contain transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.04]"
+                              />
+                            ) : (
+                              <span className="font-mono text-xs text-slate-400">Нет фото</span>
+                            )}
+                            {isDiscounted(p) && <span className="sale-badge">Цена снижена</span>}
+                          </div>
+
+                          <div className="flex flex-1 flex-col gap-2 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
+                              <span className="inline-flex items-center gap-1.5 text-mw-cyan">
+                                <CategoryWeldingIcon
+                                  slug={productCat?.slug}
+                                  name={productCat?.name}
+                                  size={13}
+                                />
+                                <span>{p.brand ?? productCat?.name ?? "Каталог"}</span>
+                              </span>
+                              <span
+                                className={p.in_stock ? "text-mw-emerald" : "text-muted-foreground"}
+                              >
+                                {p.price === null
+                                  ? "Наличие уточняется"
+                                  : p.in_stock
+                                    ? "Отмечено в наличии"
+                                    : "Под заказ"}
+                              </span>
+                            </div>
+
+                            <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-white transition-colors duration-150 group-hover:text-mw-cyan">
+                              {p.title}
+                            </h3>
+
+                            {p.sku && (
+                              <span className="truncate font-mono text-xs text-muted-foreground">
+                                Артикул: {p.sku}
                               </span>
                             )}
+
+                            <div className="mt-auto flex flex-wrap items-baseline gap-2 border-t border-white/8 pt-3">
+                              <span className="font-display text-lg font-bold text-white tabular-nums">
+                                {rub(p.price)}
+                              </span>
+                              {isDiscounted(p) && (
+                                <span className="font-mono text-xs text-muted-foreground line-through tabular-nums">
+                                  {rub(Number(p.old_price))}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <span
-                            className={`text-xs ${p.in_stock ? "text-primary" : "text-muted-foreground"}`}
-                          >
-                            {p.price === null
-                              ? "Наличие уточняется"
-                              : p.in_stock
-                                ? "Отмечено в наличии"
-                                : "Под заказ"}
-                          </span>
+                        </Link>
+                        <div className="px-4 pb-4">
+                          <AddToCartButton
+                            className="w-full"
+                            item={{
+                              id: p.id,
+                              slug: p.slug,
+                              title: p.title,
+                              sku: p.sku,
+                              price: p.price,
+                              photo: img ?? null,
+                            }}
+                          />
                         </div>
-                      </Link>
-                      <div className="px-3 pb-3">
-                        <AddToCartButton
-                          className="w-full"
-                          item={{
-                            id: p.id,
-                            slug: p.slug,
-                            title: p.title,
-                            sku: p.sku,
-                            price: p.price,
-                            photo: img ?? null,
-                          }}
-                        />
-                      </div>
+                      </SpotlightBezel>
                     </li>
                   );
                 })}
               </ul>
             )}
+
             {list.length > limit && (
               <div className="mt-8 text-center">
                 <button
+                  type="button"
                   onClick={() => setLimit((l) => l + 48)}
-                  className="rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                  className="btn-pill-secondary px-8"
                 >
                   Показать ещё ({list.length - limit})
                 </button>

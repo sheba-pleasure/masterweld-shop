@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install one masterweld dev vhost into the existing Caddy; preserve all other sites."""
 import datetime, fcntl, json, os, pathlib, subprocess, tempfile
-DOMAIN="masterweld-dev.138-124-106-211.sslip.io"
+DOMAIN="masterweld-dev.213-165-53-111.sslip.io"
 TARGET=pathlib.Path("/opt/remnawave/caddy/Caddyfile")
 BEGIN="# BEGIN MASTERWELD DEV"
 BLOCK=BEGIN+"\n"+DOMAIN+""" {

@@ -7,7 +7,7 @@
 
 [Что уже отделено от Lovable и что осталось перенести](docs/INDEPENDENT-SHOP.md).
 
-- **DEV:** https://masterweld-dev.138-124-106-211.sslip.io
+- **DEV:** https://masterweld-dev.213-165-53-111.sslip.io
 - **Тестовый Telegram:** [@testmw639bot](https://t.me/testmw639bot) — подключён к отдельной DEV-базе; владелец назначен администратором.
 - **Рабочий магазин:** планируемый shop.masterweld.ru; production этим этапом не выпущен.
 - **Старый сайт:** masterweld.ru — самостоятельный сайт; его данные и маршруты не менялись.
