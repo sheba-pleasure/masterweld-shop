@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
-import hero from "@/assets/brand/hero-workshop.jpg";
+import { LivingWorkshop } from "@/components/LivingWorkshop";
 import { ArcTelemetryCanvas } from "@/components/ArcTelemetryCanvas";
 import { SpotlightBezel } from "@/components/MagneticWrap";
 import { CategoryWeldingIcon, CrosshairIcon } from "@/components/icons/WeldingIcons";
@@ -206,15 +206,8 @@ function Catalog() {
       {/* Editorial Split Industrial Hero + Live Oscilloscope Telemetry */}
       <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
         <div className="bezel-outer overflow-hidden">
-          <div className="bezel-inner relative overflow-hidden p-6 sm:p-10">
-            <img
-              src={hero}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-3/5 object-contain object-right lg:block"
-            />
-            <div className="mw-blueprint-grid pointer-events-none absolute inset-0 opacity-40" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-mw-void via-mw-void/90 via-40% to-transparent" />
+          <div className="bezel-inner living-hero-inner relative overflow-hidden p-6 sm:p-10">
+            <LivingWorkshop />
 
             {/* Drafting corner markers */}
             <span
@@ -231,7 +224,7 @@ function Catalog() {
             </span>
 
             <div className="relative z-10 grid items-center gap-8 lg:grid-cols-12">
-              <div className="lg:col-span-7">
+              <div className="living-hero-copy lg:col-span-6">
                 <div className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-mw-amber">
                   <CrosshairIcon size={14} className="text-mw-cyan" />
                   <span>EST. 1993 // МАСТЕР СВАРЩИК</span>
@@ -295,13 +288,8 @@ function Catalog() {
                 )}
               </div>
 
-              <div className="hidden lg:col-span-5 lg:block" aria-hidden="true" />
+              <div className="hidden lg:col-span-6 lg:block" aria-hidden="true" />
             </div>
-            <img
-              src={hero}
-              alt="Мастер Сварщик в сварочном цехе"
-              className="relative mt-6 w-full rounded-xl object-contain lg:hidden"
-            />
           </div>
         </div>
       </section>

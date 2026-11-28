@@ -1092,3 +1092,351 @@
     transform: none;
   }
 }
+
+/* Eight-second photographic cinemagraph, scoped to the existing hero only. */
+.living-hero-inner {
+  min-height: 525px;
+  isolation: isolate;
+}
+.living-hero-copy {
+  position: relative;
+  z-index: 6;
+  max-width: 600px;
+}
+.living-photo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --mark-x: 74%;
+  --mark-y: 46%;
+  --mark-width: 36%;
+  --shadow-x: 74%;
+  --shadow-y: 83%;
+  --shadow-width: 28%;
+  --steam-x: 94%;
+  --steam-y: 66%;
+  --steam-width: 24%;
+  --arc-x: 97%;
+  --arc-y: 66%;
+}
+.living-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+.living-ambient {
+  display: none;
+}
+.living-mark {
+  position: absolute;
+  z-index: 4;
+  left: var(--mark-x);
+  top: var(--mark-y);
+  width: var(--mark-width);
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 60%;
+  filter: drop-shadow(0 8px 5px rgb(0 0 0 / 25%));
+  animation: living-mark-breathe 8s ease-in-out infinite;
+  will-change: transform;
+}
+.living-mark img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.living-mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(110deg, transparent 39%, rgb(255 231 184 / 8%) 48%, transparent 57%);
+  opacity: 0.25;
+  animation: living-enamel-light 8s ease-in-out infinite;
+  pointer-events: none;
+}
+.living-shadow {
+  position: absolute;
+  z-index: 1;
+  left: var(--shadow-x);
+  top: var(--shadow-y);
+  width: var(--shadow-width);
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgb(0 0 0 / 64%), rgb(0 0 0 / 25%) 40%, transparent 72%);
+  filter: blur(5px);
+  animation: living-shadow-breathe 8s ease-in-out infinite;
+}
+.living-vapor {
+  position: absolute;
+  z-index: 2;
+  left: var(--steam-x);
+  top: var(--steam-y);
+  width: var(--steam-width);
+  height: auto;
+  opacity: 0.14;
+  transform-origin: 50% 100%;
+  transform: translate(-56%, -91%);
+  mix-blend-mode: screen;
+  animation: living-vapor-rise 8s linear infinite;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.living-vapor-b {
+  animation-delay: -4s;
+}
+.living-sparks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+}
+.living-arc {
+  position: absolute;
+  z-index: 3;
+  left: var(--arc-x);
+  top: var(--arc-y);
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgb(255 250 226 / 86%) 0%,
+    rgb(255 220 164 / 72%) 3%,
+    rgb(192 218 255 / 24%) 13%,
+    rgb(255 166 60 / 7%) 36%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  animation: living-arc-light 2s ease-in-out infinite;
+}
+.living-reflections {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: radial-gradient(ellipse 40% 65% at 90% 75%, rgb(255 152 48 / 11%), transparent 70%);
+  mix-blend-mode: screen;
+  animation: living-arc-light 2s ease-in-out infinite;
+}
+.living-readability {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: linear-gradient(
+    90deg,
+    rgb(3 7 10 / 88%) 0%,
+    rgb(3 7 10 / 72%) 32%,
+    rgb(3 7 10 / 35%) 48%,
+    transparent 61%
+  );
+}
+.living-pause {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 8;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 8px;
+  color: #d8d8d2;
+  background: rgb(9 13 15 / 70%);
+  font-size: 10px;
+}
+.living-pause:focus-visible {
+  outline: 2px solid #ff9b45;
+  outline-offset: 3px;
+}
+.living-photo[data-motion="paused"]
+  :is(
+    .living-mark,
+    .living-mark::after,
+    .living-vapor,
+    .living-shadow,
+    .living-arc,
+    .living-reflections
+  ) {
+  animation-play-state: paused;
+}
+@keyframes living-mark-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate3d(0, 2px, 0) rotate(-0.3deg) scale(0.998);
+  }
+  50% {
+    transform: translate(-50%, -50%) translate3d(0, -5px, 0) rotate(0.3deg) scale(1.004);
+  }
+}
+@keyframes living-shadow-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.07, 0.96);
+    opacity: 0.54;
+  }
+}
+@keyframes living-enamel-light {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+@keyframes living-vapor-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-52%, -88%) scale(0.89);
+  }
+  25% {
+    opacity: 0.17;
+  }
+  60% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-69%, -103%) scale(1.15);
+  }
+}
+@keyframes living-arc-light {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  35% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.88;
+  }
+}
+@media (min-width: 760px) and (max-width: 1100px) {
+  .living-hero-inner {
+    min-height: 500px;
+  }
+  .living-hero-copy {
+    max-width: 50%;
+  }
+  .living-hero-copy h1,
+  .living-hero-copy p.font-display {
+    font-size: 30px;
+  }
+}
+@media (max-width: 759px) {
+  .living-hero-inner {
+    min-height: 740px;
+    padding-bottom: 370px;
+  }
+  .living-hero-copy {
+    max-width: none;
+  }
+  .living-ambient {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 65% 50%;
+    opacity: 0.28;
+  }
+  .living-background {
+    top: auto;
+    bottom: 0;
+    height: 350px;
+    object-position: 82.5% 50%;
+  }
+  .living-readability {
+    background: linear-gradient(
+      180deg,
+      rgb(3 7 10 / 69%) 0%,
+      rgb(3 7 10 / 62%) 38%,
+      rgb(3 7 10 / 15%) 57%,
+      transparent 68%
+    );
+  }
+  .living-pause {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-photo
+    :is(
+      .living-mark,
+      .living-mark::after,
+      .living-vapor,
+      .living-shadow,
+      .living-arc,
+      .living-reflections
+    ) {
+    animation: none;
+  }
+  .living-sparks,
+  .living-pause {
+    display: none;
+  }
+}
+
+.living-photo[data-motion="paused"] .living-mark::after {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-photo .living-mark::after {
+    animation: none;
+  }
+}
+
+@media (min-width: 760px) and (max-width: 1100px) {
+  .living-background {
+    object-position: 70% 50%;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1100px) {
+  .living-hero-copy {
+    max-width: 100%;
+  }
+}
+
+.living-photo[data-motion="paused"] .living-mark,
+.living-photo[data-motion="paused"] .living-vapor,
+.living-photo[data-motion="paused"] .living-shadow,
+.living-photo[data-motion="paused"] .living-arc,
+.living-photo[data-motion="paused"] .living-reflections {
+  animation-play-state: paused;
+}
+
+@media (max-width: 759px) {
+  .living-background {
+    mask-image: linear-gradient(to bottom, transparent, #000 18%);
+  }
+  .living-ambient {
+    opacity: 0.38;
+  }
+}
+
+@media (max-width: 759px) {
+  .living-photo {
+    --mark-x: 50%;
+    --mark-y: calc(100% - 189px);
+    --mark-width: 90%;
+    --shadow-x: 50%;
+    --shadow-y: calc(100% - 60px);
+    --steam-x: 98%;
+    --steam-y: calc(100% - 119px);
+    --steam-width: 48%;
+  }
+}
